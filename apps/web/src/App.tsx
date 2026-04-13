@@ -1,10 +1,18 @@
 import { startTransition, useEffect, useState, type FormEvent } from "react";
 
-import type { AuthenticatedUser, Bookmark, CreateBookmarkRequest } from "@bookmark/shared";
+import type {
+  AuthenticatedUser,
+  Bookmark,
+  CreateBookmarkRequest,
+  Folder,
+  Tag
+} from "@bookmark/shared";
 
 import { createBookmark, loadBookmarks } from "./lib/bookmarks";
 import { signInWithGoogle, signOutFromGoogle } from "./lib/firebase";
+import { createFolder, loadFolders } from "./lib/folders";
 import { exchangeIdTokenForSession, loadSession, logoutSession } from "./lib/session";
+import { createTag, loadTags } from "./lib/tags";
 
 type SessionState =
   | { status: "loading" }
@@ -13,18 +21,42 @@ type SessionState =
 
 type BookmarkDraft = {
   url: string;
+  folderId: string;
   userTitle: string;
   userContent: string;
   userSummary: string;
   isFavorite: boolean;
 };
 
+type FolderDraft = {
+  name: string;
+  color: string;
+  icon: string;
+};
+
+type TagDraft = {
+  name: string;
+  color: string;
+};
+
 const emptyBookmarkDraft: BookmarkDraft = {
   url: "",
+  folderId: "",
   userTitle: "",
   userContent: "",
   userSummary: "",
   isFavorite: false
+};
+
+const emptyFolderDraft: FolderDraft = {
+  name: "",
+  color: "",
+  icon: ""
+};
+
+const emptyTagDraft: TagDraft = {
+  name: "",
+  color: ""
 };
 
 export default function App() {
@@ -32,27 +64,41 @@ export default function App() {
     status: "loading"
   });
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [bookmarkDraft, setBookmarkDraft] = useState<BookmarkDraft>(emptyBookmarkDraft);
-  const [isLoadingBookmarks, setIsLoadingBookmarks] = useState(false);
+  const [folderDraft, setFolderDraft] = useState<FolderDraft>(emptyFolderDraft);
+  const [tagDraft, setTagDraft] = useState<TagDraft>(emptyTagDraft);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [isSavingBookmark, setIsSavingBookmark] = useState(false);
+  const [isSavingFolder, setIsSavingFolder] = useState(false);
+  const [isSavingTag, setIsSavingTag] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  async function refreshBookmarks() {
-    setIsLoadingBookmarks(true);
+  async function refreshDashboardData() {
+    setIsLoadingDashboard(true);
 
     try {
-      const nextBookmarks = await loadBookmarks();
+      const [nextBookmarks, nextFolders, nextTags] = await Promise.all([
+        loadBookmarks(),
+        loadFolders(),
+        loadTags()
+      ]);
 
       startTransition(() => {
         setBookmarks(nextBookmarks);
+        setFolders(nextFolders);
+        setTags(nextTags);
       });
     } catch {
       startTransition(() => {
         setBookmarks([]);
-        setErrorMessage("북마크를 불러오지 못했습니다.");
+        setFolders([]);
+        setTags([]);
+        setErrorMessage("대시보드 데이터를 불러오지 못했습니다.");
       });
     } finally {
-      setIsLoadingBookmarks(false);
+      setIsLoadingDashboard(false);
     }
   }
 
@@ -79,7 +125,7 @@ export default function App() {
           });
         });
 
-        await refreshBookmarks();
+        await refreshDashboardData();
       })
       .catch(() => {
         if (cancelled) {
@@ -101,7 +147,11 @@ export default function App() {
       setErrorMessage(null);
       const idToken = await signInWithGoogle();
       const user = await exchangeIdTokenForSession(idToken);
-      const nextBookmarks = await loadBookmarks().catch(() => []);
+      const [nextBookmarks, nextFolders, nextTags] = await Promise.all([
+        loadBookmarks().catch(() => []),
+        loadFolders().catch(() => []),
+        loadTags().catch(() => [])
+      ]);
 
       startTransition(() => {
         setSessionState({
@@ -109,6 +159,8 @@ export default function App() {
           user
         });
         setBookmarks(nextBookmarks);
+        setFolders(nextFolders);
+        setTags(nextTags);
       });
     } catch (error) {
       startTransition(() => {
@@ -128,7 +180,11 @@ export default function App() {
     startTransition(() => {
       setSessionState({ status: "anonymous" });
       setBookmarks([]);
+      setFolders([]);
+      setTags([]);
       setBookmarkDraft(emptyBookmarkDraft);
+      setFolderDraft(emptyFolderDraft);
+      setTagDraft(emptyTagDraft);
     });
   }
 
@@ -141,6 +197,7 @@ export default function App() {
 
       const payload: CreateBookmarkRequest = {
         url: bookmarkDraft.url,
+        folderId: bookmarkDraft.folderId || null,
         userTitle: bookmarkDraft.userTitle || null,
         userContent: bookmarkDraft.userContent || null,
         userSummary: bookmarkDraft.userSummary || null,
@@ -165,8 +222,77 @@ export default function App() {
     }
   }
 
-  function updateDraft(nextValues: Partial<BookmarkDraft>) {
+  async function handleFolderSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    try {
+      setErrorMessage(null);
+      setIsSavingFolder(true);
+
+      const createdFolder = await createFolder({
+        name: folderDraft.name,
+        color: folderDraft.color || null,
+        icon: folderDraft.icon || null
+      });
+
+      startTransition(() => {
+        setFolders((currentFolders) => [...currentFolders, createdFolder]);
+        setFolderDraft(emptyFolderDraft);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "폴더를 저장하지 못했습니다."
+        );
+      });
+    } finally {
+      setIsSavingFolder(false);
+    }
+  }
+
+  async function handleTagSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    try {
+      setErrorMessage(null);
+      setIsSavingTag(true);
+
+      const createdTag = await createTag({
+        name: tagDraft.name,
+        color: tagDraft.color || null
+      });
+
+      startTransition(() => {
+        setTags((currentTags) => [...currentTags, createdTag]);
+        setTagDraft(emptyTagDraft);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "태그를 저장하지 못했습니다."
+        );
+      });
+    } finally {
+      setIsSavingTag(false);
+    }
+  }
+
+  function updateBookmarkDraft(nextValues: Partial<BookmarkDraft>) {
     setBookmarkDraft((currentDraft) => ({
+      ...currentDraft,
+      ...nextValues
+    }));
+  }
+
+  function updateFolderDraft(nextValues: Partial<FolderDraft>) {
+    setFolderDraft((currentDraft) => ({
+      ...currentDraft,
+      ...nextValues
+    }));
+  }
+
+  function updateTagDraft(nextValues: Partial<TagDraft>) {
+    setTagDraft((currentDraft) => ({
       ...currentDraft,
       ...nextValues
     }));
@@ -200,16 +326,31 @@ export default function App() {
                   name="url"
                   type="url"
                   value={bookmarkDraft.url}
-                  onChange={(event) => updateDraft({ url: event.target.value })}
+                  onChange={(event) => updateBookmarkDraft({ url: event.target.value })}
                   required
                 />
+              </label>
+              <label>
+                저장 폴더
+                <select
+                  name="folderId"
+                  value={bookmarkDraft.folderId}
+                  onChange={(event) => updateBookmarkDraft({ folderId: event.target.value })}
+                >
+                  <option value="">폴더 없음</option>
+                  {folders.map((folder) => (
+                    <option key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 제목
                 <input
                   name="userTitle"
                   value={bookmarkDraft.userTitle}
-                  onChange={(event) => updateDraft({ userTitle: event.target.value })}
+                  onChange={(event) => updateBookmarkDraft({ userTitle: event.target.value })}
                 />
               </label>
               <label>
@@ -217,7 +358,7 @@ export default function App() {
                 <textarea
                   name="userContent"
                   value={bookmarkDraft.userContent}
-                  onChange={(event) => updateDraft({ userContent: event.target.value })}
+                  onChange={(event) => updateBookmarkDraft({ userContent: event.target.value })}
                 />
               </label>
               <label>
@@ -225,7 +366,7 @@ export default function App() {
                 <textarea
                   name="userSummary"
                   value={bookmarkDraft.userSummary}
-                  onChange={(event) => updateDraft({ userSummary: event.target.value })}
+                  onChange={(event) => updateBookmarkDraft({ userSummary: event.target.value })}
                 />
               </label>
               <label>
@@ -234,7 +375,7 @@ export default function App() {
                   name="isFavorite"
                   type="checkbox"
                   checked={bookmarkDraft.isFavorite}
-                  onChange={(event) => updateDraft({ isFavorite: event.target.checked })}
+                  onChange={(event) => updateBookmarkDraft({ isFavorite: event.target.checked })}
                 />
               </label>
               <button type="submit" disabled={isSavingBookmark}>
@@ -243,9 +384,79 @@ export default function App() {
             </form>
           </section>
 
+          <section aria-label="folder-manager">
+            <h2>폴더 관리</h2>
+            <form onSubmit={(event) => void handleFolderSubmit(event)}>
+              <label>
+                폴더 이름
+                <input
+                  name="folderName"
+                  value={folderDraft.name}
+                  onChange={(event) => updateFolderDraft({ name: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                폴더 색상
+                <input
+                  name="folderColor"
+                  value={folderDraft.color}
+                  onChange={(event) => updateFolderDraft({ color: event.target.value })}
+                />
+              </label>
+              <label>
+                폴더 아이콘
+                <input
+                  name="folderIcon"
+                  value={folderDraft.icon}
+                  onChange={(event) => updateFolderDraft({ icon: event.target.value })}
+                />
+              </label>
+              <button type="submit" disabled={isSavingFolder}>
+                {isSavingFolder ? "추가 중..." : "폴더 추가"}
+              </button>
+            </form>
+            <ul>
+              {folders.map((folder) => (
+                <li key={folder.id}>{folder.name}</li>
+              ))}
+            </ul>
+          </section>
+
+          <section aria-label="tag-manager">
+            <h2>태그 관리</h2>
+            <form onSubmit={(event) => void handleTagSubmit(event)}>
+              <label>
+                태그 이름
+                <input
+                  name="tagName"
+                  value={tagDraft.name}
+                  onChange={(event) => updateTagDraft({ name: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                태그 색상
+                <input
+                  name="tagColor"
+                  value={tagDraft.color}
+                  onChange={(event) => updateTagDraft({ color: event.target.value })}
+                />
+              </label>
+              <button type="submit" disabled={isSavingTag}>
+                {isSavingTag ? "추가 중..." : "태그 추가"}
+              </button>
+            </form>
+            <ul>
+              {tags.map((tag) => (
+                <li key={tag.id}>{tag.name}</li>
+              ))}
+            </ul>
+          </section>
+
           <section aria-label="bookmark-list">
             <h2>저장된 북마크</h2>
-            {isLoadingBookmarks ? <p>북마크를 불러오는 중입니다.</p> : null}
+            {isLoadingDashboard ? <p>대시보드 데이터를 불러오는 중입니다.</p> : null}
             {bookmarks.length === 0 ? <p>아직 저장된 북마크가 없습니다.</p> : null}
             <ul>
               {bookmarks.map((bookmark) => (

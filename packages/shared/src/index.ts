@@ -69,3 +69,57 @@ export type BookmarkResponse = {
 export type BookmarkListResponse = {
   bookmarks: Bookmark[];
 };
+
+export type Folder = {
+  id: string;
+  name: string;
+  color: string | null;
+  icon: string | null;
+  parentFolderId: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateFolderRequest = {
+  name: string;
+  color?: string | null;
+  icon?: string | null;
+  parentFolderId?: string | null;
+};
+
+export type UpdateFolderRequest = {
+  name?: string;
+  color?: string | null;
+  icon?: string | null;
+  parentFolderId?: string | null;
+};
+
+export type FolderResponse = {
+  folder: Folder;
+};
+
+export type FolderListResponse = {
+  folders: Folder[];
+};
+
+export type Tag = {
+  id: string;
+  name: string;
+  color: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateTagRequest = {
+  name: string;
+  color?: string | null;
+};
+
+export type TagResponse = {
+  tag: Tag;
+};
+
+export type TagListResponse = {
+  tags: Tag[];
+};

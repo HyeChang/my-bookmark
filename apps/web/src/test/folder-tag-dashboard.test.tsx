@@ -7,8 +7,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("bookmark dashboard", () => {
-  it("shows the bookmark form and stored bookmarks for an authenticated user", async () => {
+describe("folder and tag dashboard", () => {
+  it("shows existing folders and tags for an authenticated user", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
 
@@ -18,8 +18,7 @@ describe("bookmark dashboard", () => {
             authenticated: true,
             user: {
               uid: "firebase-user-1",
-              email: "keygenerator25@gmail.com",
-              name: "Bookmark Tester"
+              email: "keygenerator25@gmail.com"
             }
           }),
           {
@@ -32,27 +31,27 @@ describe("bookmark dashboard", () => {
       }
 
       if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
         return new Response(
           JSON.stringify({
-            bookmarks: [
+            folders: [
               {
-                id: "bookmark-1",
-                folderId: null,
-                url: "https://example.com/post",
-                isFavorite: true,
-                bookmarkColor: "#f59e0b",
-                urlColor: "#0f172a",
-                sourceTitle: null,
-                sourceContent: null,
-                sourceSummary: null,
-                userTitle: "Manual title",
-                userContent: "Manual content",
-                userSummary: "Manual summary",
-                displayTitle: "Manual title",
-                displayContent: "Manual content",
-                displaySummary: "Manual summary",
-                createdAt: "2026-04-13T08:00:00.000Z",
-                updatedAt: "2026-04-13T08:00:00.000Z"
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
               }
             ]
           }),
@@ -65,22 +64,26 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/folders" && !init?.method) {
-        return new Response(JSON.stringify({ folders: [] }), {
-          status: 200,
-          headers: {
-            "content-type": "application/json"
-          }
-        });
-      }
-
       if (url === "/api/tags" && !init?.method) {
-        return new Response(JSON.stringify({ tags: [] }), {
-          status: 200,
-          headers: {
-            "content-type": "application/json"
+        return new Response(
+          JSON.stringify({
+            tags: [
+              {
+                id: "tag-1",
+                name: "research",
+                color: "#2563eb",
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
           }
-        });
+        );
       }
 
       throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
@@ -88,13 +91,14 @@ describe("bookmark dashboard", () => {
 
     render(<App />);
 
-    expect(await screen.findByLabelText(/url/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /북마크 저장/i })).toBeInTheDocument();
-    expect(await screen.findByText(/manual title/i)).toBeInTheDocument();
-    expect(screen.getByText(/https:\/\/example.com\/post/i)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/저장 폴더/i)).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: /reading/i })).toBeInTheDocument();
+    expect(await screen.findByText(/research/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/폴더 이름/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/태그 이름/i)).toBeInTheDocument();
   });
 
-  it("creates a bookmark and appends it to the list", async () => {
+  it("creates a folder and appends it to the folder list and picker", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
 
@@ -143,27 +147,18 @@ describe("bookmark dashboard", () => {
         });
       }
 
-      if (url === "/api/bookmarks" && init?.method === "POST") {
+      if (url === "/api/folders" && init?.method === "POST") {
         return new Response(
           JSON.stringify({
-            bookmark: {
-              id: "bookmark-2",
-              folderId: null,
-              url: "https://example.com/new",
-              isFavorite: false,
-              bookmarkColor: null,
-              urlColor: null,
-              sourceTitle: null,
-              sourceContent: null,
-              sourceSummary: null,
-              userTitle: "Created title",
-              userContent: "Created content",
-              userSummary: "Created summary",
-              displayTitle: "Created title",
-              displayContent: "Created content",
-              displaySummary: "Created summary",
-              createdAt: "2026-04-13T08:00:00.000Z",
-              updatedAt: "2026-04-13T08:00:00.000Z"
+            folder: {
+              id: "folder-2",
+              name: "Articles",
+              color: "#0f766e",
+              icon: "newspaper",
+              parentFolderId: null,
+              sortOrder: 0,
+              createdAt: "2026-04-13T10:00:00.000Z",
+              updatedAt: "2026-04-13T10:00:00.000Z"
             }
           }),
           {
@@ -180,34 +175,29 @@ describe("bookmark dashboard", () => {
 
     render(<App />);
 
-    fireEvent.change(await screen.findByLabelText(/url/i), {
+    fireEvent.change(await screen.findByLabelText(/폴더 이름/i), {
       target: {
-        value: "https://example.com/new"
+        value: "Articles"
       }
     });
-    fireEvent.change(screen.getByLabelText(/제목/i), {
+    fireEvent.change(screen.getByLabelText(/폴더 색상/i), {
       target: {
-        value: "Created title"
+        value: "#0f766e"
       }
     });
-    fireEvent.change(screen.getByLabelText(/내용/i), {
+    fireEvent.change(screen.getByLabelText(/폴더 아이콘/i), {
       target: {
-        value: "Created content"
+        value: "newspaper"
       }
     });
-    fireEvent.change(screen.getByLabelText(/요약/i), {
-      target: {
-        value: "Created summary"
-      }
-    });
-    fireEvent.click(screen.getByRole("button", { name: /북마크 저장/i }));
+    fireEvent.click(screen.getByRole("button", { name: /폴더 추가/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/created title/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/articles/i).length).toBeGreaterThan(0);
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/bookmarks",
+      "/api/folders",
       expect.objectContaining({
         method: "POST"
       })

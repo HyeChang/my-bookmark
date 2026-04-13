@@ -1,0 +1,190 @@
+import type {
+  CreateFolderRequest,
+  Folder,
+  UpdateFolderRequest
+} from "@bookmark/shared";
+
+type FolderRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  color: string | null;
+  icon: string | null;
+  parent_folder_id: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FolderRecord = Folder & {
+  userId: string;
+};
+
+export type CreateFolderInput = CreateFolderRequest & {
+  userId: string;
+};
+
+export type FolderRepository = {
+  listByUser(userId: string): Promise<FolderRecord[]>;
+  create(input: CreateFolderInput): Promise<FolderRecord>;
+  update(
+    folderId: string,
+    userId: string,
+    input: UpdateFolderRequest
+  ): Promise<FolderRecord | null>;
+};
+
+function toFolderRecord(row: FolderRow): FolderRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    color: row.color,
+    icon: row.icon,
+    parentFolderId: row.parent_folder_id,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+export function toFolderResponse(folder: FolderRecord): Folder {
+  return {
+    id: folder.id,
+    name: folder.name,
+    color: folder.color,
+    icon: folder.icon,
+    parentFolderId: folder.parentFolderId,
+    sortOrder: folder.sortOrder,
+    createdAt: folder.createdAt,
+    updatedAt: folder.updatedAt
+  };
+}
+
+export function createFolderRepository(db: D1Database): FolderRepository {
+  async function getByUserAndId(userId: string, folderId: string) {
+    const row = await db
+      .prepare(
+        `SELECT
+          id,
+          user_id,
+          name,
+          color,
+          icon,
+          parent_folder_id,
+          sort_order,
+          created_at,
+          updated_at
+        FROM folders
+        WHERE user_id = ? AND id = ?`
+      )
+      .bind(userId, folderId)
+      .first<FolderRow>();
+
+    return row ? toFolderRecord(row) : null;
+  }
+
+  return {
+    async listByUser(userId) {
+      const result = await db
+        .prepare(
+          `SELECT
+            id,
+            user_id,
+            name,
+            color,
+            icon,
+            parent_folder_id,
+            sort_order,
+            created_at,
+            updated_at
+          FROM folders
+          WHERE user_id = ?
+          ORDER BY sort_order ASC, created_at ASC`
+        )
+        .bind(userId)
+        .all<FolderRow>();
+
+      return result.results.map(toFolderRecord);
+    },
+    async create(input) {
+      const folderId = crypto.randomUUID();
+      const now = new Date().toISOString();
+      const existingFolders = await this.listByUser(input.userId);
+      const sortOrder = existingFolders.length;
+
+      await db
+        .prepare(
+          `INSERT INTO folders (
+            id,
+            user_id,
+            parent_folder_id,
+            name,
+            color,
+            icon,
+            sort_order,
+            created_at,
+            updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          folderId,
+          input.userId,
+          input.parentFolderId ?? null,
+          input.name,
+          input.color ?? null,
+          input.icon ?? null,
+          sortOrder,
+          now,
+          now
+        )
+        .run();
+
+      const folder = await getByUserAndId(input.userId, folderId);
+      if (!folder) {
+        throw new Error("folder_create_failed");
+      }
+
+      return folder;
+    },
+    async update(folderId, userId, input) {
+      const assignments: string[] = [];
+      const values: Array<string | null> = [];
+
+      if ("name" in input) {
+        assignments.push("name = ?");
+        values.push(input.name ?? null);
+      }
+      if ("color" in input) {
+        assignments.push("color = ?");
+        values.push(input.color ?? null);
+      }
+      if ("icon" in input) {
+        assignments.push("icon = ?");
+        values.push(input.icon ?? null);
+      }
+      if ("parentFolderId" in input) {
+        assignments.push("parent_folder_id = ?");
+        values.push(input.parentFolderId ?? null);
+      }
+
+      if (assignments.length === 0) {
+        return getByUserAndId(userId, folderId);
+      }
+
+      assignments.push("updated_at = ?");
+      values.push(new Date().toISOString());
+
+      await db
+        .prepare(
+          `UPDATE folders
+          SET ${assignments.join(", ")}
+          WHERE id = ? AND user_id = ?`
+        )
+        .bind(...values, folderId, userId)
+        .run();
+
+      return getByUserAndId(userId, folderId);
+    }
+  };
+}
