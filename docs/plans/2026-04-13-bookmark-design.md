@@ -1,141 +1,141 @@
-# Bookmark Service Design
+# 북마크 서비스 설계서
 
-## Overview
+## 개요
 
-This document defines the approved MVP design for a bookmark service whose final target is:
+이 문서는 다음 목표를 가진 북마크 서비스의 승인된 MVP 설계를 정의한다.
 
-- a responsive web app that works on PC, mobile, and tablet
-- a later Chrome extension that reuses the same backend and account system
+- PC, 모바일, 태블릿에서 동작하는 반응형 웹앱
+- 이후 같은 백엔드와 계정 체계를 재사용하는 크롬 확장 프로그램
 
-The service must be operable with zero fixed monthly cost for the initial release, while remaining usable from outside the local network.
+초기 릴리스는 외부 어디서든 접속 가능해야 하며, 월 고정비 0원 기준으로 운영 가능한 구조를 목표로 한다.
 
-## Product Goals
+## 제품 목표
 
-- Support authenticated bookmark usage through Google login
-- Allow bookmark organization with folders, favorites, tags, colors, and icons
-- Provide search across bookmark content with dedicated search modes
-- Support bookmark recommendation based on usage behavior
-- Support automatic metadata and content extraction from URLs where possible
-- Allow users to manually provide title, content, summary, and captured images during bookmark creation
-- Preserve automatic extraction data in the background while prioritizing user-entered values in the UI
+- Google 로그인을 통한 인증 기반 북마크 사용 지원
+- 폴더, 즐겨찾기, 태그, 색상, 아이콘을 통한 북마크 정리 지원
+- 검색 모드가 분리된 북마크 검색 기능 제공
+- 사용 패턴 기반의 북마크 추천 기능 제공
+- 가능한 경우 URL 기반 자동 메타데이터 및 본문 추출 지원
+- 북마크 생성 시 사용자가 제목, 내용, 요약, 캡처 이미지를 직접 입력하거나 업로드할 수 있어야 함
+- 자동 추출 데이터는 백그라운드에 보존하고, 화면 표시값은 사용자 입력값을 우선 적용
 
-## Non-Goals For MVP
+## MVP 비목표
 
-- Native mobile apps
-- Guaranteed content extraction for every website
-- Universal comment summarization across all websites
-- Paid AI summarization
-- Browser extension in the first release
+- 네이티브 모바일 앱
+- 모든 사이트에 대한 본문 추출 보장
+- 모든 사이트에 대한 범용 댓글 요약
+- 유료 AI 요약
+- 1차 릴리스에서의 브라우저 확장 프로그램 제공
 
-## Platform And Stack
+## 플랫폼 및 기술 스택
 
-### Frontend
+### 프론트엔드
 
 - React + TypeScript
-- Responsive PWA UI for desktop, tablet, and mobile
-- Single web origin for UI and API consumption
+- 데스크톱, 태블릿, 모바일을 모두 대응하는 반응형 PWA UI
+- UI와 API를 같은 오리진에서 제공
 
-### Backend
+### 백엔드
 
-- Cloudflare Workers for API and authenticated server logic
-- Cloudflare D1 for relational application data
-- Cloudflare R2 for uploaded images and captured assets
+- API 및 인증 로직용 Cloudflare Workers
+- 관계형 애플리케이션 데이터 저장용 Cloudflare D1
+- 업로드 이미지와 캡처 자산 저장용 Cloudflare R2
 
-### Authentication
+### 인증
 
-- Google OAuth login
-- Worker-managed session cookies
+- Google OAuth 로그인
+- Worker가 발급하고 관리하는 세션 쿠키
 
-## Why This Architecture
+## 이 아키텍처를 선택한 이유
 
-The selected architecture is optimized for:
+선택한 구조는 다음 조건에 맞추기 위해 결정했다.
 
-- free-first deployment and operation
-- simple shared backend reuse between the future web app and Chrome extension
-- relational modeling for folders, tags, favorites, recommendation signals, and search behavior
-- avoiding a separate always-on JVM server
+- 무료 우선 배포 및 운영
+- 향후 웹앱과 크롬 확장 프로그램이 같은 백엔드를 단순하게 재사용할 수 있는 구조
+- 폴더, 태그, 즐겨찾기, 추천 신호, 검색 동작을 관계형으로 다루기 쉬운 구조
+- 항상 켜져 있는 별도 JVM 서버를 두지 않아도 되는 구조
 
-Java/JPA was explicitly considered and rejected for the MVP because it raises deployment and operations complexity under the zero-fixed-cost constraint.
+Java/JPA도 검토했지만, 월 고정비 0원 제약 아래에서는 배포 및 운영 복잡도가 커지므로 MVP에서는 제외한다.
 
-## Core User Flows
+## 핵심 사용자 흐름
 
-### 1. Bookmark Creation
+### 1. 북마크 생성
 
-The bookmark creation screen allows the user to perform all of the following in one flow:
+북마크 생성 화면에서는 한 번의 흐름 안에서 다음 작업을 모두 수행할 수 있어야 한다.
 
-- enter a URL
-- request automatic preview/extraction
-- manually enter title
-- manually enter full content or notes
-- manually enter a summary
-- upload a capture image or supporting images
-- choose a folder
-- assign tags
-- mark as favorite
-- set bookmark color and URL color
+- URL 입력
+- 자동 미리보기/추출 요청
+- 수동 제목 입력
+- 전체 내용 또는 메모 직접 입력
+- 요약 직접 입력
+- 캡처 이미지 또는 보조 이미지 업로드
+- 폴더 선택
+- 태그 지정
+- 즐겨찾기 설정
+- 북마크 색상 및 URL 색상 지정
 
-After save:
+저장 후 동작은 다음과 같다.
 
-- the bookmark record is created immediately
-- automatic extraction continues in the background when applicable
-- user-entered values remain the primary displayed values
+- 북마크 레코드는 즉시 생성된다.
+- 가능한 경우 자동 추출은 백그라운드에서 계속 진행된다.
+- 사용자 입력값은 화면 표시값으로 계속 우선 적용된다.
 
-### 2. Bookmark Editing
+### 2. 북마크 수정
 
-Users can update existing bookmarks after creation, including:
+사용자는 등록 이후에도 다음 항목을 수정할 수 있어야 한다.
 
-- title
-- content
-- summary
-- images
-- folder
-- tags
-- favorite status
-- bookmark color
-- URL color
+- 제목
+- 내용
+- 요약
+- 이미지
+- 폴더
+- 태그
+- 즐겨찾기 여부
+- 북마크 색상
+- URL 색상
 
-Users can also:
+또한 사용자는 다음 작업도 수행할 수 있어야 한다.
 
-- retry automatic extraction
-- reset user-entered fields back to automatic values if desired
+- 자동 추출 재시도
+- 필요 시 사용자 입력값을 초기화하고 자동 추출값 기준으로 되돌리기
 
-### 3. Search
+### 3. 검색
 
-The service supports multiple search modes:
+서비스는 다음 검색 모드를 지원한다.
 
-- default integrated search: title + content + tags
-- title-only search
-- content-only search
-- folder-name search
+- 기본 통합 검색: 제목 + 내용 + 태그
+- 제목 전용 검색
+- 내용 전용 검색
+- 폴더명 검색
 
-The default search explicitly excludes:
+기본 검색에서는 다음 항목을 명시적으로 제외한다.
 
-- raw URL matching
-- folder name matching
+- 원본 URL
+- 폴더명
 
-Folder name search is available as a separate mode.
+폴더명 검색은 별도 모드로만 제공한다.
 
-### 4. Recommendation
+### 4. 추천
 
-MVP recommendations are rule-based, not AI-based. Signals include:
+MVP 추천은 AI 기반이 아니라 규칙 기반으로 설계한다. 사용 신호는 다음을 포함한다.
 
-- recent access
-- frequent access
-- favorite status
-- current folder context
-- current tag context
+- 최근 사용
+- 자주 사용
+- 즐겨찾기 여부
+- 현재 폴더 문맥
+- 현재 태그 문맥
 
-The initial recommendation groups are:
+초기 추천 영역은 다음 세 가지로 구성한다.
 
-- frequently used
-- recently viewed
-- related in this folder or tag context
+- 자주 사용하는 링크
+- 최근 본 링크
+- 현재 폴더 또는 태그와 관련된 링크
 
-## Content Model
+## 콘텐츠 모델
 
-Each bookmark stores both automatic and user-provided content fields.
+각 북마크는 자동 추출 데이터와 사용자 입력 데이터를 모두 저장한다.
 
-### Automatic Fields
+### 자동 추출 필드
 
 - `source_title`
 - `source_content`
@@ -143,74 +143,74 @@ Each bookmark stores both automatic and user-provided content fields.
 - `source_description`
 - `source_thumbnail_url`
 
-### User Fields
+### 사용자 입력 필드
 
 - `user_title`
 - `user_content`
 - `user_summary`
 
-### Display Rules
+### 표시 규칙
 
-The UI always resolves display values in this order:
+UI는 항상 다음 우선순위로 표시값을 계산한다.
 
 - `display_title = user_title ?? source_title`
 - `display_content = user_content ?? source_content`
 - `display_summary = user_summary ?? source_summary`
 
-This means:
+이 규칙은 다음을 보장한다.
 
-- automatic extraction output is preserved
-- user edits are never silently overwritten
-- later re-extraction updates only the background source fields
+- 자동 추출 결과는 백그라운드에 보존된다.
+- 사용자가 직접 수정한 값은 조용히 덮어써지지 않는다.
+- 이후 재추출이 발생해도 갱신 대상은 자동 추출 필드에 한정된다.
 
-## Data Model
+## 데이터 모델
 
-The relational MVP model includes at least the following tables.
+관계형 MVP 모델은 최소한 다음 테이블들을 포함한다.
 
 ### `users`
 
-- account identity
-- Google account reference
-- timestamps
+- 계정 식별자
+- Google 계정 참조값
+- 생성/수정 시각
 
 ### `sessions`
 
-- session token hash
+- 세션 토큰 해시
 - `user_id`
-- expiration
-- timestamps
+- 만료 시각
+- 생성/수정 시각
 
 ### `folders`
 
 - `user_id`
-- name
-- color
-- icon
-- parent folder id
-- sort order
-- timestamps
+- 이름
+- 색상
+- 아이콘
+- 부모 폴더 id
+- 정렬 순서
+- 생성/수정 시각
 
 ### `bookmarks`
 
 - `user_id`
 - `folder_id`
-- url
-- normalized url
-- favorite flag
-- bookmark color
-- URL color
-- source fields
-- user fields
-- extraction status
-- summary status
-- timestamps
+- URL
+- 정규화된 URL
+- 즐겨찾기 여부
+- 북마크 색상
+- URL 색상
+- 자동 추출 필드
+- 사용자 입력 필드
+- 추출 상태
+- 요약 상태
+- 생성/수정 시각
 
 ### `tags`
 
 - `user_id`
-- name
-- color
-- timestamps
+- 이름
+- 색상
+- 생성/수정 시각
 
 ### `bookmark_tags`
 
@@ -221,182 +221,182 @@ The relational MVP model includes at least the following tables.
 
 - `bookmark_id`
 - `user_id`
-- asset type
+- 자산 타입
 - object key
 - mime type
-- width
-- height
-- sort order
-- timestamps
+- 너비
+- 높이
+- 정렬 순서
+- 생성/수정 시각
 
 ### `bookmark_activity`
 
 - `bookmark_id`
 - `user_id`
-- viewed/opened event type
-- occurred at
+- 조회/열기 이벤트 타입
+- 발생 시각
 
 ### `bookmark_extraction_logs`
 
 - `bookmark_id`
-- last attempted at
-- success flag
-- failure reason
-- extractor source
+- 마지막 시도 시각
+- 성공 여부
+- 실패 사유
+- 추출기 종류
 
-## Search Design
+## 검색 설계
 
-### Search Storage Strategy
+### 검색 저장 전략
 
-- D1 stores the source-of-truth relational data
-- SQLite FTS is used for bookmark search indexing
-- folder name queries use a dedicated folder query path rather than the bookmark FTS path
+- D1이 관계형 원본 데이터를 저장한다.
+- SQLite FTS를 북마크 검색 인덱스로 사용한다.
+- 폴더명 검색은 북마크 FTS를 통하지 않고 별도 폴더 질의 경로를 사용한다.
 
-### Search Modes
+### 검색 모드
 
-- integrated search: title + content + tags
-- title search: title only
-- content search: content only
-- folder search: folder name only
+- 통합 검색: 제목 + 내용 + 태그
+- 제목 검색: 제목만
+- 내용 검색: 내용만
+- 폴더 검색: 폴더명만
 
-### Search Inputs
+### 검색 입력값
 
-The integrated search uses:
+통합 검색은 다음 값을 사용한다.
 
-- effective title
-- effective content
-- tag text
+- 실제 표시 제목
+- 실제 표시 내용
+- 태그 텍스트
 
-It does not use:
+통합 검색은 다음 값을 사용하지 않는다.
 
-- raw URL
-- folder name
+- 원본 URL
+- 폴더명
 
-### Filtering
+### 필터링
 
-The UI also supports filters such as:
+UI는 다음과 같은 추가 필터도 지원한다.
 
-- favorite only
-- specific tag
-- specific folder scope
-- recent additions
-- recent visits
-- summary exists / missing
+- 즐겨찾기만
+- 특정 태그
+- 특정 폴더 범위
+- 최근 추가
+- 최근 방문
+- 요약 있음 / 없음
 
-## Extraction Strategy
+## 추출 전략
 
-The system follows a progressive extraction model:
+시스템은 단계적 추출 전략을 따른다.
 
 ### Level 1
 
-- title
+- 제목
 - OG/meta description
 - OG image
 
 ### Level 2
 
-- full text extraction for accessible public pages
+- 공개적으로 접근 가능한 페이지에 대한 전체 텍스트 추출
 
 ### Level 3
 
-- lightweight free summarization based on extracted text
+- 추출된 텍스트 기반의 경량 무료 요약
 
-### Fallback Behavior
+### 실패 시 동작
 
-If extraction fails:
+추출이 실패하더라도 다음은 유지되어야 한다.
 
-- bookmark creation still succeeds
-- available metadata is preserved
-- user-entered content remains usable
+- 북마크 저장은 성공한다.
+- 확보된 메타데이터는 보존된다.
+- 사용자가 직접 입력한 내용은 그대로 사용 가능하다.
 
-This design explicitly does not promise successful extraction on every website.
+이 설계는 모든 사이트에서 추출이 성공한다고 약속하지 않는다.
 
-## Comment Summary Scope
+## 댓글 요약 범위
 
-Comment summarization is limited in MVP.
+댓글 요약은 MVP에서 제한적으로 다룬다.
 
-- no claim of universal support
-- only explicitly supported sources may expose comment summary later
-- unsupported sources should clearly show an unavailable status instead of failing silently
+- 범용 지원을 약속하지 않는다.
+- 명시적으로 지원하는 소스에 한해서만 이후 노출할 수 있다.
+- 미지원 소스는 실패처럼 보이지 않도록 `미지원` 상태를 명확히 보여준다.
 
-## Upload Strategy
+## 업로드 전략
 
-User-uploaded images and capture images are stored separately from bookmark text data.
+사용자가 업로드한 이미지와 캡처 이미지는 북마크 텍스트 데이터와 분리해서 저장한다.
 
-### Storage Split
+### 저장소 분리
 
-- D1 stores bookmark and asset metadata
-- R2 stores the binary files
+- D1에는 북마크 및 자산 메타데이터 저장
+- R2에는 실제 바이너리 파일 저장
 
-### Upload Flow
+### 업로드 흐름
 
-- client requests an upload URL from the Worker
-- Worker returns a signed upload target
-- client uploads directly to R2
-- Worker records resulting asset metadata in D1
+- 클라이언트가 Worker에 업로드 URL 발급 요청
+- Worker가 서명된 업로드 대상 반환
+- 클라이언트가 R2로 직접 업로드 수행
+- Worker가 최종 자산 메타데이터를 D1에 기록
 
-This keeps large file transfer out of the Worker execution path and supports later reuse from the Chrome extension.
+이 구조는 대용량 파일 전송을 Worker 실행 경로에서 분리하고, 나중에 크롬 확장 프로그램에서도 같은 방식을 재사용하기 쉽게 만든다.
 
-## Authentication And Security
+## 인증 및 보안
 
-- Google login only for MVP
-- HttpOnly session cookies issued by the Worker
-- per-user data isolation on every bookmark, folder, tag, and asset query
-- authenticated upload signing only
-- ownership checks on edit, delete, extract retry, and asset operations
+- MVP는 Google 로그인만 지원
+- Worker가 `HttpOnly` 세션 쿠키 발급
+- 모든 북마크, 폴더, 태그, 자산 질의에 사용자 단위 데이터 격리 적용
+- 인증된 사용자만 업로드 URL 발급 가능
+- 수정, 삭제, 재추출, 자산 조작 시 소유권 검사 필수
 
-## Duplicate URL Handling
+## 중복 URL 처리
 
-When a user saves a URL that already exists in their own account:
+사용자가 자기 계정 안에서 이미 저장한 URL을 다시 저장하려고 하면 다음 동작을 제공한다.
 
-- the UI warns about duplication
-- the user can open the existing bookmark or save another entry intentionally
+- 중복 경고 표시
+- 기존 북마크 열기 또는 별도 저장 중 선택 가능
 
-Duplicate handling is scoped per user.
+중복 판정 범위는 사용자 단위로 한정한다.
 
-## Error Handling Principles
+## 오류 처리 원칙
 
-### Extraction Failure
+### 추출 실패
 
-- save bookmark anyway
-- mark extraction status as failed
-- allow retry later
+- 북마크 저장은 유지
+- 추출 상태만 실패로 기록
+- 이후 재시도 가능
 
-### Upload Failure
+### 업로드 실패
 
-- keep bookmark text data saved
-- let the user retry asset upload independently
+- 텍스트 데이터 저장은 유지
+- 자산 업로드만 별도로 재시도 가능
 
-### Unsupported Comment Sources
+### 댓글 미지원 소스
 
-- show unsupported status explicitly
+- 미지원 상태를 명확히 표시
 
-## MVP Deliverables
+## MVP 제공 범위
 
-The first release includes:
+1차 릴리스에는 다음 기능을 포함한다.
 
-- Google login
-- folder management
-- favorites
-- tags
-- bookmark colors and folder colors/icons
-- integrated search
-- title/content/folder-name search modes
-- recommendation blocks
-- automatic extraction where possible
-- manual title/content/summary entry
-- image upload
-- full post-save edit flow
+- Google 로그인
+- 폴더 관리
+- 즐겨찾기
+- 태그
+- 북마크 색상 및 폴더 색상/아이콘
+- 통합 검색
+- 제목/내용/폴더명 검색 모드
+- 추천 블록
+- 가능한 범위의 자동 추출
+- 수동 제목/내용/요약 입력
+- 이미지 업로드
+- 저장 후 전체 수정 흐름
 
-## Future Phase
+## 다음 단계
 
-The next major phase after the web MVP is:
+웹 MVP 이후의 다음 주요 단계는 다음과 같다.
 
-- Chrome extension integration
+- 크롬 확장 프로그램 연동
 
-The extension should reuse:
+확장 프로그램은 다음 요소를 재사용해야 한다.
 
-- the same login/account model
-- the same bookmark creation API
-- the same upload flow
-- the same bookmark display model
+- 동일한 로그인/계정 모델
+- 동일한 북마크 생성 API
+- 동일한 업로드 흐름
+- 동일한 북마크 표시 규칙

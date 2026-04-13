@@ -1,0 +1,22 @@
+name = "bookmark"
+main = "./apps/api/src/index.ts"
+compatibility_date = "2026-04-13"
+
+[vars]
+FIREBASE_PROJECT_ID = "bookmark-web-e76c7"
+
+[[d1_databases]]
+binding = "bookmark"
+database_name = "bookmark"
+database_id = "76bd2622-b6e2-4bf7-9d2a-169f5799160a"
+migrations_dir = "./apps/api/migrations"
+
+[[r2_buckets]]
+binding = "bookmark_assets"
+bucket_name = "bookmark-assets"
+
+[assets]
+directory = "./apps/web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]

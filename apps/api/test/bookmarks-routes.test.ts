@@ -1,0 +1,221 @@
+import { describe, expect, it } from "vitest";
+
+import { createApp } from "../src/app";
+import { createSessionValue } from "../src/lib/auth/session";
+import type {
+  BookmarkRecord,
+  BookmarkRepository
+} from "../src/lib/repositories/bookmarks";
+
+const sessionSecret = "bookmark-test-secret";
+const fakeUser = {
+  uid: "firebase-user-1",
+  email: "keygenerator25@gmail.com",
+  name: "Bookmark Tester",
+  picture: "https://example.com/avatar.png"
+};
+
+function createInMemoryBookmarkRepository(): BookmarkRepository {
+  const bookmarks = new Map<string, BookmarkRecord>();
+
+  return {
+    async listByUser(userId) {
+      return Array.from(bookmarks.values()).filter((bookmark) => bookmark.userId === userId);
+    },
+    async create(input) {
+      const now = "2026-04-13T08:00:00.000Z";
+      const bookmark: BookmarkRecord = {
+        id: `bookmark-${bookmarks.size + 1}`,
+        userId: input.userId,
+        folderId: input.folderId ?? null,
+        url: input.url,
+        normalizedUrl: input.normalizedUrl,
+        isFavorite: input.isFavorite,
+        bookmarkColor: input.bookmarkColor ?? null,
+        urlColor: input.urlColor ?? null,
+        sourceTitle: input.sourceTitle ?? null,
+        sourceContent: input.sourceContent ?? null,
+        sourceSummary: input.sourceSummary ?? null,
+        userTitle: input.userTitle ?? null,
+        userContent: input.userContent ?? null,
+        userSummary: input.userSummary ?? null,
+        createdAt: now,
+        updatedAt: now,
+        displayTitle: input.userTitle ?? input.sourceTitle ?? "",
+        displayContent: input.userContent ?? input.sourceContent ?? "",
+        displaySummary: input.userSummary ?? input.sourceSummary ?? ""
+      };
+
+      bookmarks.set(bookmark.id, bookmark);
+      return bookmark;
+    },
+    async getByUserAndId(userId, bookmarkId) {
+      const bookmark = bookmarks.get(bookmarkId);
+      if (!bookmark || bookmark.userId !== userId) {
+        return null;
+      }
+
+      return bookmark;
+    },
+    async update(bookmarkId, userId, input) {
+      const bookmark = bookmarks.get(bookmarkId);
+      if (!bookmark || bookmark.userId !== userId) {
+        return null;
+      }
+
+      const updated: BookmarkRecord = {
+        ...bookmark,
+        folderId: input.folderId === undefined ? bookmark.folderId : input.folderId,
+        isFavorite: input.isFavorite ?? bookmark.isFavorite,
+        bookmarkColor:
+          input.bookmarkColor === undefined ? bookmark.bookmarkColor : input.bookmarkColor,
+        urlColor: input.urlColor === undefined ? bookmark.urlColor : input.urlColor,
+        userTitle: input.userTitle === undefined ? bookmark.userTitle : input.userTitle,
+        userContent:
+          input.userContent === undefined ? bookmark.userContent : input.userContent,
+        userSummary:
+          input.userSummary === undefined ? bookmark.userSummary : input.userSummary,
+        updatedAt: "2026-04-13T09:00:00.000Z"
+      };
+
+      updated.displayTitle = updated.userTitle ?? updated.sourceTitle ?? "";
+      updated.displayContent = updated.userContent ?? updated.sourceContent ?? "";
+      updated.displaySummary = updated.userSummary ?? updated.sourceSummary ?? "";
+
+      bookmarks.set(bookmarkId, updated);
+      return updated;
+    }
+  };
+}
+
+async function authenticatedRequest(
+  app: ReturnType<typeof createApp>,
+  path: string,
+  init?: RequestInit
+) {
+  const sessionValue = await createSessionValue(fakeUser, sessionSecret);
+
+  return app.request(`http://example.com${path}`, {
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      ...init?.headers,
+      cookie: `bookmark_session=${sessionValue}`
+    }
+  });
+}
+
+describe("bookmark routes", () => {
+  it("rejects anonymous bookmark listing requests", async () => {
+    const app = createApp();
+
+    const res = await app.request("http://example.com/api/bookmarks");
+
+    expect(res.status).toBe(401);
+  });
+
+  it("creates a bookmark with manual values and favorite state", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    const res = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/post",
+        userTitle: "Manual title",
+        userContent: "Manual content",
+        userSummary: "Manual summary",
+        isFavorite: true,
+        urlColor: "#0f172a",
+        bookmarkColor: "#f59e0b"
+      })
+    });
+
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({
+      bookmark: {
+        url: "https://example.com/post",
+        userTitle: "Manual title",
+        userContent: "Manual content",
+        userSummary: "Manual summary",
+        displayTitle: "Manual title",
+        displayContent: "Manual content",
+        displaySummary: "Manual summary",
+        isFavorite: true,
+        urlColor: "#0f172a",
+        bookmarkColor: "#f59e0b"
+      }
+    });
+  });
+
+  it("lists bookmarks for the authenticated user", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/post",
+        userTitle: "Manual title"
+      })
+    });
+
+    const res = await authenticatedRequest(app, "/api/bookmarks");
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      bookmarks: [
+        {
+          url: "https://example.com/post",
+          displayTitle: "Manual title"
+        }
+      ]
+    });
+  });
+
+  it("updates an existing bookmark for the authenticated user", async () => {
+    const repository = createInMemoryBookmarkRepository();
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/post",
+        userTitle: "Before title",
+        isFavorite: false
+      })
+    });
+    const created = (await createRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const res = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          userTitle: "After title",
+          isFavorite: true
+        })
+      }
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      bookmark: {
+        id: created.bookmark.id,
+        userTitle: "After title",
+        displayTitle: "After title",
+        isFavorite: true
+      }
+    });
+  });
+});
