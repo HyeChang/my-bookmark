@@ -21,6 +21,7 @@ import {
   createBookmark,
   loadBookmark,
   loadBookmarks,
+  reextractBookmark,
   updateBookmark
 } from "./lib/bookmarks";
 import { signInWithGoogle, signOutFromGoogle } from "./lib/firebase";
@@ -651,6 +652,17 @@ export default function App() {
     setSelectedBookmark(null);
   }
 
+  function replaceBookmarkState(nextBookmark: Bookmark) {
+    setBookmarks((currentBookmarks) =>
+      currentBookmarks.map((bookmark) =>
+        bookmark.id === nextBookmark.id ? nextBookmark : bookmark
+      )
+    );
+    setSelectedBookmark((currentSelectedBookmark) =>
+      currentSelectedBookmark?.id === nextBookmark.id ? nextBookmark : currentSelectedBookmark
+    );
+  }
+
   async function uploadPendingAssets(bookmarkId: string) {
     if (pendingAssetFiles.length === 0) {
       return [];
@@ -735,6 +747,43 @@ export default function App() {
           error instanceof Error
             ? error.message
             : "북마크 열기 기록을 저장하지 못했습니다."
+        );
+      });
+    }
+  }
+
+  async function handleBookmarkReextract(bookmarkId: string) {
+    try {
+      setErrorMessage(null);
+      const nextBookmark = await reextractBookmark(bookmarkId);
+      startTransition(() => {
+        replaceBookmarkState(nextBookmark);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "자동 추출을 다시 수행하지 못했습니다."
+        );
+      });
+    }
+  }
+
+  async function handleResetUserContent(bookmarkId: string) {
+    try {
+      setErrorMessage(null);
+      const nextBookmark = await updateBookmark(bookmarkId, {
+        userTitle: null,
+        userContent: null,
+        userSummary: null
+      });
+
+      startTransition(() => {
+        replaceBookmarkState(nextBookmark);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "사용자 입력값을 초기화하지 못했습니다."
         );
       });
     }
@@ -1107,6 +1156,18 @@ export default function App() {
 
                 <button type="button" onClick={() => void handleBookmarkOpen(selectedBookmark)}>
                   열기 {selectedBookmark.displayTitle || selectedBookmark.url}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleBookmarkReextract(selectedBookmark.id)}
+                >
+                  자동 추출 다시 시도
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleResetUserContent(selectedBookmark.id)}
+                >
+                  사용자 입력 초기화
                 </button>
                 <button type="button" onClick={() => void beginBookmarkEdit(selectedBookmark)}>
                   수정 시작

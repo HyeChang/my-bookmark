@@ -115,6 +115,12 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
         bookmarkColor:
           input.bookmarkColor === undefined ? bookmark.bookmarkColor : input.bookmarkColor,
         urlColor: input.urlColor === undefined ? bookmark.urlColor : input.urlColor,
+        sourceTitle:
+          input.sourceTitle === undefined ? bookmark.sourceTitle : input.sourceTitle,
+        sourceContent:
+          input.sourceContent === undefined ? bookmark.sourceContent : input.sourceContent,
+        sourceSummary:
+          input.sourceSummary === undefined ? bookmark.sourceSummary : input.sourceSummary,
         userTitle: input.userTitle === undefined ? bookmark.userTitle : input.userTitle,
         userContent:
           input.userContent === undefined ? bookmark.userContent : input.userContent,
@@ -397,6 +403,57 @@ describe("bookmark routes", () => {
         displayTitle: "After title",
         isFavorite: true,
         tagIds: ["tag-2", "tag-3"]
+      }
+    });
+  });
+
+  it("reextracts source values for an existing bookmark", async () => {
+    const repository = createInMemoryBookmarkRepository();
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: repository,
+      bookmarkExtractor: {
+        extract: async (url) => ({
+          url,
+          normalizedUrl: new URL(url).toString(),
+          sourceTitle: "Retried source title",
+          sourceContent: "Retried source content",
+          sourceSummary: "Retried source summary"
+        })
+      }
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/post",
+        userTitle: "Manual title",
+        sourceTitle: "Old source title",
+        sourceContent: "Old source content",
+        sourceSummary: "Old source summary"
+      })
+    });
+    const created = (await createRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const res = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}/reextract`,
+      {
+        method: "POST"
+      }
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      bookmark: {
+        id: created.bookmark.id,
+        userTitle: "Manual title",
+        sourceTitle: "Retried source title",
+        sourceContent: "Retried source content",
+        sourceSummary: "Retried source summary",
+        displayTitle: "Manual title"
       }
     });
   });

@@ -1439,4 +1439,259 @@ describe("bookmark dashboard", () => {
       })
     );
   });
+
+  it("reextracts source values and resets manual values from the detail panel", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-reset",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/reset",
+                isFavorite: false,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: "Old source title",
+                sourceContent: "Old source content",
+                sourceSummary: "Old source summary",
+                userTitle: "Manual reset title",
+                userContent: "Manual reset content",
+                userSummary: "Manual reset summary",
+                displayTitle: "Manual reset title",
+                displayContent: "Manual reset content",
+                displaySummary: "Manual reset summary",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/bookmark-reset" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmark: {
+              id: "bookmark-reset",
+              folderId: null,
+              tagIds: [],
+              url: "https://example.com/reset",
+              isFavorite: false,
+              bookmarkColor: null,
+              urlColor: null,
+              sourceTitle: "Old source title",
+              sourceContent: "Old source content",
+              sourceSummary: "Old source summary",
+              userTitle: "Manual reset title",
+              userContent: "Manual reset content",
+              userSummary: "Manual reset summary",
+              displayTitle: "Manual reset title",
+              displayContent: "Manual reset content",
+              displaySummary: "Manual reset summary",
+              createdAt: "2026-04-14T03:00:00.000Z",
+              updatedAt: "2026-04-14T03:00:00.000Z"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/bookmark-reset/assets" && !init?.method) {
+        return new Response(JSON.stringify({ assets: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/bookmarks/bookmark-reset/reextract" && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            bookmark: {
+              id: "bookmark-reset",
+              folderId: null,
+              tagIds: [],
+              url: "https://example.com/reset",
+              isFavorite: false,
+              bookmarkColor: null,
+              urlColor: null,
+              sourceTitle: "Retried source title",
+              sourceContent: "Retried source content",
+              sourceSummary: "Retried source summary",
+              userTitle: "Manual reset title",
+              userContent: "Manual reset content",
+              userSummary: "Manual reset summary",
+              displayTitle: "Manual reset title",
+              displayContent: "Manual reset content",
+              displaySummary: "Manual reset summary",
+              createdAt: "2026-04-14T03:00:00.000Z",
+              updatedAt: "2026-04-14T04:00:00.000Z"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/bookmark-reset" && init?.method === "PATCH") {
+        return new Response(
+          JSON.stringify({
+            bookmark: {
+              id: "bookmark-reset",
+              folderId: null,
+              tagIds: [],
+              url: "https://example.com/reset",
+              isFavorite: false,
+              bookmarkColor: null,
+              urlColor: null,
+              sourceTitle: "Retried source title",
+              sourceContent: "Retried source content",
+              sourceSummary: "Retried source summary",
+              userTitle: null,
+              userContent: null,
+              userSummary: null,
+              displayTitle: "Retried source title",
+              displayContent: "Retried source content",
+              displaySummary: "Retried source summary",
+              createdAt: "2026-04-14T03:00:00.000Z",
+              updatedAt: "2026-04-14T05:00:00.000Z"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /상세 보기/i }));
+
+    const detailRegion = await screen.findByRole("region", { name: /bookmark-detail/i });
+    fireEvent.click(
+      within(detailRegion).getByRole("button", { name: /자동 추출 다시 시도/i })
+    );
+
+    await waitFor(() => {
+      expect(within(detailRegion).getByText(/Retried source title/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      within(detailRegion).getByRole("button", { name: /사용자 입력 초기화/i })
+    );
+
+    await waitFor(() => {
+      expect(
+        within(detailRegion).getByText(/사용자 입력값이 없습니다\./i)
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      within(detailRegion).getByText(/^Retried source title$/i, { selector: "strong" })
+    ).toBeInTheDocument();
+    fireEvent.click(within(detailRegion).getByRole("button", { name: /^닫기$/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("region", { name: /bookmark-detail/i })).not.toBeInTheDocument();
+    });
+
+    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
+    expect(
+      within(bookmarkListRegion).getByText(/^Retried source title$/i, { selector: "strong" })
+    ).toBeInTheDocument();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks/bookmark-reset/reextract",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "include"
+      })
+    );
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks/bookmark-reset",
+      expect.objectContaining({
+        method: "PATCH",
+        credentials: "include"
+      })
+    );
+  });
 });

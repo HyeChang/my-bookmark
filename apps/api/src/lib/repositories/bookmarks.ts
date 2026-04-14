@@ -59,7 +59,11 @@ export type CreateBookmarkInput = CreateBookmarkRequest & {
   normalizedUrl: string;
 };
 
-export type UpdateBookmarkInput = UpdateBookmarkRequest;
+export type UpdateBookmarkInput = UpdateBookmarkRequest & {
+  sourceTitle?: string | null;
+  sourceContent?: string | null;
+  sourceSummary?: string | null;
+};
 
 export type BookmarkRepository = {
   listByUser(userId: string): Promise<BookmarkRecord[]>;
@@ -510,13 +514,25 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
         assignments.push("user_title = ?");
         values.push(input.userTitle ?? null);
       }
+      if ("sourceTitle" in input) {
+        assignments.push("source_title = ?");
+        values.push(input.sourceTitle ?? null);
+      }
       if ("userContent" in input) {
         assignments.push("user_content = ?");
         values.push(input.userContent ?? null);
       }
+      if ("sourceContent" in input) {
+        assignments.push("source_content = ?");
+        values.push(input.sourceContent ?? null);
+      }
       if ("userSummary" in input) {
         assignments.push("user_summary = ?");
         values.push(input.userSummary ?? null);
+      }
+      if ("sourceSummary" in input) {
+        assignments.push("source_summary = ?");
+        values.push(input.sourceSummary ?? null);
       }
       if ("isFavorite" in input) {
         assignments.push("is_favorite = ?");

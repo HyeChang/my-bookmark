@@ -283,6 +283,55 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         ok: true
       });
     })
+    .post("/:bookmarkId/reextract", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const bookmarkExtractor = options.bookmarkExtractor ?? createBookmarkExtractor();
+
+      if (!bookmarkRepository) {
+        return c.json({ error: "bookmark_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      try {
+        const preview = await bookmarkExtractor.extract(bookmark.url);
+        const updatedBookmark = await bookmarkRepository.update(bookmark.id, user.uid, {
+          sourceTitle: preview.sourceTitle,
+          sourceContent: preview.sourceContent,
+          sourceSummary: preview.sourceSummary
+        });
+
+        if (!updatedBookmark) {
+          return c.json({ error: "bookmark_not_found" }, 404);
+        }
+
+        return c.json<BookmarkResponse>({
+          bookmark: toBookmarkResponse(updatedBookmark)
+        });
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === "bookmark_extract_unsupported_content_type"
+        ) {
+          return c.json({ error: "bookmark_extract_unsupported_content_type" }, 422);
+        }
+
+        return c.json({ error: "bookmark_reextract_failed" }, 502);
+      }
+    })
     .get("/:bookmarkId/assets", async (c) => {
       const user = await getAuthenticatedUser(c, options.sessionSecret);
       if (!user) {

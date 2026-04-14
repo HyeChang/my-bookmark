@@ -47,6 +47,20 @@ export async function loadBookmark(bookmarkId: string) {
   return data.bookmark;
 }
 
+export async function reextractBookmark(bookmarkId: string) {
+  const res = await fetch(`/api/bookmarks/${bookmarkId}/reextract`, {
+    method: "POST",
+    credentials: "include"
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to reextract bookmark");
+  }
+
+  const data = (await res.json()) as BookmarkResponse;
+  return data.bookmark;
+}
+
 export async function createBookmark(input: CreateBookmarkRequest) {
   const res = await fetch("/api/bookmarks", {
     method: "POST",
