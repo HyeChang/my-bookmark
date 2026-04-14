@@ -4,6 +4,7 @@ import type {
   AuthenticatedUser,
   Bookmark,
   BookmarkAsset,
+  BookmarkExtractPreview,
   BookmarkSearchMode,
   CreateBookmarkRequest,
   Folder,
@@ -11,6 +12,7 @@ import type {
 } from "@bookmark/shared";
 
 import { loadBookmarkAssets, uploadBookmarkAsset } from "./lib/bookmark-assets";
+import { extractBookmarkPreview } from "./lib/bookmark-extract";
 import { createBookmark, loadBookmarks, updateBookmark } from "./lib/bookmarks";
 import { signInWithGoogle, signOutFromGoogle } from "./lib/firebase";
 import { createFolder, loadFolders } from "./lib/folders";
@@ -91,6 +93,7 @@ export default function App() {
   const [bookmarkDraft, setBookmarkDraft] = useState<BookmarkDraft>(emptyBookmarkDraft);
   const [editingBookmarkId, setEditingBookmarkId] = useState<string | null>(null);
   const [pendingAssetFiles, setPendingAssetFiles] = useState<File[]>([]);
+  const [bookmarkPreview, setBookmarkPreview] = useState<BookmarkExtractPreview | null>(null);
   const [bookmarkSearchDraft, setBookmarkSearchDraft] = useState<BookmarkSearchDraft>(
     emptyBookmarkSearchDraft
   );
@@ -101,6 +104,7 @@ export default function App() {
   const [tagDraft, setTagDraft] = useState<TagDraft>(emptyTagDraft);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [isSavingBookmark, setIsSavingBookmark] = useState(false);
+  const [isLoadingBookmarkPreview, setIsLoadingBookmarkPreview] = useState(false);
   const [isSavingFolder, setIsSavingFolder] = useState(false);
   const [isSavingTag, setIsSavingTag] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -220,6 +224,7 @@ export default function App() {
       setFolders([]);
       setTags([]);
       setBookmarkDraft(emptyBookmarkDraft);
+      setBookmarkPreview(null);
       setPendingAssetFiles([]);
       setBookmarkSearchDraft(emptyBookmarkSearchDraft);
       setAppliedBookmarkSearch(emptyBookmarkSearchDraft);
@@ -298,6 +303,9 @@ export default function App() {
           userTitle: bookmarkDraft.userTitle || null,
           userContent: bookmarkDraft.userContent || null,
           userSummary: bookmarkDraft.userSummary || null,
+          sourceTitle: bookmarkPreview?.sourceTitle ?? null,
+          sourceContent: bookmarkPreview?.sourceContent ?? null,
+          sourceSummary: bookmarkPreview?.sourceSummary ?? null,
           isFavorite: bookmarkDraft.isFavorite,
           bookmarkColor: bookmarkDraft.bookmarkColor || null,
           urlColor: bookmarkDraft.urlColor || null
@@ -314,6 +322,7 @@ export default function App() {
           startTransition(() => {
             setBookmarks(nextBookmarks);
             setBookmarkDraft(emptyBookmarkDraft);
+            setBookmarkPreview(null);
             if (uploadedAssets.length > 0) {
               setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
                 ...currentAssetsByBookmarkId,
@@ -326,6 +335,7 @@ export default function App() {
           startTransition(() => {
             setBookmarks((currentBookmarks) => [createdBookmark, ...currentBookmarks]);
             setBookmarkDraft(emptyBookmarkDraft);
+            setBookmarkPreview(null);
             if (uploadedAssets.length > 0) {
               setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
                 ...currentAssetsByBookmarkId,
@@ -409,6 +419,14 @@ export default function App() {
       ...currentDraft,
       ...nextValues
     }));
+  }
+
+  function handleBookmarkUrlChange(url: string) {
+    setBookmarkDraft((currentDraft) => ({
+      ...currentDraft,
+      url
+    }));
+    setBookmarkPreview(null);
   }
 
   function updateBookmarkSearchDraft(nextValues: Partial<BookmarkSearchDraft>) {
@@ -508,6 +526,17 @@ export default function App() {
       userSummary: bookmark.userSummary ?? "",
       isFavorite: bookmark.isFavorite
     });
+    setBookmarkPreview(
+      bookmark.sourceTitle || bookmark.sourceContent || bookmark.sourceSummary
+        ? {
+            url: bookmark.url,
+            normalizedUrl: bookmark.url,
+            sourceTitle: bookmark.sourceTitle,
+            sourceContent: bookmark.sourceContent,
+            sourceSummary: bookmark.sourceSummary
+          }
+        : null
+    );
 
     if (bookmarkAssetsByBookmarkId[bookmark.id]) {
       return;
@@ -531,6 +560,7 @@ export default function App() {
   function cancelBookmarkEdit() {
     setEditingBookmarkId(null);
     setBookmarkDraft(emptyBookmarkDraft);
+    setBookmarkPreview(null);
     setPendingAssetFiles([]);
   }
 
@@ -545,6 +575,32 @@ export default function App() {
     }
 
     return uploadedAssets;
+  }
+
+  async function handleBookmarkPreviewLoad() {
+    if (!bookmarkDraft.url.trim()) {
+      setErrorMessage("미리보기를 불러올 URL을 입력해주세요.");
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      setIsLoadingBookmarkPreview(true);
+      const preview = await extractBookmarkPreview(bookmarkDraft.url.trim());
+      startTransition(() => {
+        setBookmarkPreview(preview);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "URL 메타 미리보기를 불러오지 못했습니다."
+        );
+      });
+    } finally {
+      setIsLoadingBookmarkPreview(false);
+    }
   }
 
   return (
@@ -575,11 +631,26 @@ export default function App() {
                   name="url"
                   type="url"
                   value={bookmarkDraft.url}
-                  onChange={(event) => updateBookmarkDraft({ url: event.target.value })}
+                  onChange={(event) => handleBookmarkUrlChange(event.target.value)}
                   disabled={Boolean(editingBookmarkId)}
                   required
                 />
               </label>
+              <button
+                type="button"
+                onClick={() => void handleBookmarkPreviewLoad()}
+                disabled={Boolean(editingBookmarkId) || isLoadingBookmarkPreview}
+              >
+                {isLoadingBookmarkPreview ? "불러오는 중..." : "URL 메타 불러오기"}
+              </button>
+              {bookmarkPreview ? (
+                <section aria-label="bookmark-preview">
+                  <h3>자동 추출 미리보기</h3>
+                  {bookmarkPreview.sourceTitle ? <p>{bookmarkPreview.sourceTitle}</p> : null}
+                  {bookmarkPreview.sourceSummary ? <p>{bookmarkPreview.sourceSummary}</p> : null}
+                  {bookmarkPreview.sourceContent ? <p>{bookmarkPreview.sourceContent}</p> : null}
+                </section>
+              ) : null}
               <label>
                 저장 폴더
                 <select

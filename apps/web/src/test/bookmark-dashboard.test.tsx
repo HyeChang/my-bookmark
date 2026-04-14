@@ -315,6 +315,154 @@ describe("bookmark dashboard", () => {
     ).toBeInTheDocument();
   });
 
+  it("loads bookmark preview metadata and submits extracted source fields", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/bookmarks/extract" && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            preview: {
+              url: "https://example.com/preview",
+              normalizedUrl: "https://example.com/preview",
+              sourceTitle: "Preview title",
+              sourceContent: "Preview body",
+              sourceSummary: "Preview summary"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            bookmark: {
+              id: "bookmark-preview",
+              folderId: null,
+              tagIds: [],
+              url: "https://example.com/preview",
+              isFavorite: false,
+              bookmarkColor: null,
+              urlColor: null,
+              sourceTitle: "Preview title",
+              sourceContent: "Preview body",
+              sourceSummary: "Preview summary",
+              userTitle: null,
+              userContent: null,
+              userSummary: null,
+              displayTitle: "Preview title",
+              displayContent: "Preview body",
+              displaySummary: "Preview summary",
+              createdAt: "2026-04-14T03:00:00.000Z",
+              updatedAt: "2026-04-14T03:00:00.000Z"
+            }
+          }),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    fireEvent.change(await screen.findByLabelText(/^URL$/i), {
+      target: {
+        value: "https://example.com/preview"
+      }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /url 메타 불러오기/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/preview title/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /북마크 저장/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/https:\/\/example.com\/preview/i)).toBeInTheDocument();
+    });
+
+    const extractCall = fetchSpy.mock.calls.find(
+      ([input, init]) =>
+        (typeof input === "string" ? input : input.url) === "/api/bookmarks/extract" &&
+        init?.method === "POST"
+    );
+    expect(extractCall).toBeDefined();
+    expect(JSON.parse(String(extractCall?.[1]?.body))).toMatchObject({
+      url: "https://example.com/preview"
+    });
+
+    const createCall = fetchSpy.mock.calls.find(
+      ([input, init]) =>
+        (typeof input === "string" ? input : input.url) === "/api/bookmarks" &&
+        init?.method === "POST"
+    );
+    expect(createCall).toBeDefined();
+    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({
+      url: "https://example.com/preview",
+      sourceTitle: "Preview title",
+      sourceContent: "Preview body",
+      sourceSummary: "Preview summary"
+    });
+  });
+
   it("submits bookmark search with the selected search mode", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;

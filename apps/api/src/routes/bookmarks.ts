@@ -1,6 +1,8 @@
 import type {
   BookmarkAssetListResponse,
   BookmarkAssetResponse,
+  BookmarkExtractRequest,
+  BookmarkExtractResponse,
   BookmarkSearchMode,
   BookmarkListResponse,
   BookmarkResponse,
@@ -11,6 +13,10 @@ import { Hono } from "hono";
 
 import type { AppBindings } from "../env";
 import { getAuthenticatedUser } from "../lib/auth/current-user";
+import {
+  createBookmarkExtractor,
+  type BookmarkExtractor
+} from "../lib/extract/bookmark-extractor";
 import {
   createBookmarkAssetRepository,
   toBookmarkAssetResponse,
@@ -32,6 +38,7 @@ type BookmarkRouteOptions = {
   bookmarkRepository?: BookmarkRepository;
   bookmarkAssetRepository?: BookmarkAssetRepository;
   assetStorage?: BookmarkAssetStorage;
+  bookmarkExtractor?: BookmarkExtractor;
   sessionSecret?: string;
 };
 
@@ -108,10 +115,21 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         return c.json({ error: "bookmark_repository_unavailable" }, 500);
       }
 
+      const shouldExtractSourceValues =
+        !body.sourceTitle && !body.sourceContent && !body.sourceSummary;
+      const extractedPreview = shouldExtractSourceValues
+        ? await (options.bookmarkExtractor ?? createBookmarkExtractor())
+            .extract(normalizedUrl)
+            .catch(() => null)
+        : null;
+
       let bookmark;
       try {
         bookmark = await repository.create({
           ...body,
+          sourceTitle: body.sourceTitle ?? extractedPreview?.sourceTitle ?? null,
+          sourceContent: body.sourceContent ?? extractedPreview?.sourceContent ?? null,
+          sourceSummary: body.sourceSummary ?? extractedPreview?.sourceSummary ?? null,
           userId: user.uid,
           normalizedUrl
         });
@@ -129,6 +147,39 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         },
         201
       );
+    })
+    .post("/extract", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const body = await c.req.json<BookmarkExtractRequest>().catch(() => null);
+      if (!body?.url) {
+        return c.json({ error: "missing_url" }, 400);
+      }
+
+      const extractor = options.bookmarkExtractor ?? createBookmarkExtractor();
+
+      try {
+        const preview = await extractor.extract(body.url);
+        return c.json<BookmarkExtractResponse>({
+          preview
+        });
+      } catch (error) {
+        if (error instanceof TypeError) {
+          return c.json({ error: "invalid_url" }, 400);
+        }
+
+        if (
+          error instanceof Error &&
+          error.message === "bookmark_extract_unsupported_content_type"
+        ) {
+          return c.json({ error: "bookmark_extract_unsupported_content_type" }, 422);
+        }
+
+        return c.json({ error: "bookmark_extract_failed" }, 502);
+      }
     })
     .get("/:bookmarkId", async (c) => {
       const user = await getAuthenticatedUser(c, options.sessionSecret);

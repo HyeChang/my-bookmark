@@ -198,6 +198,42 @@ describe("bookmark routes", () => {
     });
   });
 
+  it("creates a bookmark with extracted source values when manual values are empty", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository(),
+      bookmarkExtractor: {
+        extract: async (url) => ({
+          url,
+          normalizedUrl: new URL(url).toString(),
+          sourceTitle: "Extracted title",
+          sourceContent: "Extracted body",
+          sourceSummary: "Extracted summary"
+        })
+      }
+    } as Parameters<typeof createApp>[0]);
+
+    const res = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/extracted"
+      })
+    });
+
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({
+      bookmark: {
+        url: "https://example.com/extracted",
+        sourceTitle: "Extracted title",
+        sourceContent: "Extracted body",
+        sourceSummary: "Extracted summary",
+        displayTitle: "Extracted title",
+        displayContent: "Extracted body",
+        displaySummary: "Extracted summary"
+      }
+    });
+  });
+
   it("lists bookmarks for the authenticated user", async () => {
     const app = createApp({
       sessionSecret,

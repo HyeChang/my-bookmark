@@ -6,6 +6,7 @@ import type { BookmarkAssetRepository } from "./lib/repositories/bookmark-assets
 import type { BookmarkRepository } from "./lib/repositories/bookmarks";
 import type { FolderRepository } from "./lib/repositories/folders";
 import type { TagRepository } from "./lib/repositories/tags";
+import type { BookmarkExtractor } from "./lib/extract/bookmark-extractor";
 import type { BookmarkAssetStorage } from "./lib/storage/assets";
 import { healthRoute } from "./routes/health";
 import { createAuthRoute } from "./routes/auth";
@@ -19,6 +20,7 @@ type CreateAppOptions = {
   bookmarkRepository?: BookmarkRepository;
   bookmarkAssetRepository?: BookmarkAssetRepository;
   assetStorage?: BookmarkAssetStorage;
+  bookmarkExtractor?: BookmarkExtractor;
   folderRepository?: FolderRepository;
   tagRepository?: TagRepository;
 };
@@ -40,6 +42,7 @@ export function createApp(options: CreateAppOptions = {}) {
       bookmarkRepository: options.bookmarkRepository,
       bookmarkAssetRepository: options.bookmarkAssetRepository,
       assetStorage: options.assetStorage,
+      bookmarkExtractor: options.bookmarkExtractor,
       sessionSecret: options.sessionSecret
     })
   );

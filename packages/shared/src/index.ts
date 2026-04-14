@@ -76,6 +76,22 @@ export type BookmarkListResponse = {
   bookmarks: Bookmark[];
 };
 
+export type BookmarkExtractRequest = {
+  url: string;
+};
+
+export type BookmarkExtractPreview = {
+  url: string;
+  normalizedUrl: string;
+  sourceTitle: string | null;
+  sourceContent: string | null;
+  sourceSummary: string | null;
+};
+
+export type BookmarkExtractResponse = {
+  preview: BookmarkExtractPreview;
+};
+
 export type BookmarkAsset = {
   id: string;
   bookmarkId: string;
