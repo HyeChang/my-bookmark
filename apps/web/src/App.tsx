@@ -67,6 +67,9 @@ type TagDraft = {
 type BookmarkSearchDraft = {
   query: string;
   mode: BookmarkSearchMode;
+  favoriteOnly: boolean;
+  folderId: string;
+  tagId: string;
 };
 
 type BookmarkRecommendationsState = {
@@ -100,7 +103,10 @@ const emptyTagDraft: TagDraft = {
 
 const emptyBookmarkSearchDraft: BookmarkSearchDraft = {
   query: "",
-  mode: "all"
+  mode: "all",
+  favoriteOnly: false,
+  folderId: "",
+  tagId: ""
 };
 
 const emptyBookmarkRecommendations: BookmarkRecommendationsState = {
@@ -108,6 +114,26 @@ const emptyBookmarkRecommendations: BookmarkRecommendationsState = {
   recent: [],
   frequent: []
 };
+
+function normalizeBookmarkSearchDraft(search: BookmarkSearchDraft): BookmarkSearchDraft {
+  return {
+    query: search.query.trim(),
+    mode: search.mode,
+    favoriteOnly: search.favoriteOnly,
+    folderId: search.folderId.trim(),
+    tagId: search.tagId.trim()
+  };
+}
+
+function hasActiveBookmarkSearch(search: BookmarkSearchDraft) {
+  const normalizedSearch = normalizeBookmarkSearchDraft(search);
+  return Boolean(
+    normalizedSearch.query ||
+      normalizedSearch.favoriteOnly ||
+      normalizedSearch.folderId ||
+      normalizedSearch.tagId
+  );
+}
 
 export default function App() {
   const [sessionState, setSessionState] = useState<SessionState>({
@@ -149,10 +175,7 @@ export default function App() {
 
     try {
       const [nextBookmarks, nextFolders, nextTags, nextRecommendations] = await Promise.all([
-        loadBookmarks({
-          query: search.query,
-          mode: search.mode
-        }),
+        loadBookmarks(search),
         loadFolders(),
         loadTags(),
         loadRecommendations()
@@ -234,10 +257,7 @@ export default function App() {
       const idToken = await signInWithGoogle();
       const user = await exchangeIdTokenForSession(idToken);
       const [nextBookmarks, nextFolders, nextTags, nextRecommendations] = await Promise.all([
-        loadBookmarks({
-          query: appliedBookmarkSearch.query,
-          mode: appliedBookmarkSearch.mode
-        }).catch(() => []),
+        loadBookmarks(appliedBookmarkSearch).catch(() => []),
         loadFolders().catch(() => []),
         loadTags().catch(() => []),
         loadRecommendations().catch(() => emptyBookmarkRecommendations)
@@ -307,11 +327,8 @@ export default function App() {
         });
         const uploadedAssets = await uploadPendingAssets(editingBookmarkId);
 
-        if (appliedBookmarkSearch.query) {
-          const nextBookmarks = await loadBookmarks({
-            query: appliedBookmarkSearch.query,
-            mode: appliedBookmarkSearch.mode
-          });
+        if (hasActiveBookmarkSearch(appliedBookmarkSearch)) {
+          const nextBookmarks = await loadBookmarks(appliedBookmarkSearch);
 
           startTransition(() => {
             setBookmarks(nextBookmarks);
@@ -377,11 +394,8 @@ export default function App() {
         const createdBookmark = await createBookmark(payload);
         const uploadedAssets = await uploadPendingAssets(createdBookmark.id);
 
-        if (appliedBookmarkSearch.query) {
-          const nextBookmarks = await loadBookmarks({
-            query: appliedBookmarkSearch.query,
-            mode: appliedBookmarkSearch.mode
-          });
+        if (hasActiveBookmarkSearch(appliedBookmarkSearch)) {
+          const nextBookmarks = await loadBookmarks(appliedBookmarkSearch);
 
           startTransition(() => {
             setBookmarks(nextBookmarks);
@@ -599,6 +613,12 @@ export default function App() {
     setBookmarkDraft((currentDraft) =>
       currentDraft.folderId === folderId ? { ...currentDraft, folderId: "" } : currentDraft
     );
+    setBookmarkSearchDraft((currentDraft) =>
+      currentDraft.folderId === folderId ? { ...currentDraft, folderId: "" } : currentDraft
+    );
+    setAppliedBookmarkSearch((currentSearch) =>
+      currentSearch.folderId === folderId ? { ...currentSearch, folderId: "" } : currentSearch
+    );
 
     if (editingFolderId === folderId) {
       cancelFolderEdit();
@@ -650,6 +670,12 @@ export default function App() {
       ...currentDraft,
       tagIds: currentDraft.tagIds.filter((currentTagId) => currentTagId !== tagId)
     }));
+    setBookmarkSearchDraft((currentDraft) =>
+      currentDraft.tagId === tagId ? { ...currentDraft, tagId: "" } : currentDraft
+    );
+    setAppliedBookmarkSearch((currentSearch) =>
+      currentSearch.tagId === tagId ? { ...currentSearch, tagId: "" } : currentSearch
+    );
 
     if (editingTagId === tagId) {
       cancelTagEdit();
@@ -663,10 +689,7 @@ export default function App() {
       setErrorMessage(null);
       setIsLoadingDashboard(true);
 
-      const nextSearch = {
-        query: bookmarkSearchDraft.query.trim(),
-        mode: bookmarkSearchDraft.mode
-      } satisfies BookmarkSearchDraft;
+      const nextSearch = normalizeBookmarkSearchDraft(bookmarkSearchDraft);
       const nextBookmarks = await loadBookmarks(nextSearch);
 
       startTransition(() => {
@@ -958,10 +981,21 @@ export default function App() {
 
     try {
       setErrorMessage(null);
+      const shouldRefreshSearch = appliedBookmarkSearch.folderId === folder.id;
+      const nextSearch = shouldRefreshSearch
+        ? {
+            ...appliedBookmarkSearch,
+            folderId: ""
+          }
+        : appliedBookmarkSearch;
       await deleteFolder(folder.id);
       startTransition(() => {
         removeFolderState(folder.id);
       });
+
+      if (shouldRefreshSearch) {
+        await refreshDashboardData(nextSearch);
+      }
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
@@ -978,10 +1012,21 @@ export default function App() {
 
     try {
       setErrorMessage(null);
+      const shouldRefreshSearch = appliedBookmarkSearch.tagId === tag.id;
+      const nextSearch = shouldRefreshSearch
+        ? {
+            ...appliedBookmarkSearch,
+            tagId: ""
+          }
+        : appliedBookmarkSearch;
       await deleteTag(tag.id);
       startTransition(() => {
         removeTagState(tag.id);
       });
+
+      if (shouldRefreshSearch) {
+        await refreshDashboardData(nextSearch);
+      }
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
@@ -1473,15 +1518,70 @@ export default function App() {
                   <option value="folder">폴더명 검색</option>
                 </select>
               </label>
+              <label>
+                즐겨찾기만
+                <input
+                  name="bookmarkSearchFavoriteOnly"
+                  type="checkbox"
+                  checked={bookmarkSearchDraft.favoriteOnly}
+                  onChange={(event) =>
+                    updateBookmarkSearchDraft({
+                      favoriteOnly: event.target.checked
+                    })
+                  }
+                />
+              </label>
+              <label>
+                필터 폴더
+                <select
+                  name="bookmarkSearchFolderId"
+                  value={bookmarkSearchDraft.folderId}
+                  onChange={(event) =>
+                    updateBookmarkSearchDraft({ folderId: event.target.value })
+                  }
+                >
+                  <option value="">전체 폴더</option>
+                  {folders.map((folder) => (
+                    <option key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                필터 태그
+                <select
+                  name="bookmarkSearchTagId"
+                  value={bookmarkSearchDraft.tagId}
+                  onChange={(event) =>
+                    updateBookmarkSearchDraft({ tagId: event.target.value })
+                  }
+                >
+                  <option value="">전체 태그</option>
+                  {tags.map((tag) => (
+                    <option key={tag.id} value={tag.id}>
+                      {tag.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <button type="submit">검색 실행</button>
               <button type="button" onClick={() => void handleBookmarkSearchReset()}>
                 검색 초기화
               </button>
             </form>
             {isLoadingDashboard ? <p>대시보드 데이터를 불러오는 중입니다.</p> : null}
-            {appliedBookmarkSearch.query ? (
+            {hasActiveBookmarkSearch(appliedBookmarkSearch) ? (
               <p>
-                현재 검색: {appliedBookmarkSearch.query} ({appliedBookmarkSearch.mode})
+                현재 검색: {appliedBookmarkSearch.query || "전체"} ({appliedBookmarkSearch.mode}
+                {appliedBookmarkSearch.favoriteOnly ? ", 즐겨찾기만" : ""}
+                {appliedBookmarkSearch.folderId
+                  ? `, 폴더:${getFolderName(appliedBookmarkSearch.folderId)}`
+                  : ""}
+                {appliedBookmarkSearch.tagId
+                  ? `, 태그:${getTagNames([appliedBookmarkSearch.tagId]).join(", ")}`
+                  : ""}
+                )
               </p>
             ) : null}
             {bookmarks.length === 0 ? <p>아직 저장된 북마크가 없습니다.</p> : null}

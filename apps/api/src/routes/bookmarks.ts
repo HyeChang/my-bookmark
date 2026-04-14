@@ -78,14 +78,19 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       const query = c.req.query("query")?.trim() ?? "";
       const requestedMode = c.req.query("mode");
       const mode = (requestedMode ?? "all") as BookmarkSearchMode;
+      const filters = {
+        favoriteOnly: c.req.query("favorite") === "1",
+        folderId: c.req.query("folderId")?.trim() || undefined,
+        tagId: c.req.query("tagId")?.trim() || undefined
+      };
 
       if (requestedMode && !bookmarkSearchModes.includes(mode)) {
         return c.json({ error: "invalid_search_mode" }, 400);
       }
 
       const bookmarks = query
-        ? await repository.searchByUser(user.uid, query, mode)
-        : await repository.listByUser(user.uid);
+        ? await repository.searchByUser(user.uid, query, mode, filters)
+        : await repository.listByUser(user.uid, filters);
 
       return c.json<BookmarkListResponse>({
         bookmarks: bookmarks.map(toBookmarkResponse)

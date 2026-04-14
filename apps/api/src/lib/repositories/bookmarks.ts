@@ -65,12 +65,19 @@ export type UpdateBookmarkInput = UpdateBookmarkRequest & {
   sourceSummary?: string | null;
 };
 
+export type BookmarkListFilters = {
+  favoriteOnly?: boolean;
+  folderId?: string;
+  tagId?: string;
+};
+
 export type BookmarkRepository = {
-  listByUser(userId: string): Promise<BookmarkRecord[]>;
+  listByUser(userId: string, filters?: BookmarkListFilters): Promise<BookmarkRecord[]>;
   searchByUser(
     userId: string,
     query: string,
-    mode: BookmarkSearchMode
+    mode: BookmarkSearchMode,
+    filters?: BookmarkListFilters
   ): Promise<BookmarkRecord[]>;
   create(input: CreateBookmarkInput): Promise<BookmarkRecord>;
   getByUserAndId(userId: string, bookmarkId: string): Promise<BookmarkRecord | null>;
@@ -311,6 +318,22 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
     );
   }
 
+  function matchesBookmarkFilters(bookmark: BookmarkRecord, filters: BookmarkListFilters) {
+    if (filters.favoriteOnly && !bookmark.isFavorite) {
+      return false;
+    }
+
+    if (filters.folderId && bookmark.folderId !== filters.folderId) {
+      return false;
+    }
+
+    if (filters.tagId && !bookmark.tagIds.includes(filters.tagId)) {
+      return false;
+    }
+
+    return true;
+  }
+
   function normalizeTagIds(tagIds: string[] | undefined) {
     if (!tagIds) {
       return [];
@@ -409,14 +432,17 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
   }
 
   return {
-    listByUser: listBookmarksByUser,
-    async searchByUser(userId, query, mode) {
+    async listByUser(userId, filters = {}) {
+      const bookmarks = await listBookmarksByUser(userId);
+      return bookmarks.filter((bookmark) => matchesBookmarkFilters(bookmark, filters));
+    },
+    async searchByUser(userId, query, mode, filters = {}) {
       const normalizedQuery = query.trim().toLowerCase();
       if (!normalizedQuery) {
-        return listBookmarksByUser(userId);
+        return this.listByUser(userId, filters);
       }
 
-      const bookmarks = await listBookmarksByUser(userId);
+      const bookmarks = await this.listByUser(userId, filters);
       const tagNamesByBookmarkId = await loadBookmarkTagNames(
         userId,
         bookmarks.map((bookmark) => bookmark.id)

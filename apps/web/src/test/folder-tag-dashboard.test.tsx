@@ -107,8 +107,11 @@ describe("folder and tag dashboard", () => {
 
     render(<App />);
 
-    expect(await screen.findByLabelText(/저장 폴더/i)).toBeInTheDocument();
-    expect(await screen.findByRole("option", { name: /reading/i })).toBeInTheDocument();
+    const bookmarkFormRegion = await screen.findByRole("region", { name: /bookmark-form/i });
+    expect(await within(bookmarkFormRegion).findByLabelText(/저장 폴더/i)).toBeInTheDocument();
+    expect(
+      await within(bookmarkFormRegion).findByRole("option", { name: /reading/i })
+    ).toBeInTheDocument();
     expect(
       (
         await within(screen.getByRole("region", { name: /tag-manager/i })).findAllByText(

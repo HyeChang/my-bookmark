@@ -127,7 +127,7 @@ describe("bookmark dashboard", () => {
     const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
     expect(await within(bookmarkListRegion).findByText(/^Manual title$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^https:\/\/example\.com\/post$/i)).toBeInTheDocument();
-    expect(within(bookmarkListRegion).getByText(/^research$/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getAllByText(/^research$/i).length).toBeGreaterThan(0);
   });
 
   it("creates a bookmark with selected tags and appends it to the list", async () => {
@@ -637,6 +637,193 @@ describe("bookmark dashboard", () => {
     );
   });
 
+  it("submits bookmark search with favorite, folder, and tag filters and resets them", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (
+        url ===
+          "/api/bookmarks?mode=all&query=paper&favorite=1&folderId=folder-1&tagId=tag-1" &&
+        !init?.method
+      ) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-filtered",
+                folderId: "folder-1",
+                tagIds: ["tag-1"],
+                url: "https://example.com/paper",
+                isFavorite: true,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Filtered paper",
+                userContent: "Research paper note",
+                userSummary: "",
+                displayTitle: "Filtered paper",
+                displayContent: "Research paper note",
+                displaySummary: "",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            tags: [
+              {
+                id: "tag-1",
+                name: "research",
+                color: "#2563eb",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    fireEvent.change(await screen.findByLabelText(/검색어/i), {
+      target: {
+        value: "paper"
+      }
+    });
+    fireEvent.click(screen.getByLabelText(/즐겨찾기만/i));
+    fireEvent.change(screen.getByLabelText(/필터 폴더/i), {
+      target: {
+        value: "folder-1"
+      }
+    });
+    fireEvent.change(screen.getByLabelText(/필터 태그/i), {
+      target: {
+        value: "tag-1"
+      }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /검색 실행/i }));
+
+    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
+    await waitFor(() => {
+      expect(within(bookmarkListRegion).getByText(/^Filtered paper$/i)).toBeInTheDocument();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks?mode=all&query=paper&favorite=1&folderId=folder-1&tagId=tag-1",
+      expect.objectContaining({
+        credentials: "include"
+      })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /검색 초기화/i }));
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/bookmarks",
+        expect.objectContaining({
+          credentials: "include"
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/검색어/i)).toHaveValue("");
+      expect(screen.getByLabelText(/즐겨찾기만/i)).not.toBeChecked();
+      expect(screen.getByLabelText(/필터 폴더/i)).toHaveValue("");
+      expect(screen.getByLabelText(/필터 태그/i)).toHaveValue("");
+    });
+  });
+
   it("loads a bookmark into edit mode and patches the updated values", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
@@ -807,40 +994,44 @@ describe("bookmark dashboard", () => {
       await within(bookmarkListRegion).findByRole("button", { name: /^수정$/i })
     );
 
-    expect(screen.getByRole("button", { name: /북마크 수정/i })).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Before title")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Before content")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Before summary")).toBeInTheDocument();
+    const bookmarkFormRegion = await screen.findByRole("region", {
+      name: /bookmark-form/i
+    });
 
-    fireEvent.change(screen.getByLabelText(/제목/i), {
+    expect(within(bookmarkFormRegion).getByRole("button", { name: /북마크 수정/i })).toBeInTheDocument();
+    expect(within(bookmarkFormRegion).getByDisplayValue("Before title")).toBeInTheDocument();
+    expect(within(bookmarkFormRegion).getByDisplayValue("Before content")).toBeInTheDocument();
+    expect(within(bookmarkFormRegion).getByDisplayValue("Before summary")).toBeInTheDocument();
+
+    fireEvent.change(within(bookmarkFormRegion).getByLabelText(/제목/i), {
       target: {
         value: "After title"
       }
     });
-    fireEvent.change(screen.getByLabelText(/내용/i), {
+    fireEvent.change(within(bookmarkFormRegion).getByLabelText(/내용/i), {
       target: {
         value: "After content"
       }
     });
-    fireEvent.change(screen.getByLabelText(/요약/i), {
+    fireEvent.change(within(bookmarkFormRegion).getByLabelText(/요약/i), {
       target: {
         value: "After summary"
       }
     });
-    fireEvent.change(screen.getByLabelText(/북마크 색상/i), {
+    fireEvent.change(within(bookmarkFormRegion).getByLabelText(/북마크 색상/i), {
       target: {
         value: "#dc2626"
       }
     });
-    fireEvent.change(screen.getByLabelText(/url 색상/i), {
+    fireEvent.change(within(bookmarkFormRegion).getByLabelText(/url 색상/i), {
       target: {
         value: "#1d4ed8"
       }
     });
-    fireEvent.click(screen.getByRole("checkbox", { name: /즐겨찾기/i }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /research/i }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /later/i }));
-    fireEvent.click(screen.getByRole("button", { name: /북마크 수정/i }));
+    fireEvent.click(within(bookmarkFormRegion).getByRole("checkbox", { name: /^즐겨찾기$/i }));
+    fireEvent.click(within(bookmarkFormRegion).getByRole("checkbox", { name: /research/i }));
+    fireEvent.click(within(bookmarkFormRegion).getByRole("checkbox", { name: /later/i }));
+    fireEvent.click(within(bookmarkFormRegion).getByRole("button", { name: /북마크 수정/i }));
 
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^After title$/i)).toBeInTheDocument();

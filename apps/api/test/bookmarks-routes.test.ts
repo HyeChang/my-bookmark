@@ -10,6 +10,7 @@ import type {
   BookmarkActivityRepository
 } from "../src/lib/repositories/bookmark-activity";
 import type {
+  BookmarkListFilters,
   BookmarkRecord,
   BookmarkRepository
 } from "../src/lib/repositories/bookmarks";
@@ -65,13 +66,34 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
     );
   }
 
+  function matchesFilters(bookmark: BookmarkWithTags, filters: BookmarkListFilters = {}) {
+    if (filters.favoriteOnly && !bookmark.isFavorite) {
+      return false;
+    }
+
+    if (filters.folderId && bookmark.folderId !== filters.folderId) {
+      return false;
+    }
+
+    if (filters.tagId && !bookmark.tagIds.includes(filters.tagId)) {
+      return false;
+    }
+
+    return true;
+  }
+
   return {
-    async listByUser(userId) {
-      return Array.from(bookmarks.values()).filter((bookmark) => bookmark.userId === userId);
-    },
-    async searchByUser(userId, query, mode) {
+    async listByUser(userId, filters = {}) {
       return Array.from(bookmarks.values()).filter(
-        (bookmark) => bookmark.userId === userId && matchesQuery(bookmark, query, mode)
+        (bookmark) => bookmark.userId === userId && matchesFilters(bookmark, filters)
+      );
+    },
+    async searchByUser(userId, query, mode, filters = {}) {
+      return Array.from(bookmarks.values()).filter(
+        (bookmark) =>
+          bookmark.userId === userId &&
+          matchesFilters(bookmark, filters) &&
+          matchesQuery(bookmark, query, mode)
       );
     },
     async create(input) {
@@ -435,6 +457,105 @@ describe("bookmark routes", () => {
 
     expect(folderRes.status).toBe(200);
     await expect(folderRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        {
+          url: "https://example.com/paper"
+        }
+      ]
+    });
+  });
+
+  it("filters bookmarks by favorite, folder, and tag without a search query", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/paper",
+        folderId: "folder-reading",
+        userTitle: "AI paper",
+        isFavorite: true,
+        tagIds: ["tag-research"]
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/video",
+        folderId: "folder-reading",
+        userTitle: "Video list",
+        isFavorite: false,
+        tagIds: ["tag-video"]
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/archive",
+        folderId: "folder-archive",
+        userTitle: "Archived paper",
+        isFavorite: true,
+        tagIds: ["tag-research"]
+      })
+    });
+
+    const filteredRes = await authenticatedRequest(
+      app,
+      "/api/bookmarks?favorite=1&folderId=folder-reading&tagId=tag-research"
+    );
+
+    expect(filteredRes.status).toBe(200);
+    await expect(filteredRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        {
+          url: "https://example.com/paper"
+        }
+      ]
+    });
+  });
+
+  it("applies favorite and tag filters together with a search query", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/paper",
+        folderId: "folder-reading",
+        userTitle: "AI paper",
+        userContent: "Transformer notes",
+        isFavorite: true,
+        tagIds: ["tag-research"]
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/video",
+        folderId: "folder-reading",
+        userTitle: "AI video",
+        userContent: "Transformer notes",
+        isFavorite: false,
+        tagIds: ["tag-research"]
+      })
+    });
+
+    const filteredSearchRes = await authenticatedRequest(
+      app,
+      "/api/bookmarks?mode=content&query=transformer&favorite=1&tagId=tag-research"
+    );
+
+    expect(filteredSearchRes.status).toBe(200);
+    await expect(filteredSearchRes.json()).resolves.toMatchObject({
       bookmarks: [
         {
           url: "https://example.com/paper"

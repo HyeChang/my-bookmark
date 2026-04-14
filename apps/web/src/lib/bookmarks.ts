@@ -10,6 +10,9 @@ import type {
 type LoadBookmarksOptions = {
   query?: string;
   mode?: BookmarkSearchMode;
+  favoriteOnly?: boolean;
+  folderId?: string;
+  tagId?: string;
 };
 
 export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
@@ -19,6 +22,15 @@ export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
   if (query) {
     searchParams.set("mode", options.mode ?? "all");
     searchParams.set("query", query);
+  }
+  if (options.favoriteOnly) {
+    searchParams.set("favorite", "1");
+  }
+  if (options.folderId) {
+    searchParams.set("folderId", options.folderId);
+  }
+  if (options.tagId) {
+    searchParams.set("tagId", options.tagId);
   }
 
   const url = searchParams.size > 0 ? `/api/bookmarks?${searchParams.toString()}` : "/api/bookmarks";
