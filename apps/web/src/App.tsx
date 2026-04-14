@@ -33,6 +33,7 @@ import {
   createFolder,
   deleteFolder,
   loadFolders,
+  moveFolder,
   reorderFolders,
   updateFolder
 } from "./lib/folders";
@@ -971,6 +972,51 @@ export default function App() {
     }
   }
 
+  async function handleFolderMoveDrop(targetFolder: Folder) {
+    if (!draggingFolderId || draggingFolderId === targetFolder.id) {
+      resetDraggingFolder();
+      return;
+    }
+
+    const draggedFolder = folders.find((folder) => folder.id === draggingFolderId);
+    if (!draggedFolder) {
+      resetDraggingFolder();
+      return;
+    }
+
+    const descendantFolderIds = getFolderDescendantIds(folders, draggingFolderId);
+    if (descendantFolderIds.has(targetFolder.id)) {
+      resetDraggingFolder();
+      return;
+    }
+
+    if (draggedFolder.parentFolderId === targetFolder.id) {
+      resetDraggingFolder();
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      setIsReorderingFolders(true);
+      const nextFolders = await moveFolder(draggingFolderId, {
+        parentFolderId: targetFolder.id
+      });
+
+      startTransition(() => {
+        setFolders(nextFolders);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "폴더 부모를 변경하지 못했습니다."
+        );
+      });
+    } finally {
+      resetDraggingFolder();
+      setIsReorderingFolders(false);
+    }
+  }
+
   function beginTagEdit(tag: Tag) {
     setEditingTagId(tag.id);
     setTagDraft({
@@ -1735,6 +1781,32 @@ export default function App() {
                     onDragEnd={() => resetDraggingFolder()}
                   >
                     드래그 정렬
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isReorderingFolders}
+                    aria-label={`${folder.name} 폴더 하위로 이동`}
+                    onDragOver={(event) => {
+                      if (!draggingFolderId || draggingFolderId === folder.id) {
+                        return;
+                      }
+
+                      const descendantFolderIds = getFolderDescendantIds(
+                        folders,
+                        draggingFolderId
+                      );
+                      if (descendantFolderIds.has(folder.id)) {
+                        return;
+                      }
+
+                      event.preventDefault();
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      void handleFolderMoveDrop(folder);
+                    }}
+                  >
+                    하위로 이동
                   </button>
                   <button type="button" onClick={() => beginFolderEdit(folder)}>
                     {folder.name} 폴더 수정 시작

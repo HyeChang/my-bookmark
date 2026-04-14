@@ -126,6 +126,66 @@ function createInMemoryFolderRepository() {
             leftFolder.sortOrder - rightFolder.sortOrder ||
             leftFolder.createdAt.localeCompare(rightFolder.createdAt)
         );
+    },
+    async move(
+      folderId: string,
+      userId: string,
+      input: {
+        parentFolderId?: string | null;
+      }
+    ) {
+      const folder = folders.get(folderId);
+      if (!folder || folder.userId !== userId) {
+        return null;
+      }
+
+      const nextParentFolderId = input.parentFolderId ?? null;
+      const previousSiblings = Array.from(folders.values())
+        .filter(
+          (currentFolder) =>
+            currentFolder.userId === userId &&
+            currentFolder.parentFolderId === folder.parentFolderId &&
+            currentFolder.id !== folderId
+        )
+        .sort((leftFolder, rightFolder) => leftFolder.sortOrder - rightFolder.sortOrder);
+      const nextSiblings = Array.from(folders.values())
+        .filter(
+          (currentFolder) =>
+            currentFolder.userId === userId &&
+            currentFolder.parentFolderId === nextParentFolderId &&
+            currentFolder.id !== folderId
+        )
+        .sort((leftFolder, rightFolder) => leftFolder.sortOrder - rightFolder.sortOrder);
+
+      previousSiblings.forEach((currentFolder, index) => {
+        folders.set(currentFolder.id, {
+          ...currentFolder,
+          sortOrder: index,
+          updatedAt: "2026-04-13T12:00:00.000Z"
+        });
+      });
+      nextSiblings.forEach((currentFolder, index) => {
+        folders.set(currentFolder.id, {
+          ...currentFolder,
+          parentFolderId: nextParentFolderId,
+          sortOrder: index,
+          updatedAt: "2026-04-13T12:00:00.000Z"
+        });
+      });
+      folders.set(folderId, {
+        ...folder,
+        parentFolderId: nextParentFolderId,
+        sortOrder: nextSiblings.length,
+        updatedAt: "2026-04-13T12:00:00.000Z"
+      });
+
+      return Array.from(folders.values())
+        .filter((currentFolder) => currentFolder.userId === userId)
+        .sort(
+          (leftFolder, rightFolder) =>
+            leftFolder.sortOrder - rightFolder.sortOrder ||
+            leftFolder.createdAt.localeCompare(rightFolder.createdAt)
+        );
     }
   };
 }
@@ -493,6 +553,94 @@ describe("folder and tag routes", () => {
     expect(reorderRes.status).toBe(400);
     await expect(reorderRes.json()).resolves.toMatchObject({
       error: "invalid_folder_reorder"
+    });
+  });
+
+  it("moves a folder under a different parent", async () => {
+    const repository = createInMemoryFolderRepository();
+    const app = createApp({
+      sessionSecret,
+      folderRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const readingRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Reading"
+      })
+    });
+    const reading = (await readingRes.json()) as {
+      folder: FolderRecord;
+    };
+
+    await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Articles"
+      })
+    });
+
+    const moveRes = await authenticatedRequest(app, "/api/folders/folder-2/move", {
+      method: "POST",
+      body: JSON.stringify({
+        parentFolderId: reading.folder.id
+      })
+    });
+
+    expect(moveRes.status).toBe(200);
+    await expect(moveRes.json()).resolves.toMatchObject({
+      folders: [
+        {
+          id: "folder-1",
+          parentFolderId: null
+        },
+        {
+          id: "folder-2",
+          parentFolderId: "folder-1",
+          sortOrder: 0
+        }
+      ]
+    });
+  });
+
+  it("rejects moving a folder under its descendant", async () => {
+    const repository = createInMemoryFolderRepository();
+    const app = createApp({
+      sessionSecret,
+      folderRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const parentRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Reading"
+      })
+    });
+    const parent = (await parentRes.json()) as {
+      folder: FolderRecord;
+    };
+
+    const childRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Papers",
+        parentFolderId: parent.folder.id
+      })
+    });
+    const child = (await childRes.json()) as {
+      folder: FolderRecord;
+    };
+
+    const moveRes = await authenticatedRequest(app, `/api/folders/${parent.folder.id}/move`, {
+      method: "POST",
+      body: JSON.stringify({
+        parentFolderId: child.folder.id
+      })
+    });
+
+    expect(moveRes.status).toBe(400);
+    await expect(moveRes.json()).resolves.toMatchObject({
+      error: "invalid_parent_folder_cycle"
     });
   });
 

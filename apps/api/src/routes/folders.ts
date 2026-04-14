@@ -241,6 +241,44 @@ export function createFolderRoute(options: FolderRouteOptions = {}) {
         folders: folders.map(toFolderResponse)
       });
     })
+    .post("/:folderId/move", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const repository =
+        options.folderRepository ??
+        (c.env?.bookmark ? createFolderRepository(c.env.bookmark) : null);
+
+      if (!repository) {
+        return c.json({ error: "folder_repository_unavailable" }, 500);
+      }
+
+      const body = await c.req
+        .json<{ parentFolderId?: string | null }>()
+        .catch(() => null);
+      const parentFolderValidation = await validateParentFolderSelection(
+        repository,
+        user.uid,
+        c.req.param("folderId"),
+        body?.parentFolderId
+      );
+      if (!parentFolderValidation.ok) {
+        return c.json({ error: parentFolderValidation.error }, 400);
+      }
+
+      const folders = await repository.move(c.req.param("folderId"), user.uid, {
+        parentFolderId: parentFolderValidation.parentFolderId
+      });
+      if (!folders) {
+        return c.json({ error: "folder_not_found" }, 404);
+      }
+
+      return c.json<FolderListResponse>({
+        folders: folders.map(toFolderResponse)
+      });
+    })
     .patch("/:folderId", async (c) => {
       const user = await getAuthenticatedUser(c, options.sessionSecret);
       if (!user) {

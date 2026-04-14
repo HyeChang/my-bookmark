@@ -1,6 +1,7 @@
 import type {
   CreateFolderRequest,
   Folder,
+  MoveFolderRequest,
   ReorderFoldersRequest,
   UpdateFolderRequest
 } from "@bookmark/shared";
@@ -37,6 +38,11 @@ export type FolderRepository = {
     userId: string,
     input: ReorderFoldersRequest
   ): Promise<FolderRecord[]>;
+  move(
+    folderId: string,
+    userId: string,
+    input: MoveFolderRequest
+  ): Promise<FolderRecord[] | null>;
   delete(folderId: string, userId: string): Promise<boolean>;
 };
 
@@ -111,6 +117,13 @@ export function createFolderRepository(db: D1Database): FolderRepository {
       .first<FolderRow>();
 
     return row ? toFolderRecord(row) : null;
+  }
+
+  function sortFolders(leftFolder: FolderRecord, rightFolder: FolderRecord) {
+    return (
+      leftFolder.sortOrder - rightFolder.sortOrder ||
+      leftFolder.createdAt.localeCompare(rightFolder.createdAt)
+    );
   }
 
   return {
@@ -214,6 +227,67 @@ export function createFolderRepository(db: D1Database): FolderRepository {
             .bind(index, now, folderId, userId)
         )
       );
+
+      return listByUser(userId);
+    },
+    async move(folderId, userId, input) {
+      const folder = await getByUserAndId(userId, folderId);
+      if (!folder) {
+        return null;
+      }
+
+      const now = new Date().toISOString();
+      const nextParentFolderId = input.parentFolderId ?? null;
+      const allFolders = await listByUser(userId);
+      const previousSiblingFolders = allFolders
+        .filter(
+          (currentFolder) =>
+            currentFolder.parentFolderId === folder.parentFolderId &&
+            currentFolder.id !== folderId
+        )
+        .sort(sortFolders);
+      const nextSiblingFolders = allFolders
+        .filter(
+          (currentFolder) =>
+            currentFolder.parentFolderId === nextParentFolderId &&
+            currentFolder.id !== folderId
+        )
+        .sort(sortFolders);
+
+      const statements = [
+        ...previousSiblingFolders.map((currentFolder, index) =>
+          db
+            .prepare(
+              `UPDATE folders
+              SET sort_order = ?,
+                  updated_at = ?
+              WHERE id = ? AND user_id = ?`
+            )
+            .bind(index, now, currentFolder.id, userId)
+        ),
+        ...nextSiblingFolders.map((currentFolder, index) =>
+          db
+            .prepare(
+              `UPDATE folders
+              SET parent_folder_id = ?,
+                  sort_order = ?,
+                  updated_at = ?
+              WHERE id = ? AND user_id = ?`
+            )
+            .bind(nextParentFolderId, index, now, currentFolder.id, userId)
+        ),
+        db
+          .prepare(
+            `UPDATE folders
+            SET parent_folder_id = ?,
+                sort_order = ?,
+                updated_at = ?
+            WHERE id = ? AND user_id = ?`
+          )
+          .bind(nextParentFolderId, nextSiblingFolders.length, now, folderId, userId)
+      ];
+
+      await db.batch(statements);
 
       return listByUser(userId);
     },

@@ -3,6 +3,7 @@ import type {
   Folder,
   FolderListResponse,
   FolderResponse,
+  MoveFolderRequest,
   ReorderFoldersRequest,
   UpdateFolderRequest
 } from "@bookmark/shared";
@@ -79,6 +80,24 @@ export async function reorderFolders(input: ReorderFoldersRequest) {
 
   if (!res.ok) {
     throw new Error("Failed to reorder folders");
+  }
+
+  const data = (await res.json()) as Partial<FolderListResponse>;
+  return Array.isArray(data.folders) ? (data.folders as Folder[]) : [];
+}
+
+export async function moveFolder(folderId: string, input: MoveFolderRequest) {
+  const res = await fetch(`/api/folders/${folderId}/move`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to move folder");
   }
 
   const data = (await res.json()) as Partial<FolderListResponse>;

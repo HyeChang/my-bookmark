@@ -156,6 +156,10 @@ export type ReorderFoldersRequest = {
   folderIds: string[];
 };
 
+export type MoveFolderRequest = {
+  parentFolderId?: string | null;
+};
+
 export type FolderResponse = {
   folder: Folder;
 };
