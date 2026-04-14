@@ -1,6 +1,7 @@
 import type {
   CreateFolderRequest,
   Folder,
+  ReorderFoldersRequest,
   UpdateFolderRequest
 } from "@bookmark/shared";
 
@@ -32,6 +33,10 @@ export type FolderRepository = {
     userId: string,
     input: UpdateFolderRequest
   ): Promise<FolderRecord | null>;
+  reorder(
+    userId: string,
+    input: ReorderFoldersRequest
+  ): Promise<FolderRecord[]>;
   delete(folderId: string, userId: string): Promise<boolean>;
 };
 
@@ -63,6 +68,29 @@ export function toFolderResponse(folder: FolderRecord): Folder {
 }
 
 export function createFolderRepository(db: D1Database): FolderRepository {
+  async function listByUser(userId: string) {
+    const result = await db
+      .prepare(
+        `SELECT
+          id,
+          user_id,
+          name,
+          color,
+          icon,
+          parent_folder_id,
+          sort_order,
+          created_at,
+          updated_at
+        FROM folders
+        WHERE user_id = ?
+        ORDER BY sort_order ASC, created_at ASC`
+      )
+      .bind(userId)
+      .all<FolderRow>();
+
+    return result.results.map(toFolderRecord);
+  }
+
   async function getByUserAndId(userId: string, folderId: string) {
     const row = await db
       .prepare(
@@ -86,33 +114,17 @@ export function createFolderRepository(db: D1Database): FolderRepository {
   }
 
   return {
-    async listByUser(userId) {
-      const result = await db
-        .prepare(
-          `SELECT
-            id,
-            user_id,
-            name,
-            color,
-            icon,
-            parent_folder_id,
-            sort_order,
-            created_at,
-            updated_at
-          FROM folders
-          WHERE user_id = ?
-          ORDER BY sort_order ASC, created_at ASC`
-        )
-        .bind(userId)
-        .all<FolderRow>();
-
-      return result.results.map(toFolderRecord);
-    },
+    listByUser,
     async create(input) {
       const folderId = crypto.randomUUID();
       const now = new Date().toISOString();
-      const existingFolders = await this.listByUser(input.userId);
-      const sortOrder = existingFolders.length;
+      const siblingFolders = (await listByUser(input.userId)).filter(
+        (folder) => folder.parentFolderId === (input.parentFolderId ?? null)
+      );
+      const sortOrder =
+        siblingFolders.length === 0
+          ? 0
+          : Math.max(...siblingFolders.map((folder) => folder.sortOrder)) + 1;
 
       await db
         .prepare(
@@ -186,6 +198,24 @@ export function createFolderRepository(db: D1Database): FolderRepository {
         .run();
 
       return getByUserAndId(userId, folderId);
+    },
+    async reorder(userId, input) {
+      const now = new Date().toISOString();
+
+      await db.batch(
+        input.folderIds.map((folderId, index) =>
+          db
+            .prepare(
+              `UPDATE folders
+              SET sort_order = ?,
+                  updated_at = ?
+              WHERE id = ? AND user_id = ?`
+            )
+            .bind(index, now, folderId, userId)
+        )
+      );
+
+      return listByUser(userId);
     },
     async delete(folderId, userId) {
       const existingFolder = await getByUserAndId(userId, folderId);

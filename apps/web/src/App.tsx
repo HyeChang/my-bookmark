@@ -33,6 +33,7 @@ import {
   createFolder,
   deleteFolder,
   loadFolders,
+  reorderFolders,
   updateFolder
 } from "./lib/folders";
 import { loadRecommendations, recordBookmarkOpen } from "./lib/recommendations";
@@ -346,6 +347,41 @@ function getHierarchicalFolderOptions(folders: Folder[], excludedFolderIds = new
   return options;
 }
 
+function getSiblingFolders(folders: Folder[], parentFolderId: string | null) {
+  return folders
+    .filter((folder) => folder.parentFolderId === parentFolderId)
+    .sort(
+      (leftFolder, rightFolder) =>
+        leftFolder.sortOrder - rightFolder.sortOrder ||
+        leftFolder.name.localeCompare(rightFolder.name)
+    );
+}
+
+function reorderSiblingFolders(
+  siblingFolders: Folder[],
+  draggedFolderId: string,
+  targetFolderId: string
+) {
+  const draggedFolderIndex = siblingFolders.findIndex((folder) => folder.id === draggedFolderId);
+  const targetFolderIndex = siblingFolders.findIndex((folder) => folder.id === targetFolderId);
+
+  if (
+    draggedFolderIndex === -1 ||
+    targetFolderIndex === -1 ||
+    draggedFolderIndex === targetFolderIndex
+  ) {
+    return siblingFolders;
+  }
+
+  const draggedFolder = siblingFolders[draggedFolderIndex];
+  const remainingFolders = siblingFolders.filter((folder) => folder.id !== draggedFolderId);
+  const insertionIndex =
+    draggedFolderIndex < targetFolderIndex ? targetFolderIndex : targetFolderIndex;
+
+  remainingFolders.splice(insertionIndex, 0, draggedFolder);
+  return remainingFolders;
+}
+
 export default function App() {
   const [sessionState, setSessionState] = useState<SessionState>({
     status: "loading"
@@ -375,11 +411,13 @@ export default function App() {
   const [tagDraft, setTagDraft] = useState<TagDraft>(emptyTagDraft);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [isSavingBookmark, setIsSavingBookmark] = useState(false);
   const [isLoadingBookmarkPreview, setIsLoadingBookmarkPreview] = useState(false);
   const [isSavingFolder, setIsSavingFolder] = useState(false);
   const [isSavingTag, setIsSavingTag] = useState(false);
+  const [isReorderingFolders, setIsReorderingFolders] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function refreshDashboardData(search = appliedBookmarkSearch) {
@@ -872,6 +910,64 @@ export default function App() {
 
     if (editingFolderId === folderId) {
       cancelFolderEdit();
+    }
+
+    if (draggingFolderId === folderId) {
+      setDraggingFolderId(null);
+    }
+  }
+
+  function resetDraggingFolder() {
+    setDraggingFolderId(null);
+  }
+
+  async function handleFolderReorderDrop(targetFolder: Folder) {
+    if (!draggingFolderId || draggingFolderId === targetFolder.id) {
+      resetDraggingFolder();
+      return;
+    }
+
+    const draggedFolder = folders.find((folder) => folder.id === draggingFolderId);
+    if (!draggedFolder || draggedFolder.parentFolderId !== targetFolder.parentFolderId) {
+      resetDraggingFolder();
+      return;
+    }
+
+    const siblingFolders = getSiblingFolders(folders, targetFolder.parentFolderId);
+    const reorderedSiblingFolders = reorderSiblingFolders(
+      siblingFolders,
+      draggingFolderId,
+      targetFolder.id
+    );
+
+    if (
+      reorderedSiblingFolders.map((folder) => folder.id).join(",") ===
+      siblingFolders.map((folder) => folder.id).join(",")
+    ) {
+      resetDraggingFolder();
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      setIsReorderingFolders(true);
+      const nextFolders = await reorderFolders({
+        parentFolderId: targetFolder.parentFolderId,
+        folderIds: reorderedSiblingFolders.map((folder) => folder.id)
+      });
+
+      startTransition(() => {
+        setFolders(nextFolders);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "폴더 순서를 저장하지 못했습니다."
+        );
+      });
+    } finally {
+      resetDraggingFolder();
+      setIsReorderingFolders(false);
     }
   }
 
@@ -1602,7 +1698,25 @@ export default function App() {
             </form>
             <ul>
               {visibleFolderOptions.map(({ folder, label }) => (
-                <li key={folder.id}>
+                <li
+                  key={folder.id}
+                  onDragOver={(event) => {
+                    if (
+                      !draggingFolderId ||
+                      draggingFolderId === folder.id ||
+                      folders.find((currentFolder) => currentFolder.id === draggingFolderId)
+                        ?.parentFolderId !== folder.parentFolderId
+                    ) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    void handleFolderReorderDrop(folder);
+                  }}
+                >
                   <div>
                     <span>{folder.name}</span>
                     {folder.parentFolderId ? (
@@ -1612,6 +1726,16 @@ export default function App() {
                       </>
                     ) : null}
                   </div>
+                  <button
+                    type="button"
+                    draggable
+                    disabled={isReorderingFolders}
+                    aria-label={`${folder.name} 폴더 드래그 정렬`}
+                    onDragStart={() => setDraggingFolderId(folder.id)}
+                    onDragEnd={() => resetDraggingFolder()}
+                  >
+                    드래그 정렬
+                  </button>
                   <button type="button" onClick={() => beginFolderEdit(folder)}>
                     {folder.name} 폴더 수정 시작
                   </button>

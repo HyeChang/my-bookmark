@@ -509,6 +509,198 @@ describe("folder and tag dashboard", () => {
     ]);
   });
 
+  it("reorders sibling folders by drag and drop and reuses the new order in pickers", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              },
+              {
+                id: "folder-2",
+                name: "Articles",
+                color: "#0f766e",
+                icon: "newspaper",
+                parentFolderId: null,
+                sortOrder: 1,
+                createdAt: "2026-04-13T11:00:00.000Z",
+                updatedAt: "2026-04-13T11:00:00.000Z"
+              },
+              {
+                id: "folder-3",
+                name: "Papers",
+                color: "#2563eb",
+                icon: "file-text",
+                parentFolderId: "folder-1",
+                sortOrder: 0,
+                createdAt: "2026-04-13T12:00:00.000Z",
+                updatedAt: "2026-04-13T12:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders/reorder" && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-2",
+                name: "Articles",
+                color: "#0f766e",
+                icon: "newspaper",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T11:00:00.000Z",
+                updatedAt: "2026-04-13T13:00:00.000Z"
+              },
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 1,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T13:00:00.000Z"
+              },
+              {
+                id: "folder-3",
+                name: "Papers",
+                color: "#2563eb",
+                icon: "file-text",
+                parentFolderId: "folder-1",
+                sortOrder: 0,
+                createdAt: "2026-04-13T12:00:00.000Z",
+                updatedAt: "2026-04-13T12:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const folderManager = await screen.findByRole("region", { name: /folder-manager/i });
+    const dragHandle = within(folderManager).getByRole("button", {
+      name: /reading 폴더 드래그 정렬/i
+    });
+    const targetItem = within(folderManager)
+      .getAllByRole("listitem")
+      .find((item) => within(item).queryByText(/^Articles$/i));
+
+    expect(targetItem).not.toBeNull();
+
+    fireEvent.dragStart(dragHandle);
+    fireEvent.dragOver(targetItem as HTMLElement);
+    fireEvent.drop(targetItem as HTMLElement);
+
+    await waitFor(() => {
+      const folderItems = within(folderManager).getAllByRole("listitem");
+      expect(within(folderItems[0]).getByText(/^Articles$/i)).toBeInTheDocument();
+      expect(within(folderItems[1]).getByText(/^Reading$/i)).toBeInTheDocument();
+    });
+
+    const bookmarkFormRegion = screen.getByRole("region", { name: /bookmark-form/i });
+    const bookmarkFolderOptions = within(bookmarkFormRegion).getAllByRole("option");
+    expect(bookmarkFolderOptions.map((option) => option.textContent)).toEqual([
+      "폴더 없음",
+      "Articles",
+      "Reading",
+      "-- Papers"
+    ]);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/folders/reorder",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          parentFolderId: null,
+          folderIds: ["folder-2", "folder-1"]
+        })
+      })
+    );
+  });
+
   it("updates a folder and a tag from the dashboard", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;

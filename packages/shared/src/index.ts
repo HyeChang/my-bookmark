@@ -151,6 +151,11 @@ export type UpdateFolderRequest = {
   parentFolderId?: string | null;
 };
 
+export type ReorderFoldersRequest = {
+  parentFolderId?: string | null;
+  folderIds: string[];
+};
+
 export type FolderResponse = {
   folder: Folder;
 };

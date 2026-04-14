@@ -55,6 +55,25 @@ function collectDescendantFolderIds(
   return descendants;
 }
 
+function haveSameIds(leftIds: string[], rightIds: string[]) {
+  if (leftIds.length !== rightIds.length) {
+    return false;
+  }
+
+  const leftIdSet = new Set(leftIds);
+  if (leftIdSet.size !== leftIds.length) {
+    return false;
+  }
+
+  for (const rightId of rightIds) {
+    if (!leftIdSet.has(rightId)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 async function validateParentFolderSelection(
   repository: FolderRepository,
   userId: string,
@@ -181,6 +200,46 @@ export function createFolderRoute(options: FolderRouteOptions = {}) {
         },
         201
       );
+    })
+    .post("/reorder", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const body = await c.req
+        .json<{ parentFolderId?: string | null; folderIds?: string[] }>()
+        .catch(() => null);
+      const folderIds = Array.isArray(body?.folderIds)
+        ? body.folderIds.map((folderId) => folderId.trim()).filter(Boolean)
+        : [];
+      const parentFolderId = normalizeParentFolderId(body?.parentFolderId);
+
+      const repository =
+        options.folderRepository ??
+        (c.env?.bookmark ? createFolderRepository(c.env.bookmark) : null);
+
+      if (!repository) {
+        return c.json({ error: "folder_repository_unavailable" }, 500);
+      }
+
+      const allFolders = await repository.listByUser(user.uid);
+      const siblingFolderIds = allFolders
+        .filter((folder) => folder.parentFolderId === parentFolderId)
+        .map((folder) => folder.id);
+
+      if (folderIds.length === 0 || !haveSameIds(folderIds, siblingFolderIds)) {
+        return c.json({ error: "invalid_folder_reorder" }, 400);
+      }
+
+      const folders = await repository.reorder(user.uid, {
+        parentFolderId,
+        folderIds
+      });
+
+      return c.json<FolderListResponse>({
+        folders: folders.map(toFolderResponse)
+      });
     })
     .patch("/:folderId", async (c) => {
       const user = await getAuthenticatedUser(c, options.sessionSecret);

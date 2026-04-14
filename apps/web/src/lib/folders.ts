@@ -3,6 +3,7 @@ import type {
   Folder,
   FolderListResponse,
   FolderResponse,
+  ReorderFoldersRequest,
   UpdateFolderRequest
 } from "@bookmark/shared";
 
@@ -64,4 +65,22 @@ export async function deleteFolder(folderId: string) {
   if (!res.ok) {
     throw new Error("Failed to delete folder");
   }
+}
+
+export async function reorderFolders(input: ReorderFoldersRequest) {
+  const res = await fetch("/api/folders/reorder", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to reorder folders");
+  }
+
+  const data = (await res.json()) as Partial<FolderListResponse>;
+  return Array.isArray(data.folders) ? (data.folders as Folder[]) : [];
 }

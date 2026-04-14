@@ -37,7 +37,13 @@ function createInMemoryFolderRepository() {
 
   return {
     async listByUser(userId: string) {
-      return Array.from(folders.values()).filter((folder) => folder.userId === userId);
+      return Array.from(folders.values())
+        .filter((folder) => folder.userId === userId)
+        .sort(
+          (leftFolder, rightFolder) =>
+            leftFolder.sortOrder - rightFolder.sortOrder ||
+            leftFolder.createdAt.localeCompare(rightFolder.createdAt)
+        );
     },
     async create(input: {
       userId: string;
@@ -98,6 +104,28 @@ function createInMemoryFolderRepository() {
 
       folders.delete(folderId);
       return true;
+    },
+    async reorder(userId: string, input: { folderIds: string[] }) {
+      input.folderIds.forEach((folderId, index) => {
+        const folder = folders.get(folderId);
+        if (!folder || folder.userId !== userId) {
+          return;
+        }
+
+        folders.set(folderId, {
+          ...folder,
+          sortOrder: index,
+          updatedAt: "2026-04-13T12:00:00.000Z"
+        });
+      });
+
+      return Array.from(folders.values())
+        .filter((folder) => folder.userId === userId)
+        .sort(
+          (leftFolder, rightFolder) =>
+            leftFolder.sortOrder - rightFolder.sortOrder ||
+            leftFolder.createdAt.localeCompare(rightFolder.createdAt)
+        );
     }
   };
 }
@@ -376,6 +404,95 @@ describe("folder and tag routes", () => {
     const listRes = await authenticatedRequest(app, "/api/folders");
     await expect(listRes.json()).resolves.toMatchObject({
       folders: []
+    });
+  });
+
+  it("reorders sibling folders within the same parent", async () => {
+    const repository = createInMemoryFolderRepository();
+    const app = createApp({
+      sessionSecret,
+      folderRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Reading"
+      })
+    });
+    await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Articles"
+      })
+    });
+    await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Videos"
+      })
+    });
+
+    const reorderRes = await authenticatedRequest(app, "/api/folders/reorder", {
+      method: "POST",
+      body: JSON.stringify({
+        parentFolderId: null,
+        folderIds: ["folder-3", "folder-1", "folder-2"]
+      })
+    });
+
+    expect(reorderRes.status).toBe(200);
+    await expect(reorderRes.json()).resolves.toMatchObject({
+      folders: [
+        { id: "folder-3", sortOrder: 0 },
+        { id: "folder-1", sortOrder: 1 },
+        { id: "folder-2", sortOrder: 2 }
+      ]
+    });
+  });
+
+  it("rejects folder reorder requests that mix different parents", async () => {
+    const repository = createInMemoryFolderRepository();
+    const app = createApp({
+      sessionSecret,
+      folderRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const parentRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Reading"
+      })
+    });
+    const parent = (await parentRes.json()) as {
+      folder: FolderRecord;
+    };
+
+    await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Articles"
+      })
+    });
+    await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Papers",
+        parentFolderId: parent.folder.id
+      })
+    });
+
+    const reorderRes = await authenticatedRequest(app, "/api/folders/reorder", {
+      method: "POST",
+      body: JSON.stringify({
+        parentFolderId: null,
+        folderIds: ["folder-1", "folder-3", "folder-2"]
+      })
+    });
+
+    expect(reorderRes.status).toBe(400);
+    await expect(reorderRes.json()).resolves.toMatchObject({
+      error: "invalid_folder_reorder"
     });
   });
 
