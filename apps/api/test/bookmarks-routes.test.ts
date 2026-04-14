@@ -273,28 +273,53 @@ function createInMemoryBookmarkAssetRepository() {
 }
 
 function createInMemoryBookmarkActivityRepository() {
-  const entries: Array<{ userId: string; bookmarkId: string }> = [];
+  const entries: Array<{ userId: string; bookmarkId: string; occurredAt: string }> = [];
+  let openSequence = 0;
 
   return {
     async recordOpen(userId: string, bookmarkId: string) {
-      entries.push({ userId, bookmarkId });
+      entries.push({
+        userId,
+        bookmarkId,
+        occurredAt: new Date(Date.UTC(2026, 3, 14, 0, openSequence)).toISOString()
+      });
+      openSequence += 1;
     },
     async listRecentBookmarkIds(userId: string) {
-      return entries.filter((entry) => entry.userId === userId).map((entry) => entry.bookmarkId);
+      return entries
+        .filter((entry) => entry.userId === userId)
+        .slice()
+        .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+        .map((entry) => entry.bookmarkId);
     },
     async listFrequentBookmarkIds(userId: string) {
-      return entries.filter((entry) => entry.userId === userId).map((entry) => entry.bookmarkId);
+      const stats = await this.listOpenStats(userId);
+      return stats
+        .slice()
+        .sort(
+          (left, right) =>
+            right.openCount - left.openCount ||
+            right.lastOpenedAt.localeCompare(left.lastOpenedAt)
+        )
+        .map((entry) => entry.bookmarkId);
     },
     async listOpenStats(userId: string) {
-      const counts = new Map<string, number>();
+      const counts = new Map<string, { openCount: number; lastOpenedAt: string }>();
       for (const entry of entries.filter((entry) => entry.userId === userId)) {
-        counts.set(entry.bookmarkId, (counts.get(entry.bookmarkId) ?? 0) + 1);
+        const current = counts.get(entry.bookmarkId);
+        counts.set(entry.bookmarkId, {
+          openCount: (current?.openCount ?? 0) + 1,
+          lastOpenedAt:
+            current && current.lastOpenedAt.localeCompare(entry.occurredAt) > 0
+              ? current.lastOpenedAt
+              : entry.occurredAt
+        });
       }
 
-      return Array.from(counts.entries()).map(([bookmarkId, openCount], index) => ({
+      return Array.from(counts.entries()).map(([bookmarkId, value]) => ({
         bookmarkId,
-        openCount,
-        lastOpenedAt: new Date(Date.UTC(2026, 3, 14, 0, index)).toISOString()
+        openCount: value.openCount,
+        lastOpenedAt: value.lastOpenedAt
       }));
     }
   } satisfies BookmarkActivityRepository;
@@ -674,6 +699,58 @@ describe("bookmark routes", () => {
         {
           url: "https://example.com/without-summary"
         }
+      ]
+    });
+  });
+
+  it("sorts bookmarks by most recent open when sort=opened_desc", async () => {
+    const bookmarkRepository = createInMemoryBookmarkRepository();
+    const bookmarkActivityRepository = createInMemoryBookmarkActivityRepository();
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository,
+      bookmarkActivityRepository
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/first",
+        userTitle: "First bookmark"
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/second",
+        userTitle: "Second bookmark"
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/unopened",
+        userTitle: "Unopened bookmark"
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks/bookmark-1/open", {
+      method: "POST"
+    });
+    await authenticatedRequest(app, "/api/bookmarks/bookmark-2/open", {
+      method: "POST"
+    });
+
+    const res = await authenticatedRequest(app, "/api/bookmarks?sort=opened_desc");
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      bookmarks: [
+        { url: "https://example.com/second" },
+        { url: "https://example.com/first" },
+        { url: "https://example.com/unopened" }
       ]
     });
   });

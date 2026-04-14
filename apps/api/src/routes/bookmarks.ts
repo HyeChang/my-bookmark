@@ -5,6 +5,7 @@ import type {
   BookmarkExtractRequest,
   BookmarkExtractResponse,
   BookmarkSearchMode,
+  BookmarkSortMode,
   BookmarkListResponse,
   BookmarkResponse,
   CreateBookmarkRequest,
@@ -49,6 +50,7 @@ type BookmarkRouteOptions = {
 };
 
 const bookmarkSearchModes: BookmarkSearchMode[] = ["all", "title", "content", "folder"];
+const bookmarkSortModes: BookmarkSortMode[] = ["created_desc", "opened_desc"];
 
 function sanitizeFileName(fileName: string) {
   const normalizedFileName = fileName.trim().replace(/\s+/g, "-");
@@ -78,6 +80,8 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       const query = c.req.query("query")?.trim() ?? "";
       const requestedMode = c.req.query("mode");
       const mode = (requestedMode ?? "all") as BookmarkSearchMode;
+      const requestedSort = c.req.query("sort");
+      const sort = (requestedSort ?? "created_desc") as BookmarkSortMode;
       const filters = {
         favoriteOnly: c.req.query("favorite") === "1",
         folderId: c.req.query("folderId")?.trim() || undefined,
@@ -94,9 +98,54 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         return c.json({ error: "invalid_search_mode" }, 400);
       }
 
+      if (requestedSort && !bookmarkSortModes.includes(sort)) {
+        return c.json({ error: "invalid_sort_mode" }, 400);
+      }
+
       const bookmarks = query
         ? await repository.searchByUser(user.uid, query, mode, filters)
         : await repository.listByUser(user.uid, filters);
+
+      if (sort === "opened_desc") {
+        const bookmarkActivityRepository =
+          options.bookmarkActivityRepository ??
+          (c.env?.bookmark ? createBookmarkActivityRepository(c.env.bookmark) : null);
+
+        if (!bookmarkActivityRepository) {
+          return c.json({ error: "bookmark_activity_repository_unavailable" }, 500);
+        }
+
+        const openStats = await bookmarkActivityRepository.listOpenStats(
+          user.uid,
+          Math.max(bookmarks.length, 50)
+        );
+        const openStatsByBookmarkId = new Map(
+          openStats.map((entry) => [entry.bookmarkId, entry])
+        );
+
+        bookmarks.sort((left, right) => {
+          const leftStat = openStatsByBookmarkId.get(left.id);
+          const rightStat = openStatsByBookmarkId.get(right.id);
+
+          if (leftStat && !rightStat) {
+            return -1;
+          }
+
+          if (!leftStat && rightStat) {
+            return 1;
+          }
+
+          if (leftStat && rightStat) {
+            return (
+              rightStat.lastOpenedAt.localeCompare(leftStat.lastOpenedAt) ||
+              rightStat.openCount - leftStat.openCount ||
+              right.createdAt.localeCompare(left.createdAt)
+            );
+          }
+
+          return right.createdAt.localeCompare(left.createdAt);
+        });
+      }
 
       return c.json<BookmarkListResponse>({
         bookmarks: bookmarks.map(toBookmarkResponse)

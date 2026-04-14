@@ -1,6 +1,7 @@
 import type {
   Bookmark,
   BookmarkSearchMode,
+  BookmarkSortMode,
   BookmarkListResponse,
   BookmarkResponse,
   CreateBookmarkRequest,
@@ -10,6 +11,7 @@ import type {
 type LoadBookmarksOptions = {
   query?: string;
   mode?: BookmarkSearchMode;
+  sort?: BookmarkSortMode;
   favoriteOnly?: boolean;
   folderId?: string;
   tagId?: string;
@@ -25,6 +27,9 @@ export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
   if (query) {
     searchParams.set("mode", options.mode ?? "all");
     searchParams.set("query", query);
+  }
+  if (options.sort && options.sort !== "created_desc") {
+    searchParams.set("sort", options.sort);
   }
   if (options.favoriteOnly) {
     searchParams.set("favorite", "1");

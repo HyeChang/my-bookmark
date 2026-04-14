@@ -6,6 +6,7 @@ import type {
   BookmarkAsset,
   BookmarkExtractPreview,
   BookmarkSearchMode,
+  BookmarkSortMode,
   CreateBookmarkRequest,
   Folder,
   Tag
@@ -67,6 +68,7 @@ type TagDraft = {
 type BookmarkSearchDraft = {
   query: string;
   mode: BookmarkSearchMode;
+  sort: BookmarkSortMode;
   favoriteOnly: boolean;
   folderId: string;
   tagId: string;
@@ -107,6 +109,7 @@ const emptyTagDraft: TagDraft = {
 const emptyBookmarkSearchDraft: BookmarkSearchDraft = {
   query: "",
   mode: "all",
+  sort: "created_desc",
   favoriteOnly: false,
   folderId: "",
   tagId: "",
@@ -125,6 +128,7 @@ function normalizeBookmarkSearchDraft(search: BookmarkSearchDraft): BookmarkSear
   return {
     query: search.query.trim(),
     mode: search.mode,
+    sort: search.sort,
     favoriteOnly: search.favoriteOnly,
     folderId: search.folderId.trim(),
     tagId: search.tagId.trim(),
@@ -138,6 +142,7 @@ function hasActiveBookmarkSearch(search: BookmarkSearchDraft) {
   const normalizedSearch = normalizeBookmarkSearchDraft(search);
   return Boolean(
     normalizedSearch.query ||
+      normalizedSearch.sort !== "created_desc" ||
       normalizedSearch.favoriteOnly ||
       normalizedSearch.folderId ||
       normalizedSearch.tagId ||
@@ -1531,6 +1536,21 @@ export default function App() {
                 </select>
               </label>
               <label>
+                정렬
+                <select
+                  name="bookmarkSearchSort"
+                  value={bookmarkSearchDraft.sort}
+                  onChange={(event) =>
+                    updateBookmarkSearchDraft({
+                      sort: event.target.value as BookmarkSortMode
+                    })
+                  }
+                >
+                  <option value="created_desc">최근 추가순</option>
+                  <option value="opened_desc">최근 열람순</option>
+                </select>
+              </label>
+              <label>
                 즐겨찾기만
                 <input
                   name="bookmarkSearchFavoriteOnly"
@@ -1622,6 +1642,7 @@ export default function App() {
             {hasActiveBookmarkSearch(appliedBookmarkSearch) ? (
               <p>
                 현재 검색: {appliedBookmarkSearch.query || "전체"} ({appliedBookmarkSearch.mode}
+                {appliedBookmarkSearch.sort === "opened_desc" ? ", 최근열람순" : ""}
                 {appliedBookmarkSearch.favoriteOnly ? ", 즐겨찾기만" : ""}
                 {appliedBookmarkSearch.folderId
                   ? `, 폴더:${getFolderName(appliedBookmarkSearch.folderId)}`

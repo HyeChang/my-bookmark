@@ -976,6 +976,137 @@ describe("bookmark dashboard", () => {
     });
   });
 
+  it("submits bookmark search with opened sort and resets it", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/bookmarks?sort=opened_desc" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-recent-open",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/opened",
+                isFavorite: false,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Recently opened",
+                userContent: null,
+                userSummary: null,
+                displayTitle: "Recently opened",
+                displayContent: "",
+                displaySummary: "",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    fireEvent.change(await screen.findByLabelText(/정렬/i), {
+      target: {
+        value: "opened_desc"
+      }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /검색 실행/i }));
+
+    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
+    await waitFor(() => {
+      expect(within(bookmarkListRegion).getByText(/^Recently opened$/i)).toBeInTheDocument();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks?sort=opened_desc",
+      expect.objectContaining({
+        credentials: "include"
+      })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /검색 초기화/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/정렬/i)).toHaveValue("created_desc");
+    });
+  });
+
   it("loads a bookmark into edit mode and patches the updated values", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
