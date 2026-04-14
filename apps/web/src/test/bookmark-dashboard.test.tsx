@@ -848,6 +848,192 @@ describe("bookmark dashboard", () => {
     });
   });
 
+  it("removes an applied search filter chip and reloads bookmarks", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/bookmarks?mode=all&query=paper&favorite=1" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-filtered",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/paper-favorite",
+                isFavorite: true,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Filtered favorite",
+                userContent: null,
+                userSummary: null,
+                displayTitle: "Filtered favorite",
+                displayContent: "",
+                displaySummary: "",
+                createdAt: "2026-04-14T01:00:00.000Z",
+                updatedAt: "2026-04-14T01:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks?mode=all&query=paper" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-unfiltered",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/paper",
+                isFavorite: false,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Filter removed",
+                userContent: null,
+                userSummary: null,
+                displayTitle: "Filter removed",
+                displayContent: "",
+                displaySummary: "",
+                createdAt: "2026-04-14T02:00:00.000Z",
+                updatedAt: "2026-04-14T02:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const bookmarkListRegion = await screen.findByRole("region", {
+      name: /bookmark-list/i
+    });
+
+    fireEvent.change(await within(bookmarkListRegion).findByLabelText(/검색어/i), {
+      target: {
+        value: "paper"
+      }
+    });
+    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /고급 필터/i }));
+    fireEvent.click(within(bookmarkListRegion).getByLabelText(/즐겨찾기만/i));
+    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /검색 실행/i }));
+
+    await waitFor(() => {
+      expect(within(bookmarkListRegion).getByText(/^Filtered favorite$/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      within(bookmarkListRegion).getByRole("button", {
+        name: /검색 조건 제거: 즐겨찾기만/i
+      })
+    );
+
+    await waitFor(() => {
+      expect(within(bookmarkListRegion).getByText(/^Filter removed$/i)).toBeInTheDocument();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks?mode=all&query=paper&favorite=1",
+      expect.objectContaining({
+        credentials: "include"
+      })
+    );
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks?mode=all&query=paper",
+      expect.objectContaining({
+        credentials: "include"
+      })
+    );
+    expect(
+      within(bookmarkListRegion).queryByRole("button", {
+        name: /검색 조건 제거: 즐겨찾기만/i
+      })
+    ).not.toBeInTheDocument();
+  });
+
   it("includes descendant folders in bookmark search when requested", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;

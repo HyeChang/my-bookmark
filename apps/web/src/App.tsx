@@ -92,6 +92,12 @@ type BookmarkRecommendationsState = {
   frequent: Bookmark[];
 };
 
+type BookmarkSearchSummaryItem = {
+  key: string;
+  label: string;
+  nextSearch: BookmarkSearchDraft;
+};
+
 const emptyBookmarkDraft: BookmarkDraft = {
   url: "",
   folderId: "",
@@ -222,15 +228,41 @@ function getBookmarkSearchSummaryItems(
   }
 ) {
   const normalizedSearch = normalizeBookmarkSearchDraft(search);
-  const items: string[] = [];
+  const items: BookmarkSearchSummaryItem[] = [];
+  const push = (
+    key: string,
+    label: string,
+    buildNextSearch: (currentSearch: BookmarkSearchDraft) => BookmarkSearchDraft
+  ) => {
+    items.push({
+      key,
+      label,
+      nextSearch: normalizeBookmarkSearchDraft(buildNextSearch(normalizedSearch))
+    });
+  };
 
   if (normalizedSearch.query) {
-    items.push(`검색어: ${normalizedSearch.query}`);
-    items.push(`모드: ${getBookmarkSearchModeLabel(normalizedSearch.mode)}`);
+    push(`query:${normalizedSearch.query}`, `검색어: ${normalizedSearch.query}`, (currentSearch) => ({
+      ...currentSearch,
+      query: ""
+    }));
+    if (normalizedSearch.mode !== "all") {
+      push(
+        `mode:${normalizedSearch.mode}`,
+        `모드: ${getBookmarkSearchModeLabel(normalizedSearch.mode)}`,
+        (currentSearch) => ({
+          ...currentSearch,
+          mode: "all"
+        })
+      );
+    }
   }
 
   if (normalizedSearch.sort !== "created_desc") {
-    items.push(`정렬: ${getBookmarkSortLabel(normalizedSearch.sort)}`);
+    push(`sort:${normalizedSearch.sort}`, `정렬: ${getBookmarkSortLabel(normalizedSearch.sort)}`, (currentSearch) => ({
+      ...currentSearch,
+      sort: "created_desc"
+    }));
   }
 
   const createdWithinLabel = getBookmarkRelativeDateRangeLabel(
@@ -238,7 +270,10 @@ function getBookmarkSearchSummaryItems(
     "최근 추가"
   );
   if (createdWithinLabel) {
-    items.push(createdWithinLabel);
+    push(`createdWithin:${normalizedSearch.createdWithin}`, createdWithinLabel, (currentSearch) => ({
+      ...currentSearch,
+      createdWithin: "all"
+    }));
   }
 
   const openedWithinLabel = getBookmarkRelativeDateRangeLabel(
@@ -246,42 +281,81 @@ function getBookmarkSearchSummaryItems(
     "최근 열람"
   );
   if (openedWithinLabel) {
-    items.push(openedWithinLabel);
+    push(`openedWithin:${normalizedSearch.openedWithin}`, openedWithinLabel, (currentSearch) => ({
+      ...currentSearch,
+      openedWithin: "all"
+    }));
   }
 
   if (normalizedSearch.favoriteOnly) {
-    items.push("즐겨찾기만");
+    push("favoriteOnly", "즐겨찾기만", (currentSearch) => ({
+      ...currentSearch,
+      favoriteOnly: false
+    }));
   }
 
   if (normalizedSearch.folderId) {
-    items.push(`폴더: ${options.getFolderName(normalizedSearch.folderId)}`);
+    push(`folder:${normalizedSearch.folderId}`, `폴더: ${options.getFolderName(normalizedSearch.folderId)}`, (currentSearch) => ({
+      ...currentSearch,
+      folderId: "",
+      includeDescendantFolders: false
+    }));
     if (normalizedSearch.includeDescendantFolders) {
-      items.push("하위 폴더 포함");
+      push("includeDescendantFolders", "하위 폴더 포함", (currentSearch) => ({
+        ...currentSearch,
+        includeDescendantFolders: false
+      }));
     }
   }
 
   if (normalizedSearch.tagIds.length > 0) {
-    const tagModeLabel =
-      normalizedSearch.tagMode === "or" ? "하나라도 포함" : "모두 포함";
-    items.push(
-      `태그(${tagModeLabel}): ${options.getTagNames(normalizedSearch.tagIds).join(", ")}`
-    );
+    const tagNames = options.getTagNames(normalizedSearch.tagIds);
+    normalizedSearch.tagIds.forEach((tagId, index) => {
+      push(`tag:${tagId}`, `태그: ${tagNames[index] ?? tagId}`, (currentSearch) => {
+        const nextTagIds = currentSearch.tagIds.filter((currentTagId) => currentTagId !== tagId);
+
+        return {
+          ...currentSearch,
+          tagIds: nextTagIds,
+          tagMode: nextTagIds.length === 0 ? "and" : currentSearch.tagMode
+        };
+      });
+    });
+
+    if (normalizedSearch.tagMode !== "and") {
+      push("tagMode", "태그 조건: 하나라도 포함", (currentSearch) => ({
+        ...currentSearch,
+        tagMode: "and"
+      }));
+    }
   }
 
   if (normalizedSearch.bookmarkColor) {
-    items.push(`북마크 색상: ${normalizedSearch.bookmarkColor}`);
+    push(`bookmarkColor:${normalizedSearch.bookmarkColor}`, `북마크 색상: ${normalizedSearch.bookmarkColor}`, (currentSearch) => ({
+      ...currentSearch,
+      bookmarkColor: ""
+    }));
   }
 
   if (normalizedSearch.urlColor) {
-    items.push(`URL 색상: ${normalizedSearch.urlColor}`);
+    push(`urlColor:${normalizedSearch.urlColor}`, `URL 색상: ${normalizedSearch.urlColor}`, (currentSearch) => ({
+      ...currentSearch,
+      urlColor: ""
+    }));
   }
 
   if (normalizedSearch.summaryState === "with") {
-    items.push("요약 있음");
+    push("summaryState:with", "요약 있음", (currentSearch) => ({
+      ...currentSearch,
+      summaryState: "all"
+    }));
   }
 
   if (normalizedSearch.summaryState === "without") {
-    items.push("요약 없음");
+    push("summaryState:without", "요약 없음", (currentSearch) => ({
+      ...currentSearch,
+      summaryState: "all"
+    }));
   }
 
   return items;
@@ -1129,17 +1203,22 @@ export default function App() {
   async function handleBookmarkSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    await applyBookmarkSearch(bookmarkSearchDraft);
+  }
+
+  async function applyBookmarkSearch(nextSearchDraft: BookmarkSearchDraft) {
+    const normalizedSearch = normalizeBookmarkSearchDraft(nextSearchDraft);
+
     try {
       setErrorMessage(null);
       setIsLoadingDashboard(true);
-
-      const nextSearch = normalizeBookmarkSearchDraft(bookmarkSearchDraft);
-      const nextBookmarks = await loadBookmarks(nextSearch);
+      const nextBookmarks = await loadBookmarks(normalizedSearch);
 
       startTransition(() => {
         setBookmarks(nextBookmarks);
         setSelectedBookmark(null);
-        setAppliedBookmarkSearch(nextSearch);
+        setBookmarkSearchDraft(normalizedSearch);
+        setAppliedBookmarkSearch(normalizedSearch);
       });
     } catch (error) {
       startTransition(() => {
@@ -1153,26 +1232,7 @@ export default function App() {
   }
 
   async function handleBookmarkSearchReset() {
-    try {
-      setErrorMessage(null);
-      setIsLoadingDashboard(true);
-      const nextBookmarks = await loadBookmarks();
-
-      startTransition(() => {
-        setBookmarks(nextBookmarks);
-        setSelectedBookmark(null);
-        setBookmarkSearchDraft(emptyBookmarkSearchDraft);
-        setAppliedBookmarkSearch(emptyBookmarkSearchDraft);
-      });
-    } catch (error) {
-      startTransition(() => {
-        setErrorMessage(
-          error instanceof Error ? error.message : "북마크 목록을 다시 불러오지 못했습니다."
-        );
-      });
-    } finally {
-      setIsLoadingDashboard(false);
-    }
+    await applyBookmarkSearch(emptyBookmarkSearchDraft);
   }
 
   async function beginBookmarkEdit(bookmark: Bookmark) {
@@ -2281,12 +2341,24 @@ export default function App() {
                     padding: 0
                   }}
                 >
-                  {activeBookmarkSearchSummaryItems.map((item, index) => (
+                  {activeBookmarkSearchSummaryItems.map((item) => (
                     <li
-                      key={`${item}-${index}`}
-                      style={{ border: "1px solid currentColor", padding: "0.2rem 0.5rem" }}
+                      key={item.key}
+                      style={{ border: "1px solid currentColor" }}
                     >
-                      {item}
+                      <button
+                        type="button"
+                        aria-label={`검색 조건 제거: ${item.label}`}
+                        onClick={() => void applyBookmarkSearch(item.nextSearch)}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          padding: "0.2rem 0.5rem",
+                          cursor: "pointer"
+                        }}
+                      >
+                        {item.label} ×
+                      </button>
                     </li>
                   ))}
                 </ul>
