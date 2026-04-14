@@ -240,6 +240,18 @@ function createInMemoryBookmarkActivityRepository() {
     },
     async listFrequentBookmarkIds(userId: string) {
       return entries.filter((entry) => entry.userId === userId).map((entry) => entry.bookmarkId);
+    },
+    async listOpenStats(userId: string) {
+      const counts = new Map<string, number>();
+      for (const entry of entries.filter((entry) => entry.userId === userId)) {
+        counts.set(entry.bookmarkId, (counts.get(entry.bookmarkId) ?? 0) + 1);
+      }
+
+      return Array.from(counts.entries()).map(([bookmarkId, openCount], index) => ({
+        bookmarkId,
+        openCount,
+        lastOpenedAt: new Date(Date.UTC(2026, 3, 14, 0, index)).toISOString()
+      }));
     }
   } satisfies BookmarkActivityRepository;
 }

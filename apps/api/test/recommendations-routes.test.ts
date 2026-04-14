@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createApp } from "../src/app";
 import { createSessionValue } from "../src/lib/auth/session";
+import type { BookmarkOpenStat } from "../src/lib/repositories/bookmark-activity";
 import type {
   BookmarkRecord,
   BookmarkRepository
@@ -63,29 +64,65 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
   }
 
   const favoriteBookmark = createRecord({
-    id: "bookmark-favorite",
+    id: "bookmark-favorite-active",
     userId: fakeUser.uid,
-    url: "https://example.com/favorite",
-    normalizedUrl: "https://example.com/favorite",
+    folderId: "folder-a",
+    tagIds: ["tag-a"],
+    url: "https://example.com/favorite-active",
+    normalizedUrl: "https://example.com/favorite-active",
     isFavorite: true,
-    userTitle: "Favorite link"
+    userTitle: "Favorite active link",
+    updatedAt: "2026-04-14T03:00:00.000Z"
   });
-  const recentBookmark = createRecord({
-    id: "bookmark-recent",
+  const passiveFavoriteBookmark = createRecord({
+    id: "bookmark-favorite-passive",
     userId: fakeUser.uid,
-    url: "https://example.com/recent",
-    normalizedUrl: "https://example.com/recent",
-    userTitle: "Recent link"
+    folderId: "folder-b",
+    tagIds: ["tag-b"],
+    url: "https://example.com/favorite-passive",
+    normalizedUrl: "https://example.com/favorite-passive",
+    isFavorite: true,
+    userTitle: "Favorite passive link",
+    updatedAt: "2026-04-14T01:00:00.000Z"
   });
-  const frequentBookmark = createRecord({
-    id: "bookmark-frequent",
+  const contextBookmark = createRecord({
+    id: "bookmark-context",
     userId: fakeUser.uid,
-    url: "https://example.com/frequent",
-    normalizedUrl: "https://example.com/frequent",
-    userTitle: "Frequent link"
+    folderId: "folder-a",
+    tagIds: ["tag-a"],
+    url: "https://example.com/context",
+    normalizedUrl: "https://example.com/context",
+    userTitle: "Context link",
+    updatedAt: "2026-04-14T02:00:00.000Z"
+  });
+  const plainBookmark = createRecord({
+    id: "bookmark-plain",
+    userId: fakeUser.uid,
+    folderId: "folder-b",
+    tagIds: ["tag-c"],
+    url: "https://example.com/plain",
+    normalizedUrl: "https://example.com/plain",
+    userTitle: "Plain link",
+    updatedAt: "2026-04-14T02:00:00.000Z"
+  });
+  const unopenedBookmark = createRecord({
+    id: "bookmark-unopened",
+    userId: fakeUser.uid,
+    folderId: "folder-c",
+    tagIds: [],
+    url: "https://example.com/unopened",
+    normalizedUrl: "https://example.com/unopened",
+    userTitle: "Unopened link",
+    updatedAt: "2026-04-14T04:00:00.000Z"
   });
 
-  [favoriteBookmark, recentBookmark, frequentBookmark].forEach((bookmark) => {
+  [
+    favoriteBookmark,
+    passiveFavoriteBookmark,
+    contextBookmark,
+    plainBookmark,
+    unopenedBookmark
+  ].forEach((bookmark) => {
     bookmarks.set(bookmark.id, bookmark);
   });
 
@@ -142,8 +179,28 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
 }
 
 function createInMemoryActivityRepository() {
-  const recentBookmarkIds = ["bookmark-recent"];
-  const frequentBookmarkIds = ["bookmark-frequent"];
+  const openStats: BookmarkOpenStat[] = [
+    {
+      bookmarkId: "bookmark-favorite-active",
+      openCount: 4,
+      lastOpenedAt: "2026-04-14T04:30:00.000Z"
+    },
+    {
+      bookmarkId: "bookmark-context",
+      openCount: 2,
+      lastOpenedAt: "2026-04-14T04:00:00.000Z"
+    },
+    {
+      bookmarkId: "bookmark-plain",
+      openCount: 2,
+      lastOpenedAt: "2026-04-14T04:00:00.000Z"
+    },
+    {
+      bookmarkId: "bookmark-favorite-passive",
+      openCount: 1,
+      lastOpenedAt: "2026-04-14T03:00:00.000Z"
+    }
+  ];
   const openedBookmarkIds: string[] = [];
 
   return {
@@ -151,10 +208,23 @@ function createInMemoryActivityRepository() {
       openedBookmarkIds.push(bookmarkId);
     },
     async listRecentBookmarkIds() {
-      return recentBookmarkIds;
+      return openStats
+        .slice()
+        .sort((left, right) => right.lastOpenedAt.localeCompare(left.lastOpenedAt))
+        .map((entry) => entry.bookmarkId);
     },
     async listFrequentBookmarkIds() {
-      return frequentBookmarkIds;
+      return openStats
+        .slice()
+        .sort(
+          (left, right) =>
+            right.openCount - left.openCount ||
+            right.lastOpenedAt.localeCompare(left.lastOpenedAt)
+        )
+        .map((entry) => entry.bookmarkId);
+    },
+    async listOpenStats() {
+      return openStats;
     },
     getOpenedBookmarkIds() {
       return openedBookmarkIds;
@@ -180,7 +250,7 @@ async function authenticatedRequest(
 }
 
 describe("recommendation routes", () => {
-  it("returns favorite, recent, and frequent bookmark recommendations", async () => {
+  it("returns recommendation sections ordered by activity and context", async () => {
     const app = createApp({
       sessionSecret,
       bookmarkRepository: createInMemoryBookmarkRepository(),
@@ -190,26 +260,28 @@ describe("recommendation routes", () => {
     const res = await authenticatedRequest(app, "/api/recommendations");
 
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toMatchObject({
-      favorites: [
-        {
-          id: "bookmark-favorite",
-          displayTitle: "Favorite link"
-        }
-      ],
-      recent: [
-        {
-          id: "bookmark-recent",
-          displayTitle: "Recent link"
-        }
-      ],
-      frequent: [
-        {
-          id: "bookmark-frequent",
-          displayTitle: "Frequent link"
-        }
-      ]
-    });
+    const payload = (await res.json()) as {
+      favorites: Array<{ id: string; displayTitle: string }>;
+      recent: Array<{ id: string; displayTitle: string }>;
+      frequent: Array<{ id: string; displayTitle: string }>;
+    };
+
+    expect(payload.favorites.map((bookmark) => bookmark.id)).toEqual([
+      "bookmark-favorite-active",
+      "bookmark-favorite-passive"
+    ]);
+    expect(payload.recent.slice(0, 3).map((bookmark) => bookmark.id)).toEqual([
+      "bookmark-favorite-active",
+      "bookmark-context",
+      "bookmark-plain"
+    ]);
+    expect(payload.frequent.slice(0, 3).map((bookmark) => bookmark.id)).toEqual([
+      "bookmark-favorite-active",
+      "bookmark-context",
+      "bookmark-plain"
+    ]);
+    expect(payload.recent.at(-1)?.id).toBe("bookmark-unopened");
+    expect(payload.frequent.at(-1)?.id).toBe("bookmark-unopened");
   });
 
   it("records bookmark open activity for the authenticated user", async () => {
@@ -220,7 +292,7 @@ describe("recommendation routes", () => {
       bookmarkActivityRepository
     } as Parameters<typeof createApp>[0]);
 
-    const res = await authenticatedRequest(app, "/api/bookmarks/bookmark-recent/open", {
+    const res = await authenticatedRequest(app, "/api/bookmarks/bookmark-context/open", {
       method: "POST"
     });
 
@@ -229,7 +301,7 @@ describe("recommendation routes", () => {
       ok: true
     });
     expect(bookmarkActivityRepository.getOpenedBookmarkIds()).toEqual([
-      "bookmark-recent"
+      "bookmark-context"
     ]);
   });
 });
