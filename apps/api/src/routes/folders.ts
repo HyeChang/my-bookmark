@@ -24,6 +24,90 @@ function normalizeFolderName(name: string | undefined) {
   return name?.trim() ?? "";
 }
 
+function normalizeParentFolderId(parentFolderId: string | null | undefined) {
+  const normalizedParentFolderId = parentFolderId?.trim();
+  return normalizedParentFolderId ? normalizedParentFolderId : null;
+}
+
+function collectDescendantFolderIds(
+  folders: Array<{ id: string; parentFolderId: string | null }>,
+  rootFolderId: string
+) {
+  const descendants = new Set<string>();
+  const pendingFolderIds = [rootFolderId];
+
+  while (pendingFolderIds.length > 0) {
+    const currentFolderId = pendingFolderIds.pop();
+    if (!currentFolderId) {
+      continue;
+    }
+
+    for (const folder of folders) {
+      if (folder.parentFolderId !== currentFolderId || descendants.has(folder.id)) {
+        continue;
+      }
+
+      descendants.add(folder.id);
+      pendingFolderIds.push(folder.id);
+    }
+  }
+
+  return descendants;
+}
+
+async function validateParentFolderSelection(
+  repository: FolderRepository,
+  userId: string,
+  currentFolderId: string | null,
+  requestedParentFolderId: string | null | undefined
+) {
+  if (requestedParentFolderId === undefined) {
+    return {
+      ok: true as const,
+      parentFolderId: undefined
+    };
+  }
+
+  const normalizedParentFolderId = normalizeParentFolderId(requestedParentFolderId);
+  if (normalizedParentFolderId === null) {
+    return {
+      ok: true as const,
+      parentFolderId: null
+    };
+  }
+
+  if (currentFolderId && normalizedParentFolderId === currentFolderId) {
+    return {
+      ok: false as const,
+      error: "invalid_parent_folder_cycle"
+    };
+  }
+
+  const folders = await repository.listByUser(userId);
+  const parentFolder = folders.find((folder) => folder.id === normalizedParentFolderId);
+  if (!parentFolder) {
+    return {
+      ok: false as const,
+      error: "invalid_parent_folder_id"
+    };
+  }
+
+  if (currentFolderId) {
+    const descendantFolderIds = collectDescendantFolderIds(folders, currentFolderId);
+    if (descendantFolderIds.has(normalizedParentFolderId)) {
+      return {
+        ok: false as const,
+        error: "invalid_parent_folder_cycle"
+      };
+    }
+  }
+
+  return {
+    ok: true as const,
+    parentFolderId: normalizedParentFolderId
+  };
+}
+
 export function createFolderRoute(options: FolderRouteOptions = {}) {
   return new Hono<{ Bindings: AppBindings }>()
     .get("/", async (c) => {
@@ -74,9 +158,20 @@ export function createFolderRoute(options: FolderRouteOptions = {}) {
         return c.json({ error: "folder_repository_unavailable" }, 500);
       }
 
+      const parentFolderValidation = await validateParentFolderSelection(
+        repository,
+        user.uid,
+        null,
+        body?.parentFolderId
+      );
+      if (!parentFolderValidation.ok) {
+        return c.json({ error: parentFolderValidation.error }, 400);
+      }
+
       const folder = await repository.create({
         ...body,
         name,
+        parentFolderId: parentFolderValidation.parentFolderId,
         userId: user.uid
       });
 
@@ -114,6 +209,20 @@ export function createFolderRoute(options: FolderRouteOptions = {}) {
         }
 
         input.name = name;
+      }
+
+      if ("parentFolderId" in input) {
+        const parentFolderValidation = await validateParentFolderSelection(
+          repository,
+          user.uid,
+          c.req.param("folderId"),
+          input.parentFolderId
+        );
+        if (!parentFolderValidation.ok) {
+          return c.json({ error: parentFolderValidation.error }, 400);
+        }
+
+        input.parentFolderId = parentFolderValidation.parentFolderId;
       }
 
       const folder = await repository.update(c.req.param("folderId"), user.uid, input);

@@ -24,6 +24,57 @@ const fakeUser = {
   picture: "https://example.com/avatar.png"
 };
 
+function createInMemoryFolderRepository() {
+  type FolderRecord = {
+    id: string;
+    userId: string;
+    name: string;
+    color: string | null;
+    icon: string | null;
+    parentFolderId: string | null;
+    sortOrder: number;
+    createdAt: string;
+    updatedAt: string;
+  };
+
+  const folders = new Map<string, FolderRecord>();
+
+  return {
+    async listByUser(userId: string) {
+      return Array.from(folders.values()).filter((folder) => folder.userId === userId);
+    },
+    async create(input: {
+      userId: string;
+      name: string;
+      color?: string | null;
+      icon?: string | null;
+      parentFolderId?: string | null;
+    }) {
+      const now = "2026-04-13T10:00:00.000Z";
+      const folder: FolderRecord = {
+        id: `folder-${folders.size + 1}`,
+        userId: input.userId,
+        name: input.name,
+        color: input.color ?? null,
+        icon: input.icon ?? null,
+        parentFolderId: input.parentFolderId ?? null,
+        sortOrder: folders.size,
+        createdAt: now,
+        updatedAt: now
+      };
+
+      folders.set(folder.id, folder);
+      return folder;
+    },
+    async update() {
+      return null;
+    },
+    async delete() {
+      return false;
+    }
+  };
+}
+
 function createInMemoryBookmarkRepository(): BookmarkRepository {
   type BookmarkWithTags = BookmarkRecord & {
     tagIds: string[];
@@ -75,6 +126,10 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
     }
 
     if (filters.folderId && bookmark.folderId !== filters.folderId) {
+      return false;
+    }
+
+    if (filters.folderIds && !filters.folderIds.includes(bookmark.folderId ?? "")) {
       return false;
     }
 
@@ -598,6 +653,67 @@ describe("bookmark routes", () => {
         {
           url: "https://example.com/paper"
         }
+      ]
+    });
+  });
+
+  it("includes descendant folders in bookmark filtering when requested", async () => {
+    const folderRepository = createInMemoryFolderRepository();
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository(),
+      folderRepository
+    } as Parameters<typeof createApp>[0]);
+
+    const parentFolderRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Reading"
+      })
+    });
+    const parentFolder = (await parentFolderRes.json()) as {
+      folder: { id: string };
+    };
+
+    const childFolderRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Papers",
+        parentFolderId: parentFolder.folder.id
+      })
+    });
+    const childFolder = (await childFolderRes.json()) as {
+      folder: { id: string };
+    };
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/parent-folder",
+        folderId: parentFolder.folder.id,
+        userTitle: "Parent folder bookmark"
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/child-folder",
+        folderId: childFolder.folder.id,
+        userTitle: "Child folder bookmark"
+      })
+    });
+
+    const filteredRes = await authenticatedRequest(
+      app,
+      `/api/bookmarks?folderId=${parentFolder.folder.id}&includeDescendantFolders=1`
+    );
+
+    expect(filteredRes.status).toBe(200);
+    await expect(filteredRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        { url: "https://example.com/parent-folder" },
+        { url: "https://example.com/child-folder" }
       ]
     });
   });

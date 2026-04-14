@@ -47,6 +47,7 @@ export function createApp(options: CreateAppOptions = {}) {
       bookmarkActivityRepository: options.bookmarkActivityRepository,
       assetStorage: options.assetStorage,
       bookmarkExtractor: options.bookmarkExtractor,
+      folderRepository: options.folderRepository,
       sessionSecret: options.sessionSecret
     })
   );

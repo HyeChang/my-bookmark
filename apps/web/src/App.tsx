@@ -60,6 +60,7 @@ type FolderDraft = {
   name: string;
   color: string;
   icon: string;
+  parentFolderId: string;
 };
 
 type TagDraft = {
@@ -75,6 +76,7 @@ type BookmarkSearchDraft = {
   openedWithin: BookmarkRelativeDateRange;
   favoriteOnly: boolean;
   folderId: string;
+  includeDescendantFolders: boolean;
   tagIds: string[];
   tagMode: BookmarkTagMode;
   bookmarkColor: string;
@@ -103,7 +105,8 @@ const emptyBookmarkDraft: BookmarkDraft = {
 const emptyFolderDraft: FolderDraft = {
   name: "",
   color: "",
-  icon: ""
+  icon: "",
+  parentFolderId: ""
 };
 
 const emptyTagDraft: TagDraft = {
@@ -119,6 +122,7 @@ const emptyBookmarkSearchDraft: BookmarkSearchDraft = {
   openedWithin: "all",
   favoriteOnly: false,
   folderId: "",
+  includeDescendantFolders: false,
   tagIds: [],
   tagMode: "and",
   bookmarkColor: "",
@@ -141,6 +145,9 @@ function normalizeBookmarkSearchDraft(search: BookmarkSearchDraft): BookmarkSear
     openedWithin: search.openedWithin,
     favoriteOnly: search.favoriteOnly,
     folderId: search.folderId.trim(),
+    includeDescendantFolders: search.folderId.trim()
+      ? search.includeDescendantFolders
+      : false,
     tagIds: Array.from(new Set(search.tagIds.map((tagId) => tagId.trim()).filter(Boolean))),
     tagMode: search.tagMode === "or" ? "or" : "and",
     bookmarkColor: search.bookmarkColor.trim(),
@@ -156,6 +163,7 @@ function hasActiveBookmarkAdvancedFilters(search: BookmarkSearchDraft) {
       normalizedSearch.openedWithin !== "all" ||
       normalizedSearch.favoriteOnly ||
       normalizedSearch.folderId ||
+      (normalizedSearch.folderId && normalizedSearch.includeDescendantFolders) ||
       normalizedSearch.tagIds.length > 0 ||
       (normalizedSearch.tagIds.length > 0 && normalizedSearch.tagMode !== "and") ||
       normalizedSearch.bookmarkColor ||
@@ -245,6 +253,9 @@ function getBookmarkSearchSummaryItems(
 
   if (normalizedSearch.folderId) {
     items.push(`폴더: ${options.getFolderName(normalizedSearch.folderId)}`);
+    if (normalizedSearch.includeDescendantFolders) {
+      items.push("하위 폴더 포함");
+    }
   }
 
   if (normalizedSearch.tagIds.length > 0) {
@@ -272,6 +283,67 @@ function getBookmarkSearchSummaryItems(
   }
 
   return items;
+}
+
+function getFolderDescendantIds(folders: Folder[], rootFolderId: string) {
+  const descendants = new Set<string>();
+  const pendingFolderIds = [rootFolderId];
+
+  while (pendingFolderIds.length > 0) {
+    const currentFolderId = pendingFolderIds.pop();
+    if (!currentFolderId) {
+      continue;
+    }
+
+    for (const folder of folders) {
+      if (folder.parentFolderId !== currentFolderId || descendants.has(folder.id)) {
+        continue;
+      }
+
+      descendants.add(folder.id);
+      pendingFolderIds.push(folder.id);
+    }
+  }
+
+  return descendants;
+}
+
+function getHierarchicalFolderOptions(folders: Folder[], excludedFolderIds = new Set<string>()) {
+  const foldersByParentId = new Map<string | null, Folder[]>();
+  const knownFolderIds = new Set(folders.map((folder) => folder.id));
+  const sortedFolders = [...folders].sort(
+    (leftFolder, rightFolder) =>
+      leftFolder.sortOrder - rightFolder.sortOrder || leftFolder.name.localeCompare(rightFolder.name)
+  );
+
+  for (const folder of sortedFolders) {
+    const parentKey =
+      folder.parentFolderId && knownFolderIds.has(folder.parentFolderId)
+        ? folder.parentFolderId
+        : null;
+    const currentFolders = foldersByParentId.get(parentKey) ?? [];
+    currentFolders.push(folder);
+    foldersByParentId.set(parentKey, currentFolders);
+  }
+
+  const options: Array<{ folder: Folder; label: string }> = [];
+
+  function visit(parentFolderId: string | null, depth: number) {
+    for (const folder of foldersByParentId.get(parentFolderId) ?? []) {
+      if (excludedFolderIds.has(folder.id)) {
+        continue;
+      }
+
+      options.push({
+        folder,
+        label: `${"-- ".repeat(depth)}${folder.name}`
+      });
+      visit(folder.id, depth + 1);
+    }
+  }
+
+  visit(null, 0);
+  return options;
 }
 
 export default function App() {
@@ -588,7 +660,8 @@ export default function App() {
         const nextFolder = await updateFolder(editingFolderId, {
           name: folderDraft.name,
           color: folderDraft.color || null,
-          icon: folderDraft.icon || null
+          icon: folderDraft.icon || null,
+          parentFolderId: folderDraft.parentFolderId || null
         });
 
         startTransition(() => {
@@ -600,7 +673,8 @@ export default function App() {
         const createdFolder = await createFolder({
           name: folderDraft.name,
           color: folderDraft.color || null,
-          icon: folderDraft.icon || null
+          icon: folderDraft.icon || null,
+          parentFolderId: folderDraft.parentFolderId || null
         });
 
         startTransition(() => {
@@ -683,10 +757,18 @@ export default function App() {
   }
 
   function updateBookmarkSearchDraft(nextValues: Partial<BookmarkSearchDraft>) {
-    setBookmarkSearchDraft((currentDraft) => ({
-      ...currentDraft,
-      ...nextValues
-    }));
+    setBookmarkSearchDraft((currentDraft) => {
+      const nextDraft = {
+        ...currentDraft,
+        ...nextValues
+      };
+
+      if (!nextDraft.folderId.trim()) {
+        nextDraft.includeDescendantFolders = false;
+      }
+
+      return nextDraft;
+    });
   }
 
   function toggleBookmarkTag(tagId: string, checked: boolean) {
@@ -735,7 +817,8 @@ export default function App() {
     setFolderDraft({
       name: folder.name,
       color: folder.color ?? "",
-      icon: folder.icon ?? ""
+      icon: folder.icon ?? "",
+      parentFolderId: folder.parentFolderId ?? ""
     });
   }
 
@@ -752,7 +835,11 @@ export default function App() {
 
   function removeFolderState(folderId: string) {
     setFolders((currentFolders) =>
-      currentFolders.filter((folder) => folder.id !== folderId)
+      currentFolders
+        .filter((folder) => folder.id !== folderId)
+        .map((folder) =>
+          folder.parentFolderId === folderId ? { ...folder, parentFolderId: null } : folder
+        )
     );
     setBookmarks((currentBookmarks) =>
       currentBookmarks.map((bookmark) =>
@@ -767,11 +854,20 @@ export default function App() {
     setBookmarkDraft((currentDraft) =>
       currentDraft.folderId === folderId ? { ...currentDraft, folderId: "" } : currentDraft
     );
+    setFolderDraft((currentDraft) =>
+      currentDraft.parentFolderId === folderId
+        ? { ...currentDraft, parentFolderId: "" }
+        : currentDraft
+    );
     setBookmarkSearchDraft((currentDraft) =>
-      currentDraft.folderId === folderId ? { ...currentDraft, folderId: "" } : currentDraft
+      currentDraft.folderId === folderId
+        ? { ...currentDraft, folderId: "", includeDescendantFolders: false }
+        : currentDraft
     );
     setAppliedBookmarkSearch((currentSearch) =>
-      currentSearch.folderId === folderId ? { ...currentSearch, folderId: "" } : currentSearch
+      currentSearch.folderId === folderId
+        ? { ...currentSearch, folderId: "", includeDescendantFolders: false }
+        : currentSearch
     );
 
     if (editingFolderId === folderId) {
@@ -1254,6 +1350,11 @@ export default function App() {
       getTagNames
     }
   );
+  const disallowedParentFolderIds = editingFolderId
+    ? new Set([editingFolderId, ...getFolderDescendantIds(folders, editingFolderId)])
+    : new Set<string>();
+  const parentFolderOptions = getHierarchicalFolderOptions(folders, disallowedParentFolderIds);
+  const visibleFolderOptions = getHierarchicalFolderOptions(folders);
 
   return (
     <main>
@@ -1311,9 +1412,9 @@ export default function App() {
                   onChange={(event) => updateBookmarkDraft({ folderId: event.target.value })}
                 >
                   <option value="">폴더 없음</option>
-                  {folders.map((folder) => (
+                  {visibleFolderOptions.map(({ folder, label }) => (
                     <option key={folder.id} value={folder.id}>
-                      {folder.name}
+                      {label}
                     </option>
                   ))}
                 </select>
@@ -1467,6 +1568,23 @@ export default function App() {
                   onChange={(event) => updateFolderDraft({ icon: event.target.value })}
                 />
               </label>
+              <label>
+                부모 폴더
+                <select
+                  name="folderParentFolderId"
+                  value={folderDraft.parentFolderId}
+                  onChange={(event) =>
+                    updateFolderDraft({ parentFolderId: event.target.value })
+                  }
+                >
+                  <option value="">상위 없음</option>
+                  {parentFolderOptions.map(({ folder, label }) => (
+                    <option key={folder.id} value={folder.id}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <button type="submit" disabled={isSavingFolder}>
                 {isSavingFolder
                   ? editingFolderId
@@ -1483,9 +1601,9 @@ export default function App() {
               ) : null}
             </form>
             <ul>
-              {folders.map((folder) => (
+              {visibleFolderOptions.map(({ folder, label }) => (
                 <li key={folder.id}>
-                  <span>{folder.name}</span>
+                  <span>{label}</span>
                   <button type="button" onClick={() => beginFolderEdit(folder)}>
                     {folder.name} 폴더 수정 시작
                   </button>
@@ -1785,16 +1903,35 @@ export default function App() {
                       name="bookmarkSearchFolderId"
                       value={bookmarkSearchDraft.folderId}
                       onChange={(event) =>
-                        updateBookmarkSearchDraft({ folderId: event.target.value })
+                        updateBookmarkSearchDraft({
+                          folderId: event.target.value,
+                          includeDescendantFolders: event.target.value
+                            ? bookmarkSearchDraft.includeDescendantFolders
+                            : false
+                        })
                       }
                     >
                       <option value="">전체 폴더</option>
-                      {folders.map((folder) => (
+                      {visibleFolderOptions.map(({ folder, label }) => (
                         <option key={folder.id} value={folder.id}>
-                          {folder.name}
+                          {label}
                         </option>
                       ))}
                     </select>
+                  </label>
+                  <label>
+                    하위 폴더 포함
+                    <input
+                      name="bookmarkSearchIncludeDescendantFolders"
+                      type="checkbox"
+                      checked={bookmarkSearchDraft.includeDescendantFolders}
+                      onChange={(event) =>
+                        updateBookmarkSearchDraft({
+                          includeDescendantFolders: event.target.checked
+                        })
+                      }
+                      disabled={!bookmarkSearchDraft.folderId}
+                    />
                   </label>
                   <label>
                     태그 조건

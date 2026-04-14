@@ -18,6 +18,7 @@ type LoadBookmarksOptions = {
   openedWithin?: BookmarkRelativeDateRange;
   favoriteOnly?: boolean;
   folderId?: string;
+  includeDescendantFolders?: boolean;
   tagIds?: string[];
   tagMode?: BookmarkTagMode;
   bookmarkColor?: string;
@@ -50,6 +51,9 @@ export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
   }
   if (options.folderId) {
     searchParams.set("folderId", options.folderId);
+    if (options.includeDescendantFolders) {
+      searchParams.set("includeDescendantFolders", "1");
+    }
   }
   if (options.tagIds?.length) {
     if (!query && options.tagMode && options.tagMode !== "and") {

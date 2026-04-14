@@ -260,6 +260,93 @@ describe("folder and tag routes", () => {
     });
   });
 
+  it("creates a child folder with a parent folder id", async () => {
+    const repository = createInMemoryFolderRepository();
+    const app = createApp({
+      sessionSecret,
+      folderRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const parentRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Reading"
+      })
+    });
+    const parent = (await parentRes.json()) as {
+      folder: FolderRecord;
+    };
+
+    const childRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Papers",
+        parentFolderId: parent.folder.id
+      })
+    });
+
+    expect(childRes.status).toBe(201);
+    await expect(childRes.json()).resolves.toMatchObject({
+      folder: {
+        name: "Papers",
+        parentFolderId: parent.folder.id
+      }
+    });
+  });
+
+  it("rejects folder self-parent and descendant-parent cycles", async () => {
+    const repository = createInMemoryFolderRepository();
+    const app = createApp({
+      sessionSecret,
+      folderRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const parentRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Reading"
+      })
+    });
+    const parent = (await parentRes.json()) as {
+      folder: FolderRecord;
+    };
+
+    const childRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Papers",
+        parentFolderId: parent.folder.id
+      })
+    });
+    const child = (await childRes.json()) as {
+      folder: FolderRecord;
+    };
+
+    const selfCycleRes = await authenticatedRequest(app, `/api/folders/${child.folder.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        parentFolderId: child.folder.id
+      })
+    });
+
+    expect(selfCycleRes.status).toBe(400);
+    await expect(selfCycleRes.json()).resolves.toMatchObject({
+      error: "invalid_parent_folder_cycle"
+    });
+
+    const descendantCycleRes = await authenticatedRequest(app, `/api/folders/${parent.folder.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        parentFolderId: child.folder.id
+      })
+    });
+
+    expect(descendantCycleRes.status).toBe(400);
+    await expect(descendantCycleRes.json()).resolves.toMatchObject({
+      error: "invalid_parent_folder_cycle"
+    });
+  });
+
   it("deletes an existing folder", async () => {
     const repository = createInMemoryFolderRepository();
     const app = createApp({

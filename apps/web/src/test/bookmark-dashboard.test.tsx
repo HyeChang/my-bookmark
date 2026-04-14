@@ -848,6 +848,165 @@ describe("bookmark dashboard", () => {
     });
   });
 
+  it("includes descendant folders in bookmark search when requested", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (
+        url === "/api/bookmarks?folderId=folder-1&includeDescendantFolders=1" &&
+        !init?.method
+      ) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-child",
+                folderId: "folder-2",
+                tagIds: [],
+                url: "https://example.com/child-folder",
+                isFavorite: false,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Child folder result",
+                userContent: "",
+                userSummary: "",
+                displayTitle: "Child folder result",
+                displayContent: "",
+                displaySummary: "",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              },
+              {
+                id: "folder-2",
+                name: "Papers",
+                color: "#0f766e",
+                icon: "file-text",
+                parentFolderId: "folder-1",
+                sortOrder: 1,
+                createdAt: "2026-04-13T11:00:00.000Z",
+                updatedAt: "2026-04-13T11:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const bookmarkListRegion = await screen.findByRole("region", {
+      name: /bookmark-list/i
+    });
+
+    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /고급 필터/i }));
+    fireEvent.change(within(bookmarkListRegion).getByLabelText(/필터 폴더/i), {
+      target: {
+        value: "folder-1"
+      }
+    });
+    fireEvent.click(within(bookmarkListRegion).getByLabelText(/하위 폴더 포함/i));
+    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /검색 실행/i }));
+
+    await waitFor(() => {
+      expect(within(bookmarkListRegion).getByText(/^Child folder result$/i)).toBeInTheDocument();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks?folderId=folder-1&includeDescendantFolders=1",
+      expect.objectContaining({
+        credentials: "include"
+      })
+    );
+  });
+
   it("toggles the advanced filter section", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;

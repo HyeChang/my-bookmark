@@ -36,6 +36,10 @@ import {
   toBookmarkResponse,
   type BookmarkRepository
 } from "../lib/repositories/bookmarks";
+import {
+  createFolderRepository,
+  type FolderRepository
+} from "../lib/repositories/folders";
 import { syncAuthenticatedUser } from "../lib/repositories/users";
 import {
   createR2BookmarkAssetStorage,
@@ -48,6 +52,7 @@ type BookmarkRouteOptions = {
   bookmarkActivityRepository?: BookmarkActivityRepository;
   assetStorage?: BookmarkAssetStorage;
   bookmarkExtractor?: BookmarkExtractor;
+  folderRepository?: FolderRepository;
   sessionSecret?: string;
 };
 
@@ -67,6 +72,32 @@ function resolveDateRangeCutoff(range: BookmarkRelativeDateRange, now: Date) {
 
   const days = range === "7d" ? 7 : 30;
   return now.getTime() - days * 24 * 60 * 60 * 1000;
+}
+
+function collectDescendantFolderIds(
+  folders: Array<{ id: string; parentFolderId: string | null }>,
+  rootFolderId: string
+) {
+  const descendants = new Set<string>();
+  const pendingFolderIds = [rootFolderId];
+
+  while (pendingFolderIds.length > 0) {
+    const currentFolderId = pendingFolderIds.pop();
+    if (!currentFolderId) {
+      continue;
+    }
+
+    for (const folder of folders) {
+      if (folder.parentFolderId !== currentFolderId || descendants.has(folder.id)) {
+        continue;
+      }
+
+      descendants.add(folder.id);
+      pendingFolderIds.push(folder.id);
+    }
+  }
+
+  return descendants;
 }
 
 function sanitizeFileName(fileName: string) {
@@ -105,10 +136,32 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       const openedWithin = (requestedOpenedWithin ?? "all") as BookmarkRelativeDateRange;
       const requestedTagMode = c.req.query("tagMode");
       const tagMode = (requestedTagMode ?? "and") as BookmarkTagMode;
+      const requestedFolderId = c.req.query("folderId")?.trim() || undefined;
+      const includeDescendantFolders =
+        Boolean(requestedFolderId) && c.req.query("includeDescendantFolders") === "1";
       const tagIds = normalizeTagQueryValues(new URL(c.req.url).searchParams.getAll("tagId"));
+      let folderIds: string[] | undefined;
+
+      if (requestedFolderId && includeDescendantFolders) {
+        const folderRepository =
+          options.folderRepository ??
+          (c.env?.bookmark ? createFolderRepository(c.env.bookmark) : null);
+
+        if (!folderRepository) {
+          return c.json({ error: "folder_repository_unavailable" }, 500);
+        }
+
+        const folders = await folderRepository.listByUser(user.uid);
+        folderIds = [
+          requestedFolderId,
+          ...collectDescendantFolderIds(folders, requestedFolderId)
+        ];
+      }
+
       const filters = {
         favoriteOnly: c.req.query("favorite") === "1",
-        folderId: c.req.query("folderId")?.trim() || undefined,
+        folderId: folderIds ? undefined : requestedFolderId,
+        folderIds,
         tagIds: tagIds.length > 0 ? tagIds : undefined,
         tagMode: tagIds.length > 0 ? tagMode : undefined,
         bookmarkColor: c.req.query("bookmarkColor")?.trim() || undefined,

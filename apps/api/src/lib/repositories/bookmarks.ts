@@ -69,6 +69,7 @@ export type UpdateBookmarkInput = UpdateBookmarkRequest & {
 export type BookmarkListFilters = {
   favoriteOnly?: boolean;
   folderId?: string;
+  folderIds?: string[];
   tagIds?: string[];
   tagMode?: BookmarkTagMode;
   bookmarkColor?: string;
@@ -332,6 +333,10 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
     }
 
     if (filters.folderId && bookmark.folderId !== filters.folderId) {
+      return false;
+    }
+
+    if (filters.folderIds && !filters.folderIds.includes(bookmark.folderId ?? "")) {
       return false;
     }
 
