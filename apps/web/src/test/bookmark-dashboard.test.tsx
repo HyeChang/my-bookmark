@@ -1221,4 +1221,222 @@ describe("bookmark dashboard", () => {
       })
     );
   });
+
+  it("opens a bookmark detail panel and starts editing from the detail view", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-detail",
+                folderId: "folder-1",
+                tagIds: ["tag-1"],
+                url: "https://example.com/detail",
+                isFavorite: true,
+                bookmarkColor: "#f59e0b",
+                urlColor: "#0f172a",
+                sourceTitle: "Source title",
+                sourceContent: "Source content",
+                sourceSummary: "Source summary",
+                userTitle: "Detail title",
+                userContent: "Detail manual content",
+                userSummary: "Detail manual summary",
+                displayTitle: "Detail title",
+                displayContent: "Detail manual content",
+                displaySummary: "Detail manual summary",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/bookmark-detail" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmark: {
+              id: "bookmark-detail",
+              folderId: "folder-1",
+              tagIds: ["tag-1"],
+              url: "https://example.com/detail",
+              isFavorite: true,
+              bookmarkColor: "#f59e0b",
+              urlColor: "#0f172a",
+              sourceTitle: "Source title",
+              sourceContent: "Source content",
+              sourceSummary: "Source summary",
+              userTitle: "Detail title",
+              userContent: "Detail manual content",
+              userSummary: "Detail manual summary",
+              displayTitle: "Detail title",
+              displayContent: "Detail manual content",
+              displaySummary: "Detail manual summary",
+              createdAt: "2026-04-14T03:00:00.000Z",
+              updatedAt: "2026-04-14T03:00:00.000Z"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/bookmark-detail/assets" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            assets: [
+              {
+                id: "asset-detail-1",
+                bookmarkId: "bookmark-detail",
+                assetType: "image",
+                mimeType: "image/png",
+                width: null,
+                height: null,
+                sortOrder: 0,
+                contentUrl: "/api/bookmarks/bookmark-detail/assets/asset-detail-1/content",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            tags: [
+              {
+                id: "tag-1",
+                name: "research",
+                color: "#2563eb",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /상세 보기/i }));
+
+    const detailRegion = await screen.findByRole("region", { name: /bookmark-detail/i });
+    expect(
+      within(detailRegion).getByText(/^Detail title$/i, { selector: "strong" })
+    ).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/^https:\/\/example\.com\/detail$/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/Detail manual content/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/Detail manual summary/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/Source title/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/Source content/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/Source summary/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/폴더:\s*Reading/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/태그:\s*research/i)).toBeInTheDocument();
+    expect(
+      within(detailRegion).getByRole("img", { name: /업로드 이미지 1/i })
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(detailRegion).getByRole("button", { name: /수정 시작/i }));
+
+    expect(screen.getByRole("button", { name: /북마크 수정/i })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Detail title")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Detail manual content")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Detail manual summary")).toBeInTheDocument();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks/bookmark-detail",
+      expect.objectContaining({
+        credentials: "include"
+      })
+    );
+  });
 });

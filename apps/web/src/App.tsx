@@ -17,7 +17,12 @@ import {
   uploadBookmarkAsset
 } from "./lib/bookmark-assets";
 import { extractBookmarkPreview } from "./lib/bookmark-extract";
-import { createBookmark, loadBookmarks, updateBookmark } from "./lib/bookmarks";
+import {
+  createBookmark,
+  loadBookmark,
+  loadBookmarks,
+  updateBookmark
+} from "./lib/bookmarks";
 import { signInWithGoogle, signOutFromGoogle } from "./lib/firebase";
 import { createFolder, loadFolders } from "./lib/folders";
 import { loadRecommendations, recordBookmarkOpen } from "./lib/recommendations";
@@ -102,6 +107,7 @@ export default function App() {
     status: "loading"
   });
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [selectedBookmark, setSelectedBookmark] = useState<Bookmark | null>(null);
   const [bookmarkAssetsByBookmarkId, setBookmarkAssetsByBookmarkId] = useState<
     Record<string, BookmarkAsset[]>
   >({});
@@ -145,6 +151,16 @@ export default function App() {
 
       startTransition(() => {
         setBookmarks(nextBookmarks);
+        setSelectedBookmark((currentSelectedBookmark) => {
+          if (!currentSelectedBookmark) {
+            return null;
+          }
+
+          return (
+            nextBookmarks.find((bookmark) => bookmark.id === currentSelectedBookmark.id) ??
+            currentSelectedBookmark
+          );
+        });
         setFolders(nextFolders);
         setTags(nextTags);
         setRecommendations(nextRecommendations);
@@ -152,6 +168,7 @@ export default function App() {
     } catch {
       startTransition(() => {
         setBookmarks([]);
+        setSelectedBookmark(null);
         setFolders([]);
         setTags([]);
         setRecommendations(emptyBookmarkRecommendations);
@@ -223,6 +240,7 @@ export default function App() {
           user
         });
         setBookmarks(nextBookmarks);
+        setSelectedBookmark(null);
         setFolders(nextFolders);
         setTags(nextTags);
         setRecommendations(nextRecommendations);
@@ -245,6 +263,7 @@ export default function App() {
     startTransition(() => {
       setSessionState({ status: "anonymous" });
       setBookmarks([]);
+      setSelectedBookmark(null);
       setBookmarkAssetsByBookmarkId({});
       setFolders([]);
       setTags([]);
@@ -287,6 +306,11 @@ export default function App() {
 
           startTransition(() => {
             setBookmarks(nextBookmarks);
+            setSelectedBookmark((currentSelectedBookmark) =>
+              currentSelectedBookmark?.id === updatedBookmark.id
+                ? updatedBookmark
+                : currentSelectedBookmark
+            );
             setBookmarkDraft(emptyBookmarkDraft);
             if (uploadedAssets.length > 0) {
               setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
@@ -306,6 +330,11 @@ export default function App() {
               currentBookmarks.map((bookmark) =>
                 bookmark.id === updatedBookmark.id ? updatedBookmark : bookmark
               )
+            );
+            setSelectedBookmark((currentSelectedBookmark) =>
+              currentSelectedBookmark?.id === updatedBookmark.id
+                ? updatedBookmark
+                : currentSelectedBookmark
             );
             setBookmarkDraft(emptyBookmarkDraft);
             if (uploadedAssets.length > 0) {
@@ -504,6 +533,7 @@ export default function App() {
 
       startTransition(() => {
         setBookmarks(nextBookmarks);
+        setSelectedBookmark(null);
         setAppliedBookmarkSearch(nextSearch);
       });
     } catch (error) {
@@ -525,6 +555,7 @@ export default function App() {
 
       startTransition(() => {
         setBookmarks(nextBookmarks);
+        setSelectedBookmark(null);
         setBookmarkSearchDraft(emptyBookmarkSearchDraft);
         setAppliedBookmarkSearch(emptyBookmarkSearchDraft);
       });
@@ -588,6 +619,36 @@ export default function App() {
     setBookmarkDraft(emptyBookmarkDraft);
     setBookmarkPreview(null);
     setPendingAssetFiles([]);
+  }
+
+  async function openBookmarkDetail(bookmarkId: string) {
+    try {
+      setErrorMessage(null);
+      const [bookmark, assets] = await Promise.all([
+        loadBookmark(bookmarkId),
+        loadBookmarkAssets(bookmarkId)
+      ]);
+
+      startTransition(() => {
+        setSelectedBookmark(bookmark);
+        setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
+          ...currentAssetsByBookmarkId,
+          [bookmarkId]: assets
+        }));
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "북마크 상세 정보를 불러오지 못했습니다."
+        );
+      });
+    }
+  }
+
+  function closeBookmarkDetail() {
+    setSelectedBookmark(null);
   }
 
   async function uploadPendingAssets(bookmarkId: string) {
@@ -677,6 +738,18 @@ export default function App() {
         );
       });
     }
+  }
+
+  function getFolderName(folderId: string | null) {
+    if (!folderId) {
+      return "폴더 없음";
+    }
+
+    return folders.find((folder) => folder.id === folderId)?.name ?? folderId;
+  }
+
+  function getTagNames(tagIds: string[]) {
+    return tagIds.map((tagId) => tags.find((tag) => tag.id === tagId)?.name ?? tagId);
   }
 
   return (
@@ -986,6 +1059,63 @@ export default function App() {
                 </ul>
               </div>
             </section>
+            {selectedBookmark ? (
+              <section aria-label="bookmark-detail">
+                <h2>북마크 상세</h2>
+                <strong>{selectedBookmark.displayTitle || selectedBookmark.url}</strong>
+                <p>{selectedBookmark.url}</p>
+                <p>폴더: {getFolderName(selectedBookmark.folderId)}</p>
+                <p>태그: {getTagNames(selectedBookmark.tagIds).join(", ") || "없음"}</p>
+
+                <section>
+                  <h3>사용자 입력값</h3>
+                  {selectedBookmark.userTitle ? <p>{selectedBookmark.userTitle}</p> : null}
+                  {selectedBookmark.userContent ? <p>{selectedBookmark.userContent}</p> : null}
+                  {selectedBookmark.userSummary ? <p>{selectedBookmark.userSummary}</p> : null}
+                  {!selectedBookmark.userTitle &&
+                  !selectedBookmark.userContent &&
+                  !selectedBookmark.userSummary ? (
+                    <p>사용자 입력값이 없습니다.</p>
+                  ) : null}
+                </section>
+
+                <section>
+                  <h3>자동 추출값</h3>
+                  {selectedBookmark.sourceTitle ? <p>{selectedBookmark.sourceTitle}</p> : null}
+                  {selectedBookmark.sourceContent ? <p>{selectedBookmark.sourceContent}</p> : null}
+                  {selectedBookmark.sourceSummary ? <p>{selectedBookmark.sourceSummary}</p> : null}
+                  {!selectedBookmark.sourceTitle &&
+                  !selectedBookmark.sourceContent &&
+                  !selectedBookmark.sourceSummary ? (
+                    <p>자동 추출값이 없습니다.</p>
+                  ) : null}
+                </section>
+
+                {(bookmarkAssetsByBookmarkId[selectedBookmark.id]?.length ?? 0) > 0 ? (
+                  <div>
+                    {bookmarkAssetsByBookmarkId[selectedBookmark.id].map((asset, index) => (
+                      <img
+                        key={asset.id}
+                        src={asset.contentUrl}
+                        alt={`업로드 이미지 ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p>업로드된 이미지가 없습니다.</p>
+                )}
+
+                <button type="button" onClick={() => void handleBookmarkOpen(selectedBookmark)}>
+                  열기 {selectedBookmark.displayTitle || selectedBookmark.url}
+                </button>
+                <button type="button" onClick={() => void beginBookmarkEdit(selectedBookmark)}>
+                  수정 시작
+                </button>
+                <button type="button" onClick={() => closeBookmarkDetail()}>
+                  닫기
+                </button>
+              </section>
+            ) : null}
             <h2>저장된 북마크</h2>
             <form onSubmit={(event) => void handleBookmarkSearchSubmit(event)}>
               <label>
@@ -1049,6 +1179,9 @@ export default function App() {
                   ) : null}
                   <button type="button" onClick={() => void handleBookmarkOpen(bookmark)}>
                     열기 {bookmark.displayTitle || bookmark.url}
+                  </button>
+                  <button type="button" onClick={() => void openBookmarkDetail(bookmark.id)}>
+                    상세 보기
                   </button>
                   <button type="button" onClick={() => beginBookmarkEdit(bookmark)}>
                     수정
