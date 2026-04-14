@@ -75,6 +75,22 @@ describe("bookmark dashboard", () => {
         });
       }
 
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
       if (url === "/api/tags" && !init?.method) {
         return new Response(
           JSON.stringify({
@@ -107,11 +123,10 @@ describe("bookmark dashboard", () => {
       await within(bookmarkFormRegion).findByLabelText(/^URL$/i)
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /북마크 저장/i })).toBeInTheDocument();
-    expect(await screen.findByText(/manual title/i)).toBeInTheDocument();
-    expect(screen.getByText(/https:\/\/example.com\/post/i)).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("region", { name: /bookmark-list/i })).getByText(/research/i)
-    ).toBeInTheDocument();
+    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
+    expect(await within(bookmarkListRegion).findByText(/^Manual title$/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/^https:\/\/example\.com\/post$/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/^research$/i)).toBeInTheDocument();
   });
 
   it("creates a bookmark with selected tags and appends it to the list", async () => {
@@ -152,6 +167,22 @@ describe("bookmark dashboard", () => {
             "content-type": "application/json"
           }
         });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
       }
 
       if (url === "/api/tags" && !init?.method) {
@@ -279,8 +310,9 @@ describe("bookmark dashboard", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /later/i }));
     fireEvent.click(screen.getByRole("button", { name: /북마크 저장/i }));
 
+    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
     await waitFor(() => {
-      expect(screen.getByText(/created title/i)).toBeInTheDocument();
+      expect(within(bookmarkListRegion).getByText(/^Created title$/i)).toBeInTheDocument();
     });
 
     const createCall = fetchSpy.mock.calls.find(
@@ -306,13 +338,8 @@ describe("bookmark dashboard", () => {
         init?.method === "POST"
     );
     expect(uploadCall).toBeDefined();
-    expect(screen.getByRole("img", { name: /업로드 이미지 1/i })).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("region", { name: /bookmark-list/i })).getByText(/research/i)
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("region", { name: /bookmark-list/i })).getByText(/later/i)
-    ).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByRole("img", { name: /업로드 이미지 1/i })).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/research,\s*later/i)).toBeInTheDocument();
   });
 
   it("loads bookmark preview metadata and submits extracted source fields", async () => {
@@ -353,6 +380,22 @@ describe("bookmark dashboard", () => {
             "content-type": "application/json"
           }
         });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
       }
 
       if (url === "/api/tags" && !init?.method) {
@@ -538,6 +581,22 @@ describe("bookmark dashboard", () => {
         });
       }
 
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
       if (url === "/api/tags" && !init?.method) {
         return new Response(JSON.stringify({ tags: [] }), {
           status: 200,
@@ -564,8 +623,9 @@ describe("bookmark dashboard", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /검색 실행/i }));
 
+    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
     await waitFor(() => {
-      expect(screen.getByText(/model note/i)).toBeInTheDocument();
+      expect(within(bookmarkListRegion).getByText(/^Model note$/i)).toBeInTheDocument();
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -648,6 +708,22 @@ describe("bookmark dashboard", () => {
                 updatedAt: "2026-04-13T10:00:00.000Z"
               }
             ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
           }),
           {
             status: 200,
@@ -762,8 +838,9 @@ describe("bookmark dashboard", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /later/i }));
     fireEvent.click(screen.getByRole("button", { name: /북마크 수정/i }));
 
+    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
     await waitFor(() => {
-      expect(screen.getByText(/after title/i)).toBeInTheDocument();
+      expect(within(bookmarkListRegion).getByText(/^After title$/i)).toBeInTheDocument();
     });
 
     const patchCall = fetchSpy.mock.calls.find(
@@ -851,6 +928,22 @@ describe("bookmark dashboard", () => {
         });
       }
 
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
       if (url === "/api/tags" && !init?.method) {
         return new Response(JSON.stringify({ tags: [] }), {
           status: 200,
@@ -926,6 +1019,204 @@ describe("bookmark dashboard", () => {
       "/api/bookmarks/bookmark-asset-delete/assets/asset-delete-1",
       expect.objectContaining({
         method: "DELETE",
+        credentials: "include"
+      })
+    );
+  });
+
+  it("shows recommendation sections and records opens from the dashboard", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-list-open",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/list-open",
+                isFavorite: false,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "List open link",
+                userContent: null,
+                userSummary: null,
+                displayTitle: "List open link",
+                displayContent: "",
+                displaySummary: "",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [
+              {
+                id: "bookmark-favorite",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/favorite",
+                isFavorite: true,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Favorite recommendation",
+                userContent: null,
+                userSummary: null,
+                displayTitle: "Favorite recommendation",
+                displayContent: "",
+                displaySummary: "",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ],
+            recent: [
+              {
+                id: "bookmark-recent",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/recent",
+                isFavorite: false,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Recent recommendation",
+                userContent: null,
+                userSummary: null,
+                displayTitle: "Recent recommendation",
+                displayContent: "",
+                displaySummary: "",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ],
+            frequent: [
+              {
+                id: "bookmark-frequent",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/frequent",
+                isFavorite: false,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Frequent recommendation",
+                userContent: null,
+                userSummary: null,
+                displayTitle: "Frequent recommendation",
+                displayContent: "",
+                displaySummary: "",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/bookmark-favorite/open" && init?.method === "POST") {
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const recommendationRegion = await screen.findByRole("region", {
+      name: /recommendation-list/i
+    });
+
+    expect(
+      await within(recommendationRegion).findByText(/^Favorite recommendation$/i)
+    ).toBeInTheDocument();
+    expect(within(recommendationRegion).getByText(/^Recent recommendation$/i)).toBeInTheDocument();
+    expect(within(recommendationRegion).getByText(/^Frequent recommendation$/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /열기 favorite recommendation/i }));
+
+    await waitFor(() => {
+      expect(openSpy).toHaveBeenCalledWith(
+        "https://example.com/favorite",
+        "_blank",
+        "noopener,noreferrer"
+      );
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks/bookmark-favorite/open",
+      expect.objectContaining({
+        method: "POST",
         credentials: "include"
       })
     );

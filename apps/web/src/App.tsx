@@ -20,6 +20,7 @@ import { extractBookmarkPreview } from "./lib/bookmark-extract";
 import { createBookmark, loadBookmarks, updateBookmark } from "./lib/bookmarks";
 import { signInWithGoogle, signOutFromGoogle } from "./lib/firebase";
 import { createFolder, loadFolders } from "./lib/folders";
+import { loadRecommendations, recordBookmarkOpen } from "./lib/recommendations";
 import { exchangeIdTokenForSession, loadSession, logoutSession } from "./lib/session";
 import { createTag, loadTags } from "./lib/tags";
 
@@ -56,6 +57,12 @@ type BookmarkSearchDraft = {
   mode: BookmarkSearchMode;
 };
 
+type BookmarkRecommendationsState = {
+  favorites: Bookmark[];
+  recent: Bookmark[];
+  frequent: Bookmark[];
+};
+
 const emptyBookmarkDraft: BookmarkDraft = {
   url: "",
   folderId: "",
@@ -84,6 +91,12 @@ const emptyBookmarkSearchDraft: BookmarkSearchDraft = {
   mode: "all"
 };
 
+const emptyBookmarkRecommendations: BookmarkRecommendationsState = {
+  favorites: [],
+  recent: [],
+  frequent: []
+};
+
 export default function App() {
   const [sessionState, setSessionState] = useState<SessionState>({
     status: "loading"
@@ -94,6 +107,9 @@ export default function App() {
   >({});
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [recommendations, setRecommendations] = useState<BookmarkRecommendationsState>(
+    emptyBookmarkRecommendations
+  );
   const [bookmarkDraft, setBookmarkDraft] = useState<BookmarkDraft>(emptyBookmarkDraft);
   const [editingBookmarkId, setEditingBookmarkId] = useState<string | null>(null);
   const [pendingAssetFiles, setPendingAssetFiles] = useState<File[]>([]);
@@ -117,25 +133,28 @@ export default function App() {
     setIsLoadingDashboard(true);
 
     try {
-      const [nextBookmarks, nextFolders, nextTags] = await Promise.all([
+      const [nextBookmarks, nextFolders, nextTags, nextRecommendations] = await Promise.all([
         loadBookmarks({
           query: search.query,
           mode: search.mode
         }),
         loadFolders(),
-        loadTags()
+        loadTags(),
+        loadRecommendations()
       ]);
 
       startTransition(() => {
         setBookmarks(nextBookmarks);
         setFolders(nextFolders);
         setTags(nextTags);
+        setRecommendations(nextRecommendations);
       });
     } catch {
       startTransition(() => {
         setBookmarks([]);
         setFolders([]);
         setTags([]);
+        setRecommendations(emptyBookmarkRecommendations);
         setErrorMessage("대시보드 데이터를 불러오지 못했습니다.");
       });
     } finally {
@@ -188,13 +207,14 @@ export default function App() {
       setErrorMessage(null);
       const idToken = await signInWithGoogle();
       const user = await exchangeIdTokenForSession(idToken);
-      const [nextBookmarks, nextFolders, nextTags] = await Promise.all([
+      const [nextBookmarks, nextFolders, nextTags, nextRecommendations] = await Promise.all([
         loadBookmarks({
           query: appliedBookmarkSearch.query,
           mode: appliedBookmarkSearch.mode
         }).catch(() => []),
         loadFolders().catch(() => []),
-        loadTags().catch(() => [])
+        loadTags().catch(() => []),
+        loadRecommendations().catch(() => emptyBookmarkRecommendations)
       ]);
 
       startTransition(() => {
@@ -205,6 +225,7 @@ export default function App() {
         setBookmarks(nextBookmarks);
         setFolders(nextFolders);
         setTags(nextTags);
+        setRecommendations(nextRecommendations);
       });
     } catch (error) {
       startTransition(() => {
@@ -227,6 +248,7 @@ export default function App() {
       setBookmarkAssetsByBookmarkId({});
       setFolders([]);
       setTags([]);
+      setRecommendations(emptyBookmarkRecommendations);
       setBookmarkDraft(emptyBookmarkDraft);
       setBookmarkPreview(null);
       setPendingAssetFiles([]);
@@ -630,6 +652,33 @@ export default function App() {
     }
   }
 
+  async function handleBookmarkOpen(bookmark: Bookmark) {
+    try {
+      setErrorMessage(null);
+      await recordBookmarkOpen(bookmark.id);
+      startTransition(() => {
+        setRecommendations((currentRecommendations) => ({
+          ...currentRecommendations,
+          recent: [
+            bookmark,
+            ...currentRecommendations.recent.filter(
+              (currentBookmark) => currentBookmark.id !== bookmark.id
+            )
+          ].slice(0, 5)
+        }));
+      });
+      window.open(bookmark.url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "북마크 열기 기록을 저장하지 못했습니다."
+        );
+      });
+    }
+  }
+
   return (
     <main>
       <h1>Bookmark</h1>
@@ -885,6 +934,58 @@ export default function App() {
           </section>
 
           <section aria-label="bookmark-list">
+            <section aria-label="recommendation-list">
+              <h2>추천 링크</h2>
+              <div>
+                <h3>즐겨찾기 추천</h3>
+                {recommendations.favorites.length === 0 ? <p>추천 링크가 없습니다.</p> : null}
+                <ul>
+                  {recommendations.favorites.map((bookmark) => (
+                    <li key={`favorite-${bookmark.id}`}>
+                      <span>{bookmark.displayTitle || bookmark.url}</span>
+                      <button
+                        type="button"
+                        onClick={() => void handleBookmarkOpen(bookmark)}
+                      >
+                        열기 {bookmark.displayTitle || bookmark.url}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3>최근 열람</h3>
+                <ul>
+                  {recommendations.recent.map((bookmark) => (
+                    <li key={`recent-${bookmark.id}`}>
+                      <span>{bookmark.displayTitle || bookmark.url}</span>
+                      <button
+                        type="button"
+                        onClick={() => void handleBookmarkOpen(bookmark)}
+                      >
+                        열기 {bookmark.displayTitle || bookmark.url}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3>자주 연 링크</h3>
+                <ul>
+                  {recommendations.frequent.map((bookmark) => (
+                    <li key={`frequent-${bookmark.id}`}>
+                      <span>{bookmark.displayTitle || bookmark.url}</span>
+                      <button
+                        type="button"
+                        onClick={() => void handleBookmarkOpen(bookmark)}
+                      >
+                        열기 {bookmark.displayTitle || bookmark.url}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
             <h2>저장된 북마크</h2>
             <form onSubmit={(event) => void handleBookmarkSearchSubmit(event)}>
               <label>
@@ -946,6 +1047,9 @@ export default function App() {
                       ))}
                     </div>
                   ) : null}
+                  <button type="button" onClick={() => void handleBookmarkOpen(bookmark)}>
+                    열기 {bookmark.displayTitle || bookmark.url}
+                  </button>
                   <button type="button" onClick={() => beginBookmarkEdit(bookmark)}>
                     수정
                   </button>

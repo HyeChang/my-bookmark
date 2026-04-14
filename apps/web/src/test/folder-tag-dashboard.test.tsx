@@ -64,6 +64,22 @@ describe("folder and tag dashboard", () => {
         );
       }
 
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
       if (url === "/api/tags" && !init?.method) {
         return new Response(
           JSON.stringify({
@@ -138,6 +154,22 @@ describe("folder and tag dashboard", () => {
             "content-type": "application/json"
           }
         });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
       }
 
       if (url === "/api/tags" && !init?.method) {

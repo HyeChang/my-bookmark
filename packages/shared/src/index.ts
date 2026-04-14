@@ -76,6 +76,16 @@ export type BookmarkListResponse = {
   bookmarks: Bookmark[];
 };
 
+export type BookmarkRecommendationsResponse = {
+  favorites: Bookmark[];
+  recent: Bookmark[];
+  frequent: Bookmark[];
+};
+
+export type BookmarkOpenResponse = {
+  ok: true;
+};
+
 export type BookmarkExtractRequest = {
   url: string;
 };

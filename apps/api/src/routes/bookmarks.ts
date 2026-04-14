@@ -1,4 +1,5 @@
 import type {
+  BookmarkOpenResponse,
   BookmarkAssetListResponse,
   BookmarkAssetResponse,
   BookmarkExtractRequest,
@@ -23,6 +24,10 @@ import {
   type BookmarkAssetRepository
 } from "../lib/repositories/bookmark-assets";
 import {
+  createBookmarkActivityRepository,
+  type BookmarkActivityRepository
+} from "../lib/repositories/bookmark-activity";
+import {
   createBookmarkRepository,
   normalizeBookmarkUrl,
   toBookmarkResponse,
@@ -37,6 +42,7 @@ import {
 type BookmarkRouteOptions = {
   bookmarkRepository?: BookmarkRepository;
   bookmarkAssetRepository?: BookmarkAssetRepository;
+  bookmarkActivityRepository?: BookmarkActivityRepository;
   assetStorage?: BookmarkAssetStorage;
   bookmarkExtractor?: BookmarkExtractor;
   sessionSecret?: string;
@@ -244,6 +250,37 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
 
       return c.json<BookmarkResponse>({
         bookmark: toBookmarkResponse(bookmark)
+      });
+    })
+    .post("/:bookmarkId/open", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const bookmarkActivityRepository =
+        options.bookmarkActivityRepository ??
+        (c.env?.bookmark ? createBookmarkActivityRepository(c.env.bookmark) : null);
+
+      if (!bookmarkRepository || !bookmarkActivityRepository) {
+        return c.json({ error: "bookmark_activity_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      await bookmarkActivityRepository.recordOpen(user.uid, bookmark.id);
+
+      return c.json<BookmarkOpenResponse>({
+        ok: true
       });
     })
     .get("/:bookmarkId/assets", async (c) => {

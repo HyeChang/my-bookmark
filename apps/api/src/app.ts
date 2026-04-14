@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { createFirebaseVerifier } from "./lib/auth/firebase";
 import type { VerifyIdToken } from "./lib/auth/types";
 import type { BookmarkAssetRepository } from "./lib/repositories/bookmark-assets";
+import type { BookmarkActivityRepository } from "./lib/repositories/bookmark-activity";
 import type { BookmarkRepository } from "./lib/repositories/bookmarks";
 import type { FolderRepository } from "./lib/repositories/folders";
 import type { TagRepository } from "./lib/repositories/tags";
@@ -12,6 +13,7 @@ import { healthRoute } from "./routes/health";
 import { createAuthRoute } from "./routes/auth";
 import { createBookmarkRoute } from "./routes/bookmarks";
 import { createFolderRoute } from "./routes/folders";
+import { createRecommendationRoute } from "./routes/recommendations";
 import { createTagRoute } from "./routes/tags";
 
 type CreateAppOptions = {
@@ -19,6 +21,7 @@ type CreateAppOptions = {
   sessionSecret?: string;
   bookmarkRepository?: BookmarkRepository;
   bookmarkAssetRepository?: BookmarkAssetRepository;
+  bookmarkActivityRepository?: BookmarkActivityRepository;
   assetStorage?: BookmarkAssetStorage;
   bookmarkExtractor?: BookmarkExtractor;
   folderRepository?: FolderRepository;
@@ -41,6 +44,7 @@ export function createApp(options: CreateAppOptions = {}) {
     createBookmarkRoute({
       bookmarkRepository: options.bookmarkRepository,
       bookmarkAssetRepository: options.bookmarkAssetRepository,
+      bookmarkActivityRepository: options.bookmarkActivityRepository,
       assetStorage: options.assetStorage,
       bookmarkExtractor: options.bookmarkExtractor,
       sessionSecret: options.sessionSecret
@@ -57,6 +61,14 @@ export function createApp(options: CreateAppOptions = {}) {
     "/api/tags",
     createTagRoute({
       tagRepository: options.tagRepository,
+      sessionSecret: options.sessionSecret
+    })
+  );
+  app.route(
+    "/api/recommendations",
+    createRecommendationRoute({
+      bookmarkRepository: options.bookmarkRepository,
+      bookmarkActivityRepository: options.bookmarkActivityRepository,
       sessionSecret: options.sessionSecret
     })
   );
