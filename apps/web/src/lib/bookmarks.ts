@@ -3,6 +3,7 @@ import type {
   BookmarkRelativeDateRange,
   BookmarkSearchMode,
   BookmarkSortMode,
+  BookmarkTagMode,
   BookmarkListResponse,
   BookmarkResponse,
   CreateBookmarkRequest,
@@ -18,6 +19,7 @@ type LoadBookmarksOptions = {
   favoriteOnly?: boolean;
   folderId?: string;
   tagIds?: string[];
+  tagMode?: BookmarkTagMode;
   bookmarkColor?: string;
   urlColor?: string;
   summaryState?: "all" | "with" | "without";
@@ -29,6 +31,9 @@ export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
 
   if (query) {
     searchParams.set("mode", options.mode ?? "all");
+    if (options.tagMode && options.tagMode !== "and" && options.tagIds?.length) {
+      searchParams.set("tagMode", options.tagMode);
+    }
     searchParams.set("query", query);
   }
   if (options.sort && options.sort !== "created_desc") {
@@ -47,6 +52,9 @@ export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
     searchParams.set("folderId", options.folderId);
   }
   if (options.tagIds?.length) {
+    if (!query && options.tagMode && options.tagMode !== "and") {
+      searchParams.set("tagMode", options.tagMode);
+    }
     for (const tagId of options.tagIds) {
       const normalizedTagId = tagId.trim();
       if (normalizedTagId) {

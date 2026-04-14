@@ -8,6 +8,7 @@ import type {
   BookmarkRelativeDateRange,
   BookmarkSearchMode,
   BookmarkSortMode,
+  BookmarkTagMode,
   CreateBookmarkRequest,
   Folder,
   Tag
@@ -75,6 +76,7 @@ type BookmarkSearchDraft = {
   favoriteOnly: boolean;
   folderId: string;
   tagIds: string[];
+  tagMode: BookmarkTagMode;
   bookmarkColor: string;
   urlColor: string;
   summaryState: "all" | "with" | "without";
@@ -118,6 +120,7 @@ const emptyBookmarkSearchDraft: BookmarkSearchDraft = {
   favoriteOnly: false,
   folderId: "",
   tagIds: [],
+  tagMode: "and",
   bookmarkColor: "",
   urlColor: "",
   summaryState: "all"
@@ -139,26 +142,136 @@ function normalizeBookmarkSearchDraft(search: BookmarkSearchDraft): BookmarkSear
     favoriteOnly: search.favoriteOnly,
     folderId: search.folderId.trim(),
     tagIds: Array.from(new Set(search.tagIds.map((tagId) => tagId.trim()).filter(Boolean))),
+    tagMode: search.tagMode === "or" ? "or" : "and",
     bookmarkColor: search.bookmarkColor.trim(),
     urlColor: search.urlColor.trim(),
     summaryState: search.summaryState
   };
 }
 
-function hasActiveBookmarkSearch(search: BookmarkSearchDraft) {
+function hasActiveBookmarkAdvancedFilters(search: BookmarkSearchDraft) {
   const normalizedSearch = normalizeBookmarkSearchDraft(search);
   return Boolean(
-      normalizedSearch.query ||
-      normalizedSearch.sort !== "created_desc" ||
       normalizedSearch.createdWithin !== "all" ||
       normalizedSearch.openedWithin !== "all" ||
       normalizedSearch.favoriteOnly ||
       normalizedSearch.folderId ||
       normalizedSearch.tagIds.length > 0 ||
+      (normalizedSearch.tagIds.length > 0 && normalizedSearch.tagMode !== "and") ||
       normalizedSearch.bookmarkColor ||
       normalizedSearch.urlColor ||
       normalizedSearch.summaryState !== "all"
   );
+}
+
+function hasActiveBookmarkSearch(search: BookmarkSearchDraft) {
+  const normalizedSearch = normalizeBookmarkSearchDraft(search);
+  return Boolean(
+    normalizedSearch.query ||
+    normalizedSearch.sort !== "created_desc" ||
+    hasActiveBookmarkAdvancedFilters(normalizedSearch)
+  );
+}
+
+function getBookmarkSearchModeLabel(mode: BookmarkSearchMode) {
+  switch (mode) {
+    case "title":
+      return "제목 검색";
+    case "content":
+      return "내용 검색";
+    case "folder":
+      return "폴더명 검색";
+    default:
+      return "통합 검색";
+  }
+}
+
+function getBookmarkSortLabel(sort: BookmarkSortMode) {
+  return sort === "opened_desc" ? "최근 열람순" : "최근 추가순";
+}
+
+function getBookmarkRelativeDateRangeLabel(
+  range: BookmarkRelativeDateRange,
+  prefix: string
+) {
+  switch (range) {
+    case "7d":
+      return `${prefix}: 최근 7일`;
+    case "30d":
+      return `${prefix}: 최근 30일`;
+    default:
+      return null;
+  }
+}
+
+function getBookmarkSearchSummaryItems(
+  search: BookmarkSearchDraft,
+  options: {
+    getFolderName: (folderId: string | null) => string;
+    getTagNames: (tagIds: string[]) => string[];
+  }
+) {
+  const normalizedSearch = normalizeBookmarkSearchDraft(search);
+  const items: string[] = [];
+
+  if (normalizedSearch.query) {
+    items.push(`검색어: ${normalizedSearch.query}`);
+    items.push(`모드: ${getBookmarkSearchModeLabel(normalizedSearch.mode)}`);
+  }
+
+  if (normalizedSearch.sort !== "created_desc") {
+    items.push(`정렬: ${getBookmarkSortLabel(normalizedSearch.sort)}`);
+  }
+
+  const createdWithinLabel = getBookmarkRelativeDateRangeLabel(
+    normalizedSearch.createdWithin,
+    "최근 추가"
+  );
+  if (createdWithinLabel) {
+    items.push(createdWithinLabel);
+  }
+
+  const openedWithinLabel = getBookmarkRelativeDateRangeLabel(
+    normalizedSearch.openedWithin,
+    "최근 열람"
+  );
+  if (openedWithinLabel) {
+    items.push(openedWithinLabel);
+  }
+
+  if (normalizedSearch.favoriteOnly) {
+    items.push("즐겨찾기만");
+  }
+
+  if (normalizedSearch.folderId) {
+    items.push(`폴더: ${options.getFolderName(normalizedSearch.folderId)}`);
+  }
+
+  if (normalizedSearch.tagIds.length > 0) {
+    const tagModeLabel =
+      normalizedSearch.tagMode === "or" ? "하나라도 포함" : "모두 포함";
+    items.push(
+      `태그(${tagModeLabel}): ${options.getTagNames(normalizedSearch.tagIds).join(", ")}`
+    );
+  }
+
+  if (normalizedSearch.bookmarkColor) {
+    items.push(`북마크 색상: ${normalizedSearch.bookmarkColor}`);
+  }
+
+  if (normalizedSearch.urlColor) {
+    items.push(`URL 색상: ${normalizedSearch.urlColor}`);
+  }
+
+  if (normalizedSearch.summaryState === "with") {
+    items.push("요약 있음");
+  }
+
+  if (normalizedSearch.summaryState === "without") {
+    items.push("요약 없음");
+  }
+
+  return items;
 }
 
 export default function App() {
@@ -185,6 +298,7 @@ export default function App() {
   const [appliedBookmarkSearch, setAppliedBookmarkSearch] = useState<BookmarkSearchDraft>(
     emptyBookmarkSearchDraft
   );
+  const [isAdvancedBookmarkSearchOpen, setIsAdvancedBookmarkSearchOpen] = useState(false);
   const [folderDraft, setFolderDraft] = useState<FolderDraft>(emptyFolderDraft);
   const [tagDraft, setTagDraft] = useState<TagDraft>(emptyTagDraft);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
@@ -596,7 +710,8 @@ export default function App() {
 
       return {
         ...currentDraft,
-        tagIds: nextTagIds
+        tagIds: nextTagIds,
+        tagMode: nextTagIds.length === 0 ? "and" : currentDraft.tagMode
       };
     });
   }
@@ -713,7 +828,11 @@ export default function App() {
       currentDraft.tagIds.includes(tagId)
         ? {
             ...currentDraft,
-            tagIds: currentDraft.tagIds.filter((currentTagId) => currentTagId !== tagId)
+            tagIds: currentDraft.tagIds.filter((currentTagId) => currentTagId !== tagId),
+            tagMode:
+              currentDraft.tagIds.filter((currentTagId) => currentTagId !== tagId).length === 0
+                ? "and"
+                : currentDraft.tagMode
           }
         : currentDraft
     );
@@ -721,7 +840,11 @@ export default function App() {
       currentSearch.tagIds.includes(tagId)
         ? {
             ...currentSearch,
-            tagIds: currentSearch.tagIds.filter((currentTagId) => currentTagId !== tagId)
+            tagIds: currentSearch.tagIds.filter((currentTagId) => currentTagId !== tagId),
+            tagMode:
+              currentSearch.tagIds.filter((currentTagId) => currentTagId !== tagId).length === 0
+                ? "and"
+                : currentSearch.tagMode
           }
         : currentSearch
     );
@@ -1119,6 +1242,18 @@ export default function App() {
   function getTagNames(tagIds: string[]) {
     return tagIds.map((tagId) => tags.find((tag) => tag.id === tagId)?.name ?? tagId);
   }
+
+  const shouldShowAdvancedBookmarkSearch =
+    isAdvancedBookmarkSearchOpen ||
+    hasActiveBookmarkAdvancedFilters(bookmarkSearchDraft) ||
+    hasActiveBookmarkAdvancedFilters(appliedBookmarkSearch);
+  const activeBookmarkSearchSummaryItems = getBookmarkSearchSummaryItems(
+    appliedBookmarkSearch,
+    {
+      getFolderName,
+      getTagNames
+    }
+  );
 
   return (
     <main>
@@ -1542,163 +1677,195 @@ export default function App() {
             ) : null}
             <h2>저장된 북마크</h2>
             <form onSubmit={(event) => void handleBookmarkSearchSubmit(event)}>
-              <label>
-                검색어
-                <input
-                  name="bookmarkSearchQuery"
-                  value={bookmarkSearchDraft.query}
-                  onChange={(event) =>
-                    updateBookmarkSearchDraft({ query: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                검색 모드
-                <select
-                  name="bookmarkSearchMode"
-                  value={bookmarkSearchDraft.mode}
-                  onChange={(event) =>
-                    updateBookmarkSearchDraft({
-                      mode: event.target.value as BookmarkSearchMode
-                    })
-                  }
-                >
-                  <option value="all">통합 검색</option>
-                  <option value="title">제목 검색</option>
-                  <option value="content">내용 검색</option>
-                  <option value="folder">폴더명 검색</option>
-                </select>
-              </label>
-              <label>
-                정렬
-                <select
-                  name="bookmarkSearchSort"
-                  value={bookmarkSearchDraft.sort}
-                  onChange={(event) =>
-                    updateBookmarkSearchDraft({
-                      sort: event.target.value as BookmarkSortMode
-                    })
-                  }
-                >
-                  <option value="created_desc">최근 추가순</option>
-                  <option value="opened_desc">최근 열람순</option>
-                </select>
-              </label>
-              <label>
-                최근 추가
-                <select
-                  name="bookmarkSearchCreatedWithin"
-                  value={bookmarkSearchDraft.createdWithin}
-                  onChange={(event) =>
-                    updateBookmarkSearchDraft({
-                      createdWithin: event.target.value as BookmarkRelativeDateRange
-                    })
-                  }
-                >
-                  <option value="all">전체</option>
-                  <option value="7d">최근 7일</option>
-                  <option value="30d">최근 30일</option>
-                </select>
-              </label>
-              <label>
-                최근 열람
-                <select
-                  name="bookmarkSearchOpenedWithin"
-                  value={bookmarkSearchDraft.openedWithin}
-                  onChange={(event) =>
-                    updateBookmarkSearchDraft({
-                      openedWithin: event.target.value as BookmarkRelativeDateRange
-                    })
-                  }
-                >
-                  <option value="all">전체</option>
-                  <option value="7d">최근 7일</option>
-                  <option value="30d">최근 30일</option>
-                </select>
-              </label>
-              <label>
-                즐겨찾기만
-                <input
-                  name="bookmarkSearchFavoriteOnly"
-                  type="checkbox"
-                  checked={bookmarkSearchDraft.favoriteOnly}
-                  onChange={(event) =>
-                    updateBookmarkSearchDraft({
-                      favoriteOnly: event.target.checked
-                    })
-                  }
-                />
-              </label>
-              <label>
-                필터 폴더
-                <select
-                  name="bookmarkSearchFolderId"
-                  value={bookmarkSearchDraft.folderId}
-                  onChange={(event) =>
-                    updateBookmarkSearchDraft({ folderId: event.target.value })
-                  }
-                >
-                  <option value="">전체 폴더</option>
-                  {folders.map((folder) => (
-                    <option key={folder.id} value={folder.id}>
-                      {folder.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <fieldset>
-                <legend>필터 태그</legend>
-                {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
-                {tags.map((tag) => (
-                  <label key={tag.id}>
-                    <input
-                      type="checkbox"
-                      name="bookmarkSearchTagIds"
-                      checked={bookmarkSearchDraft.tagIds.includes(tag.id)}
+                <legend>기본 검색</legend>
+                <label>
+                  검색어
+                  <input
+                    name="bookmarkSearchQuery"
+                    value={bookmarkSearchDraft.query}
+                    onChange={(event) =>
+                      updateBookmarkSearchDraft({ query: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  검색 모드
+                  <select
+                    name="bookmarkSearchMode"
+                    value={bookmarkSearchDraft.mode}
+                    onChange={(event) =>
+                      updateBookmarkSearchDraft({
+                        mode: event.target.value as BookmarkSearchMode
+                      })
+                    }
+                  >
+                    <option value="all">통합 검색</option>
+                    <option value="title">제목 검색</option>
+                    <option value="content">내용 검색</option>
+                    <option value="folder">폴더명 검색</option>
+                  </select>
+                </label>
+                <label>
+                  정렬
+                  <select
+                    name="bookmarkSearchSort"
+                    value={bookmarkSearchDraft.sort}
+                    onChange={(event) =>
+                      updateBookmarkSearchDraft({
+                        sort: event.target.value as BookmarkSortMode
+                      })
+                    }
+                  >
+                    <option value="created_desc">최근 추가순</option>
+                    <option value="opened_desc">최근 열람순</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  aria-expanded={shouldShowAdvancedBookmarkSearch}
+                  onClick={() =>
+                    setIsAdvancedBookmarkSearchOpen((currentState) => !currentState)
+                  }
+                >
+                  고급 필터
+                </button>
+              </fieldset>
+              {shouldShowAdvancedBookmarkSearch ? (
+                <fieldset>
+                  <legend>고급 필터</legend>
+                  <label>
+                    최근 추가
+                    <select
+                      name="bookmarkSearchCreatedWithin"
+                      value={bookmarkSearchDraft.createdWithin}
                       onChange={(event) =>
-                        toggleBookmarkSearchTag(tag.id, event.target.checked)
+                        updateBookmarkSearchDraft({
+                          createdWithin: event.target.value as BookmarkRelativeDateRange
+                        })
+                      }
+                    >
+                      <option value="all">전체</option>
+                      <option value="7d">최근 7일</option>
+                      <option value="30d">최근 30일</option>
+                    </select>
+                  </label>
+                  <label>
+                    최근 열람
+                    <select
+                      name="bookmarkSearchOpenedWithin"
+                      value={bookmarkSearchDraft.openedWithin}
+                      onChange={(event) =>
+                        updateBookmarkSearchDraft({
+                          openedWithin: event.target.value as BookmarkRelativeDateRange
+                        })
+                      }
+                    >
+                      <option value="all">전체</option>
+                      <option value="7d">최근 7일</option>
+                      <option value="30d">최근 30일</option>
+                    </select>
+                  </label>
+                  <label>
+                    즐겨찾기만
+                    <input
+                      name="bookmarkSearchFavoriteOnly"
+                      type="checkbox"
+                      checked={bookmarkSearchDraft.favoriteOnly}
+                      onChange={(event) =>
+                        updateBookmarkSearchDraft({
+                          favoriteOnly: event.target.checked
+                        })
                       }
                     />
-                    {tag.name}
                   </label>
-                ))}
-              </fieldset>
-              <label>
-                북마크 색상 필터
-                <input
-                  name="bookmarkSearchBookmarkColor"
-                  value={bookmarkSearchDraft.bookmarkColor}
-                  onChange={(event) =>
-                    updateBookmarkSearchDraft({ bookmarkColor: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                URL 색상 필터
-                <input
-                  name="bookmarkSearchUrlColor"
-                  value={bookmarkSearchDraft.urlColor}
-                  onChange={(event) =>
-                    updateBookmarkSearchDraft({ urlColor: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                요약 필터
-                <select
-                  name="bookmarkSearchSummaryState"
-                  value={bookmarkSearchDraft.summaryState}
-                  onChange={(event) =>
-                    updateBookmarkSearchDraft({
-                      summaryState: event.target.value as "all" | "with" | "without"
-                    })
-                  }
-                >
-                  <option value="all">전체 요약</option>
-                  <option value="with">요약 있음</option>
-                  <option value="without">요약 없음</option>
-                </select>
-              </label>
+                  <label>
+                    필터 폴더
+                    <select
+                      name="bookmarkSearchFolderId"
+                      value={bookmarkSearchDraft.folderId}
+                      onChange={(event) =>
+                        updateBookmarkSearchDraft({ folderId: event.target.value })
+                      }
+                    >
+                      <option value="">전체 폴더</option>
+                      {folders.map((folder) => (
+                        <option key={folder.id} value={folder.id}>
+                          {folder.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    태그 조건
+                    <select
+                      name="bookmarkSearchTagMode"
+                      value={bookmarkSearchDraft.tagMode}
+                      onChange={(event) =>
+                        updateBookmarkSearchDraft({
+                          tagMode: event.target.value as BookmarkTagMode
+                        })
+                      }
+                    >
+                      <option value="and">모두 포함</option>
+                      <option value="or">하나라도 포함</option>
+                    </select>
+                  </label>
+                  <fieldset>
+                    <legend>필터 태그</legend>
+                    {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
+                    {tags.map((tag) => (
+                      <label key={tag.id}>
+                        <input
+                          type="checkbox"
+                          name="bookmarkSearchTagIds"
+                          checked={bookmarkSearchDraft.tagIds.includes(tag.id)}
+                          onChange={(event) =>
+                            toggleBookmarkSearchTag(tag.id, event.target.checked)
+                          }
+                        />
+                        {tag.name}
+                      </label>
+                    ))}
+                  </fieldset>
+                  <label>
+                    북마크 색상 필터
+                    <input
+                      name="bookmarkSearchBookmarkColor"
+                      value={bookmarkSearchDraft.bookmarkColor}
+                      onChange={(event) =>
+                        updateBookmarkSearchDraft({ bookmarkColor: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    URL 색상 필터
+                    <input
+                      name="bookmarkSearchUrlColor"
+                      value={bookmarkSearchDraft.urlColor}
+                      onChange={(event) =>
+                        updateBookmarkSearchDraft({ urlColor: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    요약 필터
+                    <select
+                      name="bookmarkSearchSummaryState"
+                      value={bookmarkSearchDraft.summaryState}
+                      onChange={(event) =>
+                        updateBookmarkSearchDraft({
+                          summaryState: event.target.value as "all" | "with" | "without"
+                        })
+                      }
+                    >
+                      <option value="all">전체 요약</option>
+                      <option value="with">요약 있음</option>
+                      <option value="without">요약 없음</option>
+                    </select>
+                  </label>
+                </fieldset>
+              ) : null}
               <button type="submit">검색 실행</button>
               <button type="button" onClick={() => void handleBookmarkSearchReset()}>
                 검색 초기화
@@ -1706,30 +1873,28 @@ export default function App() {
             </form>
             {isLoadingDashboard ? <p>대시보드 데이터를 불러오는 중입니다.</p> : null}
             {hasActiveBookmarkSearch(appliedBookmarkSearch) ? (
-              <p>
-                현재 검색: {appliedBookmarkSearch.query || "전체"} ({appliedBookmarkSearch.mode}
-                {appliedBookmarkSearch.sort === "opened_desc" ? ", 최근열람순" : ""}
-                {appliedBookmarkSearch.createdWithin === "7d" ? ", 추가:7일" : ""}
-                {appliedBookmarkSearch.createdWithin === "30d" ? ", 추가:30일" : ""}
-                {appliedBookmarkSearch.openedWithin === "7d" ? ", 열람:7일" : ""}
-                {appliedBookmarkSearch.openedWithin === "30d" ? ", 열람:30일" : ""}
-                {appliedBookmarkSearch.favoriteOnly ? ", 즐겨찾기만" : ""}
-                {appliedBookmarkSearch.folderId
-                  ? `, 폴더:${getFolderName(appliedBookmarkSearch.folderId)}`
-                  : ""}
-                {appliedBookmarkSearch.tagIds.length > 0
-                  ? `, 태그:${getTagNames(appliedBookmarkSearch.tagIds).join(", ")}`
-                  : ""}
-                {appliedBookmarkSearch.bookmarkColor
-                  ? `, 북마크색상:${appliedBookmarkSearch.bookmarkColor}`
-                  : ""}
-                {appliedBookmarkSearch.urlColor
-                  ? `, URL색상:${appliedBookmarkSearch.urlColor}`
-                  : ""}
-                {appliedBookmarkSearch.summaryState === "with" ? ", 요약있음" : ""}
-                {appliedBookmarkSearch.summaryState === "without" ? ", 요약없음" : ""}
-                )
-              </p>
+              <div>
+                <p>현재 적용된 검색</p>
+                <ul
+                  aria-label="active-search-filters"
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.5rem",
+                    listStyle: "none",
+                    padding: 0
+                  }}
+                >
+                  {activeBookmarkSearchSummaryItems.map((item, index) => (
+                    <li
+                      key={`${item}-${index}`}
+                      style={{ border: "1px solid currentColor", padding: "0.2rem 0.5rem" }}
+                    >
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
             {bookmarks.length === 0 ? <p>아직 저장된 북마크가 없습니다.</p> : null}
             <ul>

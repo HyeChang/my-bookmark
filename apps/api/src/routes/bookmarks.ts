@@ -7,6 +7,7 @@ import type {
   BookmarkRelativeDateRange,
   BookmarkSearchMode,
   BookmarkSortMode,
+  BookmarkTagMode,
   BookmarkListResponse,
   BookmarkResponse,
   CreateBookmarkRequest,
@@ -53,6 +54,7 @@ type BookmarkRouteOptions = {
 const bookmarkSearchModes: BookmarkSearchMode[] = ["all", "title", "content", "folder"];
 const bookmarkSortModes: BookmarkSortMode[] = ["created_desc", "opened_desc"];
 const bookmarkRelativeDateRanges: BookmarkRelativeDateRange[] = ["all", "7d", "30d"];
+const bookmarkTagModes: BookmarkTagMode[] = ["and", "or"];
 
 function normalizeTagQueryValues(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
@@ -101,11 +103,14 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       const createdWithin = (requestedCreatedWithin ?? "all") as BookmarkRelativeDateRange;
       const requestedOpenedWithin = c.req.query("openedWithin");
       const openedWithin = (requestedOpenedWithin ?? "all") as BookmarkRelativeDateRange;
+      const requestedTagMode = c.req.query("tagMode");
+      const tagMode = (requestedTagMode ?? "and") as BookmarkTagMode;
       const tagIds = normalizeTagQueryValues(new URL(c.req.url).searchParams.getAll("tagId"));
       const filters = {
         favoriteOnly: c.req.query("favorite") === "1",
         folderId: c.req.query("folderId")?.trim() || undefined,
         tagIds: tagIds.length > 0 ? tagIds : undefined,
+        tagMode: tagIds.length > 0 ? tagMode : undefined,
         bookmarkColor: c.req.query("bookmarkColor")?.trim() || undefined,
         urlColor: c.req.query("urlColor")?.trim() || undefined,
         summaryState: (() => {
@@ -120,6 +125,10 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
 
       if (requestedSort && !bookmarkSortModes.includes(sort)) {
         return c.json({ error: "invalid_sort_mode" }, 400);
+      }
+
+      if (requestedTagMode && !bookmarkTagModes.includes(tagMode)) {
+        return c.json({ error: "invalid_tag_mode" }, 400);
       }
 
       if (

@@ -1,6 +1,7 @@
 import type {
   Bookmark,
   BookmarkSearchMode,
+  BookmarkTagMode,
   CreateBookmarkRequest,
   UpdateBookmarkRequest
 } from "@bookmark/shared";
@@ -69,6 +70,7 @@ export type BookmarkListFilters = {
   favoriteOnly?: boolean;
   folderId?: string;
   tagIds?: string[];
+  tagMode?: BookmarkTagMode;
   bookmarkColor?: string;
   urlColor?: string;
   summaryState?: "with" | "without";
@@ -333,8 +335,15 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
       return false;
     }
 
-    if (filters.tagIds && !filters.tagIds.every((tagId) => bookmark.tagIds.includes(tagId))) {
-      return false;
+    if (filters.tagIds) {
+      const tagMatcher =
+        filters.tagMode === "or"
+          ? filters.tagIds.some((tagId) => bookmark.tagIds.includes(tagId))
+          : filters.tagIds.every((tagId) => bookmark.tagIds.includes(tagId));
+
+      if (!tagMatcher) {
+        return false;
+      }
     }
 
     if (

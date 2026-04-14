@@ -676,7 +676,7 @@ describe("bookmark dashboard", () => {
 
       if (
         url ===
-          "/api/bookmarks?mode=all&query=paper&favorite=1&folderId=folder-1&tagId=tag-1&tagId=tag-2" &&
+          "/api/bookmarks?mode=all&tagMode=or&query=paper&favorite=1&folderId=folder-1&tagId=tag-1&tagId=tag-2" &&
         !init?.method
       ) {
         return new Response(
@@ -797,10 +797,16 @@ describe("bookmark dashboard", () => {
         value: "paper"
       }
     });
+    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /고급 필터/i }));
     fireEvent.click(within(bookmarkListRegion).getByLabelText(/즐겨찾기만/i));
     fireEvent.change(within(bookmarkListRegion).getByLabelText(/필터 폴더/i), {
       target: {
         value: "folder-1"
+      }
+    });
+    fireEvent.change(within(bookmarkListRegion).getByLabelText(/태그 조건/i), {
+      target: {
+        value: "or"
       }
     });
     fireEvent.click(within(bookmarkListRegion).getByRole("checkbox", { name: /^research$/i }));
@@ -811,7 +817,7 @@ describe("bookmark dashboard", () => {
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/bookmarks?mode=all&query=paper&favorite=1&folderId=folder-1&tagId=tag-1&tagId=tag-2",
+      "/api/bookmarks?mode=all&tagMode=or&query=paper&favorite=1&folderId=folder-1&tagId=tag-1&tagId=tag-2",
       expect.objectContaining({
         credentials: "include"
       })
@@ -832,6 +838,7 @@ describe("bookmark dashboard", () => {
       expect(within(bookmarkListRegion).getByLabelText(/검색어/i)).toHaveValue("");
       expect(within(bookmarkListRegion).getByLabelText(/즐겨찾기만/i)).not.toBeChecked();
       expect(within(bookmarkListRegion).getByLabelText(/필터 폴더/i)).toHaveValue("");
+      expect(within(bookmarkListRegion).getByLabelText(/태그 조건/i)).toHaveValue("and");
       expect(
         within(bookmarkListRegion).getByRole("checkbox", { name: /^research$/i })
       ).not.toBeChecked();
@@ -839,6 +846,88 @@ describe("bookmark dashboard", () => {
         within(bookmarkListRegion).getByRole("checkbox", { name: /^video$/i })
       ).not.toBeChecked();
     });
+  });
+
+  it("toggles the advanced filter section", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const bookmarkListRegion = await screen.findByRole("region", {
+      name: /bookmark-list/i
+    });
+
+    expect(within(bookmarkListRegion).queryByLabelText(/즐겨찾기만/i)).not.toBeInTheDocument();
+
+    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /고급 필터/i }));
+
+    expect(within(bookmarkListRegion).getByLabelText(/즐겨찾기만/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByLabelText(/태그 조건/i)).toBeInTheDocument();
   });
 
   it("submits bookmark search with color and summary filters and resets them", async () => {
@@ -955,6 +1044,7 @@ describe("bookmark dashboard", () => {
         value: "paper"
       }
     });
+    fireEvent.click(screen.getByRole("button", { name: /고급 필터/i }));
     fireEvent.change(screen.getByLabelText(/북마크 색상 필터/i), {
       target: {
         value: "#ffaa00"
@@ -1229,19 +1319,23 @@ describe("bookmark dashboard", () => {
 
     render(<App />);
 
-    fireEvent.change(await screen.findByLabelText(/최근 추가/i), {
+    const bookmarkListRegion = await screen.findByRole("region", {
+      name: /bookmark-list/i
+    });
+
+    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /고급 필터/i }));
+    fireEvent.change(await within(bookmarkListRegion).findByLabelText(/최근 추가/i), {
       target: {
         value: "7d"
       }
     });
-    fireEvent.change(screen.getByLabelText(/최근 열람/i), {
+    fireEvent.change(within(bookmarkListRegion).getByLabelText(/최근 열람/i), {
       target: {
         value: "30d"
       }
     });
-    fireEvent.click(screen.getByRole("button", { name: /검색 실행/i }));
+    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /검색 실행/i }));
 
-    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^Period filtered$/i)).toBeInTheDocument();
     });
@@ -1253,11 +1347,11 @@ describe("bookmark dashboard", () => {
       })
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /검색 초기화/i }));
+    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /검색 초기화/i }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/최근 추가/i)).toHaveValue("all");
-      expect(screen.getByLabelText(/최근 열람/i)).toHaveValue("all");
+      expect(within(bookmarkListRegion).getByLabelText(/최근 추가/i)).toHaveValue("all");
+      expect(within(bookmarkListRegion).getByLabelText(/최근 열람/i)).toHaveValue("all");
     });
   });
 

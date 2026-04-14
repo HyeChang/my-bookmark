@@ -78,8 +78,15 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
       return false;
     }
 
-    if (filters.tagIds && !filters.tagIds.every((tagId) => bookmark.tagIds.includes(tagId))) {
-      return false;
+    if (filters.tagIds) {
+      const tagMatcher =
+        filters.tagMode === "or"
+          ? filters.tagIds.some((tagId) => bookmark.tagIds.includes(tagId))
+          : filters.tagIds.every((tagId) => bookmark.tagIds.includes(tagId));
+
+      if (!tagMatcher) {
+        return false;
+      }
     }
 
     if (
@@ -637,6 +644,63 @@ describe("bookmark routes", () => {
           url: "https://example.com/paper"
         }
       ]
+    });
+  });
+
+  it("applies multiple tag filters with OR mode", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/research-video",
+        folderId: "folder-reading",
+        userTitle: "Research and video",
+        tagIds: ["tag-research", "tag-video"]
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/research-only",
+        folderId: "folder-reading",
+        userTitle: "Research only",
+        tagIds: ["tag-research"]
+      })
+    });
+
+    const filteredRes = await authenticatedRequest(
+      app,
+      "/api/bookmarks?tagId=tag-research&tagId=tag-video&tagMode=or"
+    );
+
+    expect(filteredRes.status).toBe(200);
+    await expect(filteredRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        { url: "https://example.com/research-video" },
+        { url: "https://example.com/research-only" }
+      ]
+    });
+  });
+
+  it("rejects invalid tag mode values", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    const res = await authenticatedRequest(
+      app,
+      "/api/bookmarks?tagId=tag-research&tagMode=invalid"
+    );
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "invalid_tag_mode"
     });
   });
 

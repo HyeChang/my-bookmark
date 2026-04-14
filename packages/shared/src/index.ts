@@ -21,6 +21,7 @@ export type SessionResponse =
 export type BookmarkSearchMode = "all" | "title" | "content" | "folder";
 export type BookmarkSortMode = "created_desc" | "opened_desc";
 export type BookmarkRelativeDateRange = "all" | "7d" | "30d";
+export type BookmarkTagMode = "and" | "or";
 export type BookmarkAssetType = "image" | "capture";
 
 export type Bookmark = {
