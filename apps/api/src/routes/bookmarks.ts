@@ -4,6 +4,7 @@ import type {
   BookmarkAssetResponse,
   BookmarkExtractRequest,
   BookmarkExtractResponse,
+  BookmarkRelativeDateRange,
   BookmarkSearchMode,
   BookmarkSortMode,
   BookmarkListResponse,
@@ -51,6 +52,16 @@ type BookmarkRouteOptions = {
 
 const bookmarkSearchModes: BookmarkSearchMode[] = ["all", "title", "content", "folder"];
 const bookmarkSortModes: BookmarkSortMode[] = ["created_desc", "opened_desc"];
+const bookmarkRelativeDateRanges: BookmarkRelativeDateRange[] = ["all", "7d", "30d"];
+
+function resolveDateRangeCutoff(range: BookmarkRelativeDateRange, now: Date) {
+  if (range === "all") {
+    return null;
+  }
+
+  const days = range === "7d" ? 7 : 30;
+  return now.getTime() - days * 24 * 60 * 60 * 1000;
+}
 
 function sanitizeFileName(fileName: string) {
   const normalizedFileName = fileName.trim().replace(/\s+/g, "-");
@@ -82,6 +93,10 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       const mode = (requestedMode ?? "all") as BookmarkSearchMode;
       const requestedSort = c.req.query("sort");
       const sort = (requestedSort ?? "created_desc") as BookmarkSortMode;
+      const requestedCreatedWithin = c.req.query("createdWithin");
+      const createdWithin = (requestedCreatedWithin ?? "all") as BookmarkRelativeDateRange;
+      const requestedOpenedWithin = c.req.query("openedWithin");
+      const openedWithin = (requestedOpenedWithin ?? "all") as BookmarkRelativeDateRange;
       const filters = {
         favoriteOnly: c.req.query("favorite") === "1",
         folderId: c.req.query("folderId")?.trim() || undefined,
@@ -102,11 +117,25 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         return c.json({ error: "invalid_sort_mode" }, 400);
       }
 
-      const bookmarks = query
+      if (
+        requestedCreatedWithin &&
+        !bookmarkRelativeDateRanges.includes(createdWithin)
+      ) {
+        return c.json({ error: "invalid_created_within" }, 400);
+      }
+
+      if (requestedOpenedWithin && !bookmarkRelativeDateRanges.includes(openedWithin)) {
+        return c.json({ error: "invalid_opened_within" }, 400);
+      }
+
+      let bookmarks = query
         ? await repository.searchByUser(user.uid, query, mode, filters)
         : await repository.listByUser(user.uid, filters);
 
-      if (sort === "opened_desc") {
+      const needsOpenStats = sort === "opened_desc" || openedWithin !== "all";
+      let openStatsByBookmarkId = new Map<string, BookmarkActivityRepository extends never ? never : Awaited<ReturnType<BookmarkActivityRepository["listOpenStats"]>>[number]>();
+
+      if (needsOpenStats) {
         const bookmarkActivityRepository =
           options.bookmarkActivityRepository ??
           (c.env?.bookmark ? createBookmarkActivityRepository(c.env.bookmark) : null);
@@ -119,10 +148,42 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
           user.uid,
           Math.max(bookmarks.length, 50)
         );
-        const openStatsByBookmarkId = new Map(
+        openStatsByBookmarkId = new Map(
           openStats.map((entry) => [entry.bookmarkId, entry])
         );
+      }
 
+      const now = new Date();
+      const createdCutoff = resolveDateRangeCutoff(createdWithin, now);
+      const openedCutoff = resolveDateRangeCutoff(openedWithin, now);
+
+      if (createdCutoff !== null || openedCutoff !== null) {
+        bookmarks = bookmarks.filter((bookmark) => {
+          if (createdCutoff !== null) {
+            const createdAt = Date.parse(bookmark.createdAt);
+            if (Number.isNaN(createdAt) || createdAt < createdCutoff) {
+              return false;
+            }
+          }
+
+          if (openedCutoff !== null) {
+            const openStat = openStatsByBookmarkId.get(bookmark.id);
+            if (!openStat) {
+              return false;
+            }
+
+            const lastOpenedAt = Date.parse(openStat.lastOpenedAt);
+            if (Number.isNaN(lastOpenedAt) || lastOpenedAt < openedCutoff) {
+              return false;
+            }
+          }
+
+          return true;
+        });
+      }
+
+      if (sort === "opened_desc") {
+        
         bookmarks.sort((left, right) => {
           const leftStat = openStatsByBookmarkId.get(left.id);
           const rightStat = openStatsByBookmarkId.get(right.id);

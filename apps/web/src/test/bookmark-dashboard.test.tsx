@@ -1107,6 +1107,143 @@ describe("bookmark dashboard", () => {
     });
   });
 
+  it("submits bookmark search with created and opened date filters and resets them", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/bookmarks?createdWithin=7d&openedWithin=30d" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-period-filtered",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/period-filtered",
+                isFavorite: false,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Period filtered",
+                userContent: "Recent bookmark",
+                userSummary: "",
+                displayTitle: "Period filtered",
+                displayContent: "Recent bookmark",
+                displaySummary: "",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    fireEvent.change(await screen.findByLabelText(/최근 추가/i), {
+      target: {
+        value: "7d"
+      }
+    });
+    fireEvent.change(screen.getByLabelText(/최근 열람/i), {
+      target: {
+        value: "30d"
+      }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /검색 실행/i }));
+
+    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
+    await waitFor(() => {
+      expect(within(bookmarkListRegion).getByText(/^Period filtered$/i)).toBeInTheDocument();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks?createdWithin=7d&openedWithin=30d",
+      expect.objectContaining({
+        credentials: "include"
+      })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /검색 초기화/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/최근 추가/i)).toHaveValue("all");
+      expect(screen.getByLabelText(/최근 열람/i)).toHaveValue("all");
+    });
+  });
+
   it("loads a bookmark into edit mode and patches the updated values", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;

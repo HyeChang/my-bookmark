@@ -5,6 +5,7 @@ import type {
   Bookmark,
   BookmarkAsset,
   BookmarkExtractPreview,
+  BookmarkRelativeDateRange,
   BookmarkSearchMode,
   BookmarkSortMode,
   CreateBookmarkRequest,
@@ -69,6 +70,8 @@ type BookmarkSearchDraft = {
   query: string;
   mode: BookmarkSearchMode;
   sort: BookmarkSortMode;
+  createdWithin: BookmarkRelativeDateRange;
+  openedWithin: BookmarkRelativeDateRange;
   favoriteOnly: boolean;
   folderId: string;
   tagId: string;
@@ -110,6 +113,8 @@ const emptyBookmarkSearchDraft: BookmarkSearchDraft = {
   query: "",
   mode: "all",
   sort: "created_desc",
+  createdWithin: "all",
+  openedWithin: "all",
   favoriteOnly: false,
   folderId: "",
   tagId: "",
@@ -129,6 +134,8 @@ function normalizeBookmarkSearchDraft(search: BookmarkSearchDraft): BookmarkSear
     query: search.query.trim(),
     mode: search.mode,
     sort: search.sort,
+    createdWithin: search.createdWithin,
+    openedWithin: search.openedWithin,
     favoriteOnly: search.favoriteOnly,
     folderId: search.folderId.trim(),
     tagId: search.tagId.trim(),
@@ -141,8 +148,10 @@ function normalizeBookmarkSearchDraft(search: BookmarkSearchDraft): BookmarkSear
 function hasActiveBookmarkSearch(search: BookmarkSearchDraft) {
   const normalizedSearch = normalizeBookmarkSearchDraft(search);
   return Boolean(
-    normalizedSearch.query ||
+      normalizedSearch.query ||
       normalizedSearch.sort !== "created_desc" ||
+      normalizedSearch.createdWithin !== "all" ||
+      normalizedSearch.openedWithin !== "all" ||
       normalizedSearch.favoriteOnly ||
       normalizedSearch.folderId ||
       normalizedSearch.tagId ||
@@ -1551,6 +1560,38 @@ export default function App() {
                 </select>
               </label>
               <label>
+                최근 추가
+                <select
+                  name="bookmarkSearchCreatedWithin"
+                  value={bookmarkSearchDraft.createdWithin}
+                  onChange={(event) =>
+                    updateBookmarkSearchDraft({
+                      createdWithin: event.target.value as BookmarkRelativeDateRange
+                    })
+                  }
+                >
+                  <option value="all">전체</option>
+                  <option value="7d">최근 7일</option>
+                  <option value="30d">최근 30일</option>
+                </select>
+              </label>
+              <label>
+                최근 열람
+                <select
+                  name="bookmarkSearchOpenedWithin"
+                  value={bookmarkSearchDraft.openedWithin}
+                  onChange={(event) =>
+                    updateBookmarkSearchDraft({
+                      openedWithin: event.target.value as BookmarkRelativeDateRange
+                    })
+                  }
+                >
+                  <option value="all">전체</option>
+                  <option value="7d">최근 7일</option>
+                  <option value="30d">최근 30일</option>
+                </select>
+              </label>
+              <label>
                 즐겨찾기만
                 <input
                   name="bookmarkSearchFavoriteOnly"
@@ -1643,6 +1684,10 @@ export default function App() {
               <p>
                 현재 검색: {appliedBookmarkSearch.query || "전체"} ({appliedBookmarkSearch.mode}
                 {appliedBookmarkSearch.sort === "opened_desc" ? ", 최근열람순" : ""}
+                {appliedBookmarkSearch.createdWithin === "7d" ? ", 추가:7일" : ""}
+                {appliedBookmarkSearch.createdWithin === "30d" ? ", 추가:30일" : ""}
+                {appliedBookmarkSearch.openedWithin === "7d" ? ", 열람:7일" : ""}
+                {appliedBookmarkSearch.openedWithin === "30d" ? ", 열람:30일" : ""}
                 {appliedBookmarkSearch.favoriteOnly ? ", 즐겨찾기만" : ""}
                 {appliedBookmarkSearch.folderId
                   ? `, 폴더:${getFolderName(appliedBookmarkSearch.folderId)}`

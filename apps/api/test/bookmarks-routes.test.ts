@@ -325,6 +325,35 @@ function createInMemoryBookmarkActivityRepository() {
   } satisfies BookmarkActivityRepository;
 }
 
+function createSeededBookmarkActivityRepository(
+  stats: Array<{ bookmarkId: string; openCount: number; lastOpenedAt: string }>
+) {
+  return {
+    async recordOpen() {
+      return;
+    },
+    async listRecentBookmarkIds() {
+      return stats
+        .slice()
+        .sort((left, right) => right.lastOpenedAt.localeCompare(left.lastOpenedAt))
+        .map((entry) => entry.bookmarkId);
+    },
+    async listFrequentBookmarkIds() {
+      return stats
+        .slice()
+        .sort(
+          (left, right) =>
+            right.openCount - left.openCount ||
+            right.lastOpenedAt.localeCompare(left.lastOpenedAt)
+        )
+        .map((entry) => entry.bookmarkId);
+    },
+    async listOpenStats() {
+      return stats;
+    }
+  } satisfies BookmarkActivityRepository;
+}
+
 function createInMemoryAssetStorage() {
   const objects = new Map<string, { body: Uint8Array; contentType: string }>();
 
@@ -752,6 +781,130 @@ describe("bookmark routes", () => {
         { url: "https://example.com/first" },
         { url: "https://example.com/unopened" }
       ]
+    });
+  });
+
+  it("filters bookmarks by createdWithin when set to 7d", async () => {
+    const baseRepository = createInMemoryBookmarkRepository();
+    const repository: BookmarkRepository = {
+      ...baseRepository,
+      async create(input) {
+        const created = await baseRepository.create(input);
+
+        if (input.url.includes("recent-created")) {
+          created.createdAt = "2026-04-12T08:00:00.000Z";
+          created.updatedAt = "2026-04-12T08:00:00.000Z";
+        }
+
+        if (input.url.includes("old-created")) {
+          created.createdAt = "2026-03-01T08:00:00.000Z";
+          created.updatedAt = "2026-03-01T08:00:00.000Z";
+        }
+
+        return created;
+      }
+    };
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/recent-created",
+        userTitle: "Recent created"
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/old-created",
+        userTitle: "Old created"
+      })
+    });
+
+    const res = await authenticatedRequest(app, "/api/bookmarks?createdWithin=7d");
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      bookmarks: [{ url: "https://example.com/recent-created" }]
+    });
+  });
+
+  it("filters bookmarks by openedWithin when set to 7d", async () => {
+    const repository = createInMemoryBookmarkRepository();
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: repository,
+      bookmarkActivityRepository: createSeededBookmarkActivityRepository([
+        {
+          bookmarkId: "bookmark-1",
+          openCount: 2,
+          lastOpenedAt: "2026-04-13T08:00:00.000Z"
+        },
+        {
+          bookmarkId: "bookmark-2",
+          openCount: 4,
+          lastOpenedAt: "2026-03-01T08:00:00.000Z"
+        }
+      ])
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/recent-opened",
+        userTitle: "Recent opened"
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/old-opened",
+        userTitle: "Old opened"
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/unopened-filtered",
+        userTitle: "Never opened"
+      })
+    });
+
+    const res = await authenticatedRequest(app, "/api/bookmarks?openedWithin=7d");
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      bookmarks: [{ url: "https://example.com/recent-opened" }]
+    });
+  });
+
+  it("rejects invalid date filter values", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository(),
+      bookmarkActivityRepository: createInMemoryBookmarkActivityRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    const createdRes = await authenticatedRequest(
+      app,
+      "/api/bookmarks?createdWithin=14d"
+    );
+    const openedRes = await authenticatedRequest(app, "/api/bookmarks?openedWithin=14d");
+
+    expect(createdRes.status).toBe(400);
+    await expect(createdRes.json()).resolves.toMatchObject({
+      error: "invalid_created_within"
+    });
+
+    expect(openedRes.status).toBe(400);
+    await expect(openedRes.json()).resolves.toMatchObject({
+      error: "invalid_opened_within"
     });
   });
 

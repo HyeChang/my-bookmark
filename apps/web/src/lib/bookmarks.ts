@@ -1,5 +1,6 @@
 import type {
   Bookmark,
+  BookmarkRelativeDateRange,
   BookmarkSearchMode,
   BookmarkSortMode,
   BookmarkListResponse,
@@ -12,6 +13,8 @@ type LoadBookmarksOptions = {
   query?: string;
   mode?: BookmarkSearchMode;
   sort?: BookmarkSortMode;
+  createdWithin?: BookmarkRelativeDateRange;
+  openedWithin?: BookmarkRelativeDateRange;
   favoriteOnly?: boolean;
   folderId?: string;
   tagId?: string;
@@ -30,6 +33,12 @@ export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
   }
   if (options.sort && options.sort !== "created_desc") {
     searchParams.set("sort", options.sort);
+  }
+  if (options.createdWithin && options.createdWithin !== "all") {
+    searchParams.set("createdWithin", options.createdWithin);
+  }
+  if (options.openedWithin && options.openedWithin !== "all") {
+    searchParams.set("openedWithin", options.openedWithin);
   }
   if (options.favoriteOnly) {
     searchParams.set("favorite", "1");
