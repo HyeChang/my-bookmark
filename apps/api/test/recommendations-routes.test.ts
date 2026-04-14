@@ -126,6 +126,15 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
 
       return bookmark;
     },
+    async delete(bookmarkId, userId) {
+      const bookmark = bookmarks.get(bookmarkId);
+      if (!bookmark || bookmark.userId !== userId) {
+        return false;
+      }
+
+      bookmarks.delete(bookmarkId);
+      return true;
+    },
     async update() {
       throw new Error("not_implemented_for_test");
     }

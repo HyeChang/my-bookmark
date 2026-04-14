@@ -5,6 +5,7 @@ import App from "../App";
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("bookmark dashboard", () => {
@@ -1690,6 +1691,192 @@ describe("bookmark dashboard", () => {
       "/api/bookmarks/bookmark-reset",
       expect.objectContaining({
         method: "PATCH",
+        credentials: "include"
+      })
+    );
+  });
+
+  it("deletes a bookmark from the detail panel and removes it from the dashboard", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-delete",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/delete-bookmark",
+                isFavorite: true,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Delete me",
+                userContent: null,
+                userSummary: null,
+                displayTitle: "Delete me",
+                displayContent: "",
+                displaySummary: "",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/bookmark-delete" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmark: {
+              id: "bookmark-delete",
+              folderId: null,
+              tagIds: [],
+              url: "https://example.com/delete-bookmark",
+              isFavorite: true,
+              bookmarkColor: null,
+              urlColor: null,
+              sourceTitle: null,
+              sourceContent: null,
+              sourceSummary: null,
+              userTitle: "Delete me",
+              userContent: null,
+              userSummary: null,
+              displayTitle: "Delete me",
+              displayContent: "",
+              displaySummary: "",
+              createdAt: "2026-04-14T03:00:00.000Z",
+              updatedAt: "2026-04-14T03:00:00.000Z"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/bookmark-delete/assets" && !init?.method) {
+        return new Response(JSON.stringify({ assets: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/bookmarks/bookmark-delete" && init?.method === "DELETE") {
+        return new Response(null, { status: 204 });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [
+              {
+                id: "bookmark-delete",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/delete-bookmark",
+                isFavorite: true,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Delete me",
+                userContent: null,
+                userSummary: null,
+                displayTitle: "Delete me",
+                displayContent: "",
+                displaySummary: "",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /상세 보기/i }));
+
+    const detailRegion = await screen.findByRole("region", { name: /bookmark-detail/i });
+    fireEvent.click(within(detailRegion).getByRole("button", { name: /삭제/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("region", { name: /bookmark-detail/i })).not.toBeInTheDocument();
+    });
+
+    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
+    expect(within(bookmarkListRegion).queryByText(/^Delete me$/i)).not.toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/아직 저장된 북마크가 없습니다\./i)).toBeInTheDocument();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks/bookmark-delete",
+      expect.objectContaining({
+        method: "DELETE",
         credentials: "include"
       })
     );

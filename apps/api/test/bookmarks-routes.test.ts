@@ -3,9 +3,17 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app";
 import { createSessionValue } from "../src/lib/auth/session";
 import type {
+  BookmarkAssetRepository,
+  BookmarkAssetRecord
+} from "../src/lib/repositories/bookmark-assets";
+import type {
+  BookmarkActivityRepository
+} from "../src/lib/repositories/bookmark-activity";
+import type {
   BookmarkRecord,
   BookmarkRepository
 } from "../src/lib/repositories/bookmarks";
+import type { BookmarkAssetStorage } from "../src/lib/storage/assets";
 
 const sessionSecret = "bookmark-test-secret";
 const fakeUser = {
@@ -102,6 +110,15 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
 
       return bookmark;
     },
+    async delete(bookmarkId, userId) {
+      const bookmark = bookmarks.get(bookmarkId);
+      if (!bookmark || bookmark.userId !== userId) {
+        return false;
+      }
+
+      bookmarks.delete(bookmarkId);
+      return true;
+    },
     async update(bookmarkId, userId, input) {
       const bookmark = bookmarks.get(bookmarkId);
       if (!bookmark || bookmark.userId !== userId) {
@@ -155,6 +172,95 @@ async function authenticatedRequest(
       cookie: `bookmark_session=${sessionValue}`
     }
   });
+}
+
+function createInMemoryBookmarkAssetRepository() {
+  const assets = new Map<string, BookmarkAssetRecord>();
+
+  return {
+    async listByBookmark(userId: string, bookmarkId: string) {
+      return Array.from(assets.values()).filter(
+        (asset) => asset.userId === userId && asset.bookmarkId === bookmarkId
+      );
+    },
+    async getById(userId: string, bookmarkId: string, assetId: string) {
+      const asset = assets.get(assetId);
+      if (!asset || asset.userId !== userId || asset.bookmarkId !== bookmarkId) {
+        return null;
+      }
+
+      return asset;
+    },
+    async create(input: {
+      bookmarkId: string;
+      userId: string;
+      assetType: "image" | "capture";
+      objectKey: string;
+      mimeType: string;
+    }) {
+      const asset: BookmarkAssetRecord = {
+        id: `asset-${assets.size + 1}`,
+        bookmarkId: input.bookmarkId,
+        userId: input.userId,
+        assetType: input.assetType,
+        objectKey: input.objectKey,
+        mimeType: input.mimeType,
+        width: null,
+        height: null,
+        sortOrder: assets.size,
+        contentUrl: `/api/bookmarks/${input.bookmarkId}/assets/asset-${assets.size + 1}/content`,
+        createdAt: "2026-04-13T08:00:00.000Z",
+        updatedAt: "2026-04-13T08:00:00.000Z"
+      };
+
+      assets.set(asset.id, asset);
+      return asset;
+    },
+    async delete(userId: string, bookmarkId: string, assetId: string) {
+      const asset = assets.get(assetId);
+      if (!asset || asset.userId !== userId || asset.bookmarkId !== bookmarkId) {
+        return false;
+      }
+
+      assets.delete(assetId);
+      return true;
+    }
+  } satisfies BookmarkAssetRepository;
+}
+
+function createInMemoryBookmarkActivityRepository() {
+  const entries: Array<{ userId: string; bookmarkId: string }> = [];
+
+  return {
+    async recordOpen(userId: string, bookmarkId: string) {
+      entries.push({ userId, bookmarkId });
+    },
+    async listRecentBookmarkIds(userId: string) {
+      return entries.filter((entry) => entry.userId === userId).map((entry) => entry.bookmarkId);
+    },
+    async listFrequentBookmarkIds(userId: string) {
+      return entries.filter((entry) => entry.userId === userId).map((entry) => entry.bookmarkId);
+    }
+  } satisfies BookmarkActivityRepository;
+}
+
+function createInMemoryAssetStorage() {
+  const objects = new Map<string, { body: Uint8Array; contentType: string }>();
+
+  return {
+    async put(objectKey: string, body: ArrayBuffer, contentType: string) {
+      objects.set(objectKey, {
+        body: new Uint8Array(body),
+        contentType
+      });
+    },
+    async get(objectKey: string) {
+      return objects.get(objectKey) ?? null;
+    },
+    async delete(objectKey: string) {
+      objects.delete(objectKey);
+    }
+  } satisfies BookmarkAssetStorage;
 }
 
 describe("bookmark routes", () => {
@@ -455,6 +561,48 @@ describe("bookmark routes", () => {
         sourceSummary: "Retried source summary",
         displayTitle: "Manual title"
       }
+    });
+  });
+
+  it("deletes a bookmark and rejects subsequent detail requests", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository(),
+      bookmarkAssetRepository: createInMemoryBookmarkAssetRepository(),
+      bookmarkActivityRepository: createInMemoryBookmarkActivityRepository(),
+      assetStorage: createInMemoryAssetStorage()
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/delete-bookmark",
+        userTitle: "Delete bookmark"
+      })
+    });
+    const created = (await createRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const deleteRes = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}`,
+      {
+        method: "DELETE"
+      }
+    );
+
+    expect(deleteRes.status).toBe(204);
+
+    const detailRes = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}`
+    );
+    expect(detailRes.status).toBe(404);
+
+    const listRes = await authenticatedRequest(app, "/api/bookmarks");
+    await expect(listRes.json()).resolves.toMatchObject({
+      bookmarks: []
     });
   });
 });

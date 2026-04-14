@@ -74,6 +74,7 @@ export type BookmarkRepository = {
   ): Promise<BookmarkRecord[]>;
   create(input: CreateBookmarkInput): Promise<BookmarkRecord>;
   getByUserAndId(userId: string, bookmarkId: string): Promise<BookmarkRecord | null>;
+  delete(bookmarkId: string, userId: string): Promise<boolean>;
   update(
     bookmarkId: string,
     userId: string,
@@ -497,6 +498,44 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
       return bookmark;
     },
     getByUserAndId,
+    async delete(bookmarkId, userId) {
+      const existingBookmark = await getByUserAndId(userId, bookmarkId);
+      if (!existingBookmark) {
+        return false;
+      }
+
+      await db.batch([
+        db
+          .prepare("DELETE FROM bookmark_tags WHERE bookmark_id = ?")
+          .bind(bookmarkId),
+        db
+          .prepare(
+            `DELETE FROM bookmark_activity
+            WHERE user_id = ? AND bookmark_id = ?`
+          )
+          .bind(userId, bookmarkId),
+        db
+          .prepare(
+            `DELETE FROM bookmark_extraction_logs
+            WHERE bookmark_id = ?`
+          )
+          .bind(bookmarkId),
+        db
+          .prepare(
+            `DELETE FROM bookmark_assets
+            WHERE user_id = ? AND bookmark_id = ?`
+          )
+          .bind(userId, bookmarkId),
+        db
+          .prepare(
+            `DELETE FROM bookmarks
+            WHERE id = ? AND user_id = ?`
+          )
+          .bind(bookmarkId, userId)
+      ]);
+
+      return true;
+    },
     async update(bookmarkId, userId, input) {
       const existingBookmark = await getByUserAndId(userId, bookmarkId);
       if (!existingBookmark) {

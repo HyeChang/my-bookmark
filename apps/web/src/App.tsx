@@ -19,6 +19,7 @@ import {
 import { extractBookmarkPreview } from "./lib/bookmark-extract";
 import {
   createBookmark,
+  deleteBookmark,
   loadBookmark,
   loadBookmarks,
   reextractBookmark,
@@ -652,6 +653,29 @@ export default function App() {
     setSelectedBookmark(null);
   }
 
+  function removeBookmarkState(bookmarkId: string) {
+    setBookmarks((currentBookmarks) =>
+      currentBookmarks.filter((bookmark) => bookmark.id !== bookmarkId)
+    );
+    setSelectedBookmark((currentSelectedBookmark) =>
+      currentSelectedBookmark?.id === bookmarkId ? null : currentSelectedBookmark
+    );
+    setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => {
+      const nextAssetsByBookmarkId = { ...currentAssetsByBookmarkId };
+      delete nextAssetsByBookmarkId[bookmarkId];
+      return nextAssetsByBookmarkId;
+    });
+    setRecommendations((currentRecommendations) => ({
+      favorites: currentRecommendations.favorites.filter((bookmark) => bookmark.id !== bookmarkId),
+      recent: currentRecommendations.recent.filter((bookmark) => bookmark.id !== bookmarkId),
+      frequent: currentRecommendations.frequent.filter((bookmark) => bookmark.id !== bookmarkId)
+    }));
+
+    if (editingBookmarkId === bookmarkId) {
+      cancelBookmarkEdit();
+    }
+  }
+
   function replaceBookmarkState(nextBookmark: Bookmark) {
     setBookmarks((currentBookmarks) =>
       currentBookmarks.map((bookmark) =>
@@ -763,6 +787,26 @@ export default function App() {
       startTransition(() => {
         setErrorMessage(
           error instanceof Error ? error.message : "자동 추출을 다시 수행하지 못했습니다."
+        );
+      });
+    }
+  }
+
+  async function handleBookmarkDelete(bookmark: Bookmark) {
+    if (!globalThis.confirm?.(`'${bookmark.displayTitle || bookmark.url}' 북마크를 삭제할까요?`)) {
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      await deleteBookmark(bookmark.id);
+      startTransition(() => {
+        removeBookmarkState(bookmark.id);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "북마크를 삭제하지 못했습니다."
         );
       });
     }
@@ -1169,6 +1213,12 @@ export default function App() {
                 >
                   사용자 입력 초기화
                 </button>
+                <button
+                  type="button"
+                  onClick={() => void handleBookmarkDelete(selectedBookmark)}
+                >
+                  삭제
+                </button>
                 <button type="button" onClick={() => void beginBookmarkEdit(selectedBookmark)}>
                   수정 시작
                 </button>
@@ -1243,6 +1293,9 @@ export default function App() {
                   </button>
                   <button type="button" onClick={() => void openBookmarkDetail(bookmark.id)}>
                     상세 보기
+                  </button>
+                  <button type="button" onClick={() => void handleBookmarkDelete(bookmark)}>
+                    삭제
                   </button>
                   <button type="button" onClick={() => beginBookmarkEdit(bookmark)}>
                     수정

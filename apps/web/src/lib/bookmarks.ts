@@ -61,6 +61,17 @@ export async function reextractBookmark(bookmarkId: string) {
   return data.bookmark;
 }
 
+export async function deleteBookmark(bookmarkId: string) {
+  const res = await fetch(`/api/bookmarks/${bookmarkId}`, {
+    method: "DELETE",
+    credentials: "include"
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to delete bookmark");
+  }
+}
+
 export async function createBookmark(input: CreateBookmarkRequest) {
   const res = await fetch("/api/bookmarks", {
     method: "POST",

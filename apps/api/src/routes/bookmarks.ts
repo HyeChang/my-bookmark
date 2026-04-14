@@ -252,6 +252,52 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         bookmark: toBookmarkResponse(bookmark)
       });
     })
+    .delete("/:bookmarkId", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const assetRepository =
+        options.bookmarkAssetRepository ??
+        (c.env?.bookmark ? createBookmarkAssetRepository(c.env.bookmark) : null);
+      const assetStorage =
+        options.assetStorage ??
+        (c.env?.bookmark_assets ? createR2BookmarkAssetStorage(c.env.bookmark_assets) : null);
+
+      if (!bookmarkRepository) {
+        return c.json({ error: "bookmark_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      const assets = assetRepository
+        ? await assetRepository.listByBookmark(user.uid, bookmark.id)
+        : [];
+
+      if (assets.length > 0 && !assetStorage) {
+        return c.json({ error: "bookmark_asset_repository_unavailable" }, 500);
+      }
+
+      if (assetStorage) {
+        for (const asset of assets) {
+          await assetStorage.delete(asset.objectKey);
+        }
+      }
+
+      await bookmarkRepository.delete(bookmark.id, user.uid);
+
+      return c.body(null, 204);
+    })
     .post("/:bookmarkId/open", async (c) => {
       const user = await getAuthenticatedUser(c, options.sessionSecret);
       if (!user) {
