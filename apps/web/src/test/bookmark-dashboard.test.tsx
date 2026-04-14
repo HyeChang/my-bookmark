@@ -784,4 +784,150 @@ describe("bookmark dashboard", () => {
       urlColor: "#1d4ed8"
     });
   });
+
+  it("deletes an uploaded asset while editing a bookmark", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-asset-delete",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/delete",
+                isFavorite: false,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Delete asset title",
+                userContent: null,
+                userSummary: null,
+                displayTitle: "Delete asset title",
+                displayContent: "",
+                displaySummary: "",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/bookmarks/bookmark-asset-delete/assets" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            assets: [
+              {
+                id: "asset-delete-1",
+                bookmarkId: "bookmark-asset-delete",
+                assetType: "image",
+                mimeType: "image/png",
+                width: null,
+                height: null,
+                sortOrder: 0,
+                contentUrl: "/api/bookmarks/bookmark-asset-delete/assets/asset-delete-1/content",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (
+        url === "/api/bookmarks/bookmark-asset-delete/assets/asset-delete-1" &&
+        init?.method === "DELETE"
+      ) {
+        return new Response(null, {
+          status: 204
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /수정/i }));
+    const bookmarkFormRegion = await screen.findByRole("region", {
+      name: /bookmark-form/i
+    });
+
+    await waitFor(() => {
+      expect(
+        within(bookmarkFormRegion).getByRole("img", { name: /업로드 이미지 1/i })
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      within(bookmarkFormRegion).getByRole("button", { name: /이미지 삭제 1/i })
+    );
+
+    await waitFor(() => {
+      expect(
+        within(bookmarkFormRegion).queryByRole("img", { name: /업로드 이미지 1/i })
+      ).not.toBeInTheDocument();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks/bookmark-asset-delete/assets/asset-delete-1",
+      expect.objectContaining({
+        method: "DELETE",
+        credentials: "include"
+      })
+    );
+  });
 });

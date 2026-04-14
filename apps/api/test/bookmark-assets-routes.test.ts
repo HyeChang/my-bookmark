@@ -150,6 +150,15 @@ function createInMemoryAssetRepository() {
 
       assets.set(asset.id, asset);
       return asset;
+    },
+    async delete(userId: string, bookmarkId: string, assetId: string) {
+      const asset = assets.get(assetId);
+      if (!asset || asset.userId !== userId || asset.bookmarkId !== bookmarkId) {
+        return false;
+      }
+
+      assets.delete(assetId);
+      return true;
     }
   };
 }
@@ -166,6 +175,9 @@ function createInMemoryAssetStorage() {
     },
     async get(objectKey: string) {
       return objects.get(objectKey) ?? null;
+    },
+    async delete(objectKey: string) {
+      objects.delete(objectKey);
     }
   };
 }
@@ -259,5 +271,70 @@ describe("bookmark asset routes", () => {
     expect(contentRes.status).toBe(200);
     expect(contentRes.headers.get("content-type")).toContain("image/png");
     await expect(contentRes.text()).resolves.toBe("fake-image-data");
+  });
+
+  it("deletes a bookmark asset for the authenticated user", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository(),
+      bookmarkAssetRepository: createInMemoryAssetRepository(),
+      assetStorage: createInMemoryAssetStorage()
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        url: "https://example.com/delete-asset",
+        userTitle: "Delete asset"
+      })
+    });
+    const created = (await createRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const formData = new FormData();
+    formData.set(
+      "file",
+      new File(["delete-image-data"], "delete.png", { type: "image/png" })
+    );
+
+    const uploadRes = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}/assets`,
+      {
+        method: "POST",
+        body: formData
+      }
+    );
+    const uploaded = (await uploadRes.json()) as {
+      asset: {
+        id: string;
+        contentUrl: string;
+      };
+    };
+
+    const deleteRes = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}/assets/${uploaded.asset.id}`,
+      {
+        method: "DELETE"
+      }
+    );
+
+    expect(deleteRes.status).toBe(204);
+
+    const listRes = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}/assets`
+    );
+    await expect(listRes.json()).resolves.toMatchObject({
+      assets: []
+    });
+
+    const contentRes = await authenticatedRequest(app, uploaded.asset.contentUrl);
+    expect(contentRes.status).toBe(404);
   });
 });

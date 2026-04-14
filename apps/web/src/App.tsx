@@ -11,7 +11,11 @@ import type {
   Tag
 } from "@bookmark/shared";
 
-import { loadBookmarkAssets, uploadBookmarkAsset } from "./lib/bookmark-assets";
+import {
+  deleteBookmarkAsset,
+  loadBookmarkAssets,
+  uploadBookmarkAsset
+} from "./lib/bookmark-assets";
 import { extractBookmarkPreview } from "./lib/bookmark-extract";
 import { createBookmark, loadBookmarks, updateBookmark } from "./lib/bookmarks";
 import { signInWithGoogle, signOutFromGoogle } from "./lib/firebase";
@@ -577,6 +581,29 @@ export default function App() {
     return uploadedAssets;
   }
 
+  async function handleBookmarkAssetDelete(bookmarkId: string, assetId: string) {
+    try {
+      setErrorMessage(null);
+      await deleteBookmarkAsset(bookmarkId, assetId);
+      startTransition(() => {
+        setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
+          ...currentAssetsByBookmarkId,
+          [bookmarkId]: (currentAssetsByBookmarkId[bookmarkId] ?? []).filter(
+            (asset) => asset.id !== assetId
+          )
+        }));
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "북마크 이미지를 삭제하지 못했습니다."
+        );
+      });
+    }
+  }
+
   async function handleBookmarkPreviewLoad() {
     if (!bookmarkDraft.url.trim()) {
       setErrorMessage("미리보기를 불러올 URL을 입력해주세요.");
@@ -731,11 +758,17 @@ export default function App() {
               (bookmarkAssetsByBookmarkId[editingBookmarkId]?.length ?? 0) > 0 ? (
                 <div>
                   {bookmarkAssetsByBookmarkId[editingBookmarkId].map((asset, index) => (
-                    <img
-                      key={asset.id}
-                      src={asset.contentUrl}
-                      alt={`업로드 이미지 ${index + 1}`}
-                    />
+                    <div key={asset.id}>
+                      <img src={asset.contentUrl} alt={`업로드 이미지 ${index + 1}`} />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleBookmarkAssetDelete(editingBookmarkId, asset.id)
+                        }
+                      >
+                        이미지 삭제 {index + 1}
+                      </button>
+                    </div>
                   ))}
                 </div>
               ) : null}

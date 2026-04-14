@@ -34,3 +34,14 @@ export async function uploadBookmarkAsset(bookmarkId: string, file: File) {
   const data = (await res.json()) as BookmarkAssetResponse;
   return data.asset;
 }
+
+export async function deleteBookmarkAsset(bookmarkId: string, assetId: string) {
+  const res = await fetch(`/api/bookmarks/${bookmarkId}/assets/${assetId}`, {
+    method: "DELETE",
+    credentials: "include"
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to delete bookmark asset");
+  }
+}

@@ -40,6 +40,7 @@ export type BookmarkAssetRepository = {
     assetId: string
   ): Promise<BookmarkAssetRecord | null>;
   create(input: CreateBookmarkAssetInput): Promise<BookmarkAssetRecord>;
+  delete(userId: string, bookmarkId: string, assetId: string): Promise<boolean>;
 };
 
 type BookmarkAssetResponseOptions = {
@@ -184,6 +185,22 @@ export function createBookmarkAssetRepository(db: D1Database): BookmarkAssetRepo
       }
 
       return asset;
+    },
+    async delete(userId, bookmarkId, assetId) {
+      const asset = await getById(userId, bookmarkId, assetId);
+      if (!asset) {
+        return false;
+      }
+
+      await db
+        .prepare(
+          `DELETE FROM bookmark_assets
+          WHERE user_id = ? AND bookmark_id = ? AND id = ?`
+        )
+        .bind(userId, bookmarkId, assetId)
+        .run();
+
+      return true;
     }
   };
 }

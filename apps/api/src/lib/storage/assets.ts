@@ -6,6 +6,7 @@ export type StoredAssetObject = {
 export type BookmarkAssetStorage = {
   put(objectKey: string, body: ArrayBuffer, contentType: string): Promise<void>;
   get(objectKey: string): Promise<StoredAssetObject | null>;
+  delete(objectKey: string): Promise<void>;
 };
 
 export function createR2BookmarkAssetStorage(bucket: R2Bucket): BookmarkAssetStorage {
@@ -27,6 +28,9 @@ export function createR2BookmarkAssetStorage(bucket: R2Bucket): BookmarkAssetSto
         body: object.body,
         contentType: object.httpMetadata?.contentType ?? "application/octet-stream"
       };
+    },
+    async delete(objectKey) {
+      await bucket.delete(objectKey);
     }
   };
 }
