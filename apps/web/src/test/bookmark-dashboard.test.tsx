@@ -801,8 +801,11 @@ describe("bookmark dashboard", () => {
     });
 
     render(<App />);
+    const bookmarkListRegion = await screen.findByRole("region", { name: /bookmark-list/i });
 
-    fireEvent.click(await screen.findByRole("button", { name: /수정/i }));
+    fireEvent.click(
+      await within(bookmarkListRegion).findByRole("button", { name: /^수정$/i })
+    );
 
     expect(screen.getByRole("button", { name: /북마크 수정/i })).toBeInTheDocument();
     expect(screen.getByDisplayValue("Before title")).toBeInTheDocument();
@@ -839,7 +842,6 @@ describe("bookmark dashboard", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /later/i }));
     fireEvent.click(screen.getByRole("button", { name: /북마크 수정/i }));
 
-    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^After title$/i)).toBeInTheDocument();
     });
@@ -994,8 +996,11 @@ describe("bookmark dashboard", () => {
     });
 
     render(<App />);
+    const bookmarkListRegion = await screen.findByRole("region", { name: /bookmark-list/i });
 
-    fireEvent.click(await screen.findByRole("button", { name: /수정/i }));
+    fireEvent.click(
+      await within(bookmarkListRegion).findByRole("button", { name: /^수정$/i })
+    );
     const bookmarkFormRegion = await screen.findByRole("region", {
       name: /bookmark-form/i
     });

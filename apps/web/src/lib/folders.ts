@@ -2,7 +2,8 @@ import type {
   CreateFolderRequest,
   Folder,
   FolderListResponse,
-  FolderResponse
+  FolderResponse,
+  UpdateFolderRequest
 } from "@bookmark/shared";
 
 export async function loadFolders() {
@@ -34,4 +35,33 @@ export async function createFolder(input: CreateFolderRequest) {
 
   const data = (await res.json()) as FolderResponse;
   return data.folder;
+}
+
+export async function updateFolder(folderId: string, input: UpdateFolderRequest) {
+  const res = await fetch(`/api/folders/${folderId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to update folder");
+  }
+
+  const data = (await res.json()) as FolderResponse;
+  return data.folder;
+}
+
+export async function deleteFolder(folderId: string) {
+  const res = await fetch(`/api/folders/${folderId}`, {
+    method: "DELETE",
+    credentials: "include"
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to delete folder");
+  }
 }

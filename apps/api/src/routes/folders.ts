@@ -125,5 +125,26 @@ export function createFolderRoute(options: FolderRouteOptions = {}) {
       return c.json<FolderResponse>({
         folder: toFolderResponse(folder)
       });
+    })
+    .delete("/:folderId", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const repository =
+        options.folderRepository ??
+        (c.env?.bookmark ? createFolderRepository(c.env.bookmark) : null);
+
+      if (!repository) {
+        return c.json({ error: "folder_repository_unavailable" }, 500);
+      }
+
+      const deleted = await repository.delete(c.req.param("folderId"), user.uid);
+      if (!deleted) {
+        return c.json({ error: "folder_not_found" }, 404);
+      }
+
+      return c.json({ ok: true as const });
     });
 }

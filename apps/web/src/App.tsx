@@ -26,10 +26,15 @@ import {
   updateBookmark
 } from "./lib/bookmarks";
 import { signInWithGoogle, signOutFromGoogle } from "./lib/firebase";
-import { createFolder, loadFolders } from "./lib/folders";
+import {
+  createFolder,
+  deleteFolder,
+  loadFolders,
+  updateFolder
+} from "./lib/folders";
 import { loadRecommendations, recordBookmarkOpen } from "./lib/recommendations";
 import { exchangeIdTokenForSession, loadSession, logoutSession } from "./lib/session";
-import { createTag, loadTags } from "./lib/tags";
+import { createTag, deleteTag, loadTags, updateTag } from "./lib/tags";
 
 type SessionState =
   | { status: "loading" }
@@ -130,6 +135,8 @@ export default function App() {
   );
   const [folderDraft, setFolderDraft] = useState<FolderDraft>(emptyFolderDraft);
   const [tagDraft, setTagDraft] = useState<TagDraft>(emptyTagDraft);
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [isSavingBookmark, setIsSavingBookmark] = useState(false);
   const [isLoadingBookmarkPreview, setIsLoadingBookmarkPreview] = useState(false);
@@ -423,20 +430,38 @@ export default function App() {
       setErrorMessage(null);
       setIsSavingFolder(true);
 
-      const createdFolder = await createFolder({
-        name: folderDraft.name,
-        color: folderDraft.color || null,
-        icon: folderDraft.icon || null
-      });
+      if (editingFolderId) {
+        const nextFolder = await updateFolder(editingFolderId, {
+          name: folderDraft.name,
+          color: folderDraft.color || null,
+          icon: folderDraft.icon || null
+        });
 
-      startTransition(() => {
-        setFolders((currentFolders) => [...currentFolders, createdFolder]);
-        setFolderDraft(emptyFolderDraft);
-      });
+        startTransition(() => {
+          replaceFolderState(nextFolder);
+          setEditingFolderId(null);
+          setFolderDraft(emptyFolderDraft);
+        });
+      } else {
+        const createdFolder = await createFolder({
+          name: folderDraft.name,
+          color: folderDraft.color || null,
+          icon: folderDraft.icon || null
+        });
+
+        startTransition(() => {
+          setFolders((currentFolders) => [...currentFolders, createdFolder]);
+          setFolderDraft(emptyFolderDraft);
+        });
+      }
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
-          error instanceof Error ? error.message : "폴더를 저장하지 못했습니다."
+          error instanceof Error
+            ? error.message
+            : editingFolderId
+              ? "폴더를 수정하지 못했습니다."
+              : "폴더를 저장하지 못했습니다."
         );
       });
     } finally {
@@ -451,19 +476,36 @@ export default function App() {
       setErrorMessage(null);
       setIsSavingTag(true);
 
-      const createdTag = await createTag({
-        name: tagDraft.name,
-        color: tagDraft.color || null
-      });
+      if (editingTagId) {
+        const nextTag = await updateTag(editingTagId, {
+          name: tagDraft.name,
+          color: tagDraft.color || null
+        });
 
-      startTransition(() => {
-        setTags((currentTags) => [...currentTags, createdTag]);
-        setTagDraft(emptyTagDraft);
-      });
+        startTransition(() => {
+          replaceTagState(nextTag);
+          setEditingTagId(null);
+          setTagDraft(emptyTagDraft);
+        });
+      } else {
+        const createdTag = await createTag({
+          name: tagDraft.name,
+          color: tagDraft.color || null
+        });
+
+        startTransition(() => {
+          setTags((currentTags) => [...currentTags, createdTag]);
+          setTagDraft(emptyTagDraft);
+        });
+      }
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
-          error instanceof Error ? error.message : "태그를 저장하지 못했습니다."
+          error instanceof Error
+            ? error.message
+            : editingTagId
+              ? "태그를 수정하지 못했습니다."
+              : "태그를 저장하지 못했습니다."
         );
       });
     } finally {
@@ -518,6 +560,100 @@ export default function App() {
       ...currentDraft,
       ...nextValues
     }));
+  }
+
+  function beginFolderEdit(folder: Folder) {
+    setEditingFolderId(folder.id);
+    setFolderDraft({
+      name: folder.name,
+      color: folder.color ?? "",
+      icon: folder.icon ?? ""
+    });
+  }
+
+  function cancelFolderEdit() {
+    setEditingFolderId(null);
+    setFolderDraft(emptyFolderDraft);
+  }
+
+  function replaceFolderState(nextFolder: Folder) {
+    setFolders((currentFolders) =>
+      currentFolders.map((folder) => (folder.id === nextFolder.id ? nextFolder : folder))
+    );
+  }
+
+  function removeFolderState(folderId: string) {
+    setFolders((currentFolders) =>
+      currentFolders.filter((folder) => folder.id !== folderId)
+    );
+    setBookmarks((currentBookmarks) =>
+      currentBookmarks.map((bookmark) =>
+        bookmark.folderId === folderId ? { ...bookmark, folderId: null } : bookmark
+      )
+    );
+    setSelectedBookmark((currentSelectedBookmark) =>
+      currentSelectedBookmark?.folderId === folderId
+        ? { ...currentSelectedBookmark, folderId: null }
+        : currentSelectedBookmark
+    );
+    setBookmarkDraft((currentDraft) =>
+      currentDraft.folderId === folderId ? { ...currentDraft, folderId: "" } : currentDraft
+    );
+
+    if (editingFolderId === folderId) {
+      cancelFolderEdit();
+    }
+  }
+
+  function beginTagEdit(tag: Tag) {
+    setEditingTagId(tag.id);
+    setTagDraft({
+      name: tag.name,
+      color: tag.color ?? ""
+    });
+  }
+
+  function cancelTagEdit() {
+    setEditingTagId(null);
+    setTagDraft(emptyTagDraft);
+  }
+
+  function replaceTagState(nextTag: Tag) {
+    setTags((currentTags) =>
+      currentTags.map((tag) => (tag.id === nextTag.id ? nextTag : tag))
+    );
+  }
+
+  function removeTagState(tagId: string) {
+    setTags((currentTags) => currentTags.filter((tag) => tag.id !== tagId));
+    setBookmarks((currentBookmarks) =>
+      currentBookmarks.map((bookmark) =>
+        bookmark.tagIds.includes(tagId)
+          ? {
+              ...bookmark,
+              tagIds: bookmark.tagIds.filter((currentTagId) => currentTagId !== tagId)
+            }
+          : bookmark
+      )
+    );
+    setSelectedBookmark((currentSelectedBookmark) =>
+      currentSelectedBookmark?.tagIds.includes(tagId)
+        ? {
+            ...currentSelectedBookmark,
+            tagIds: currentSelectedBookmark.tagIds.filter(
+              (currentTagId) => currentTagId !== tagId
+            )
+          }
+        : currentSelectedBookmark
+    );
+    setBookmarkDraft((currentDraft) => ({
+      ...currentDraft,
+      tagIds: currentDraft.tagIds.filter((currentTagId) => currentTagId !== tagId)
+    }));
+
+    if (editingTagId === tagId) {
+      cancelTagEdit();
+    }
   }
 
   async function handleBookmarkSearchSubmit(event: FormEvent<HTMLFormElement>) {
@@ -812,6 +948,49 @@ export default function App() {
     }
   }
 
+  async function handleFolderDelete(folder: Folder) {
+    if (
+      globalThis.confirm &&
+      !globalThis.confirm(`'${folder.name}' 폴더를 삭제할까요?`)
+    ) {
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      await deleteFolder(folder.id);
+      startTransition(() => {
+        removeFolderState(folder.id);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "폴더를 삭제하지 못했습니다."
+        );
+      });
+    }
+  }
+
+  async function handleTagDelete(tag: Tag) {
+    if (globalThis.confirm && !globalThis.confirm(`'${tag.name}' 태그를 삭제할까요?`)) {
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      await deleteTag(tag.id);
+      startTransition(() => {
+        removeTagState(tag.id);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "태그를 삭제하지 못했습니다."
+        );
+      });
+    }
+  }
+
   async function handleResetUserContent(bookmarkId: string) {
     try {
       setErrorMessage(null);
@@ -1058,12 +1237,31 @@ export default function App() {
                 />
               </label>
               <button type="submit" disabled={isSavingFolder}>
-                {isSavingFolder ? "추가 중..." : "폴더 추가"}
+                {isSavingFolder
+                  ? editingFolderId
+                    ? "수정 중..."
+                    : "추가 중..."
+                  : editingFolderId
+                    ? "폴더 수정"
+                    : "폴더 추가"}
               </button>
+              {editingFolderId ? (
+                <button type="button" onClick={() => cancelFolderEdit()}>
+                  수정 취소
+                </button>
+              ) : null}
             </form>
             <ul>
               {folders.map((folder) => (
-                <li key={folder.id}>{folder.name}</li>
+                <li key={folder.id}>
+                  <span>{folder.name}</span>
+                  <button type="button" onClick={() => beginFolderEdit(folder)}>
+                    {folder.name} 폴더 수정 시작
+                  </button>
+                  <button type="button" onClick={() => void handleFolderDelete(folder)}>
+                    {folder.name} 폴더 삭제
+                  </button>
+                </li>
               ))}
             </ul>
           </section>
@@ -1089,12 +1287,31 @@ export default function App() {
                 />
               </label>
               <button type="submit" disabled={isSavingTag}>
-                {isSavingTag ? "추가 중..." : "태그 추가"}
+                {isSavingTag
+                  ? editingTagId
+                    ? "수정 중..."
+                    : "추가 중..."
+                  : editingTagId
+                    ? "태그 수정"
+                    : "태그 추가"}
               </button>
+              {editingTagId ? (
+                <button type="button" onClick={() => cancelTagEdit()}>
+                  수정 취소
+                </button>
+              ) : null}
             </form>
             <ul>
               {tags.map((tag) => (
-                <li key={tag.id}>{tag.name}</li>
+                <li key={tag.id}>
+                  <span>{tag.name}</span>
+                  <button type="button" onClick={() => beginTagEdit(tag)}>
+                    {tag.name} 태그 수정 시작
+                  </button>
+                  <button type="button" onClick={() => void handleTagDelete(tag)}>
+                    {tag.name} 태그 삭제
+                  </button>
+                </li>
               ))}
             </ul>
           </section>

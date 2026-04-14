@@ -169,6 +169,11 @@ export type CreateTagRequest = {
   color?: string | null;
 };
 
+export type UpdateTagRequest = {
+  name?: string;
+  color?: string | null;
+};
+
 export type TagResponse = {
   tag: Tag;
 };

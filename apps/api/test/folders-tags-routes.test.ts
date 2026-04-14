@@ -89,6 +89,15 @@ function createInMemoryFolderRepository() {
 
       folders.set(folderId, updated);
       return updated;
+    },
+    async delete(folderId: string, userId: string) {
+      const folder = folders.get(folderId);
+      if (!folder || folder.userId !== userId) {
+        return false;
+      }
+
+      folders.delete(folderId);
+      return true;
     }
   };
 }
@@ -113,6 +122,38 @@ function createInMemoryTagRepository() {
 
       tags.set(tag.id, tag);
       return tag;
+    },
+    async update(
+      tagId: string,
+      userId: string,
+      input: {
+        name?: string;
+        color?: string | null;
+      }
+    ) {
+      const tag = tags.get(tagId);
+      if (!tag || tag.userId !== userId) {
+        return null;
+      }
+
+      const updated: TagRecord = {
+        ...tag,
+        name: input.name ?? tag.name,
+        color: input.color === undefined ? tag.color : input.color,
+        updatedAt: "2026-04-13T11:00:00.000Z"
+      };
+
+      tags.set(tagId, updated);
+      return updated;
+    },
+    async delete(tagId: string, userId: string) {
+      const tag = tags.get(tagId);
+      if (!tag || tag.userId !== userId) {
+        return false;
+      }
+
+      tags.delete(tagId);
+      return true;
     }
   };
 }
@@ -219,6 +260,38 @@ describe("folder and tag routes", () => {
     });
   });
 
+  it("deletes an existing folder", async () => {
+    const repository = createInMemoryFolderRepository();
+    const app = createApp({
+      sessionSecret,
+      folderRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Reading"
+      })
+    });
+    const created = (await createRes.json()) as {
+      folder: FolderRecord;
+    };
+
+    const deleteRes = await authenticatedRequest(app, `/api/folders/${created.folder.id}`, {
+      method: "DELETE"
+    });
+
+    expect(deleteRes.status).toBe(200);
+    await expect(deleteRes.json()).resolves.toMatchObject({
+      ok: true
+    });
+
+    const listRes = await authenticatedRequest(app, "/api/folders");
+    await expect(listRes.json()).resolves.toMatchObject({
+      folders: []
+    });
+  });
+
   it("creates and lists tags for the authenticated user", async () => {
     const app = createApp({
       sessionSecret,
@@ -250,6 +323,74 @@ describe("folder and tag routes", () => {
           name: "research"
         }
       ]
+    });
+  });
+
+  it("updates an existing tag", async () => {
+    const repository = createInMemoryTagRepository();
+    const app = createApp({
+      sessionSecret,
+      tagRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/tags", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "research",
+        color: "#2563eb"
+      })
+    });
+    const created = (await createRes.json()) as {
+      tag: TagRecord;
+    };
+
+    const updateRes = await authenticatedRequest(app, `/api/tags/${created.tag.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: "reference",
+        color: "#0f766e"
+      })
+    });
+
+    expect(updateRes.status).toBe(200);
+    await expect(updateRes.json()).resolves.toMatchObject({
+      tag: {
+        id: created.tag.id,
+        name: "reference",
+        color: "#0f766e"
+      }
+    });
+  });
+
+  it("deletes an existing tag", async () => {
+    const repository = createInMemoryTagRepository();
+    const app = createApp({
+      sessionSecret,
+      tagRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/tags", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "research"
+      })
+    });
+    const created = (await createRes.json()) as {
+      tag: TagRecord;
+    };
+
+    const deleteRes = await authenticatedRequest(app, `/api/tags/${created.tag.id}`, {
+      method: "DELETE"
+    });
+
+    expect(deleteRes.status).toBe(200);
+    await expect(deleteRes.json()).resolves.toMatchObject({
+      ok: true
+    });
+
+    const listRes = await authenticatedRequest(app, "/api/tags");
+    await expect(listRes.json()).resolves.toMatchObject({
+      tags: []
     });
   });
 });

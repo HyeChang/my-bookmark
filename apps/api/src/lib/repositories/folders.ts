@@ -32,6 +32,7 @@ export type FolderRepository = {
     userId: string,
     input: UpdateFolderRequest
   ): Promise<FolderRecord | null>;
+  delete(folderId: string, userId: string): Promise<boolean>;
 };
 
 function toFolderRecord(row: FolderRow): FolderRecord {
@@ -185,6 +186,39 @@ export function createFolderRepository(db: D1Database): FolderRepository {
         .run();
 
       return getByUserAndId(userId, folderId);
+    },
+    async delete(folderId, userId) {
+      const existingFolder = await getByUserAndId(userId, folderId);
+      if (!existingFolder) {
+        return false;
+      }
+
+      await db.batch([
+        db
+          .prepare(
+            `UPDATE bookmarks
+            SET folder_id = NULL,
+                updated_at = ?
+            WHERE user_id = ? AND folder_id = ?`
+          )
+          .bind(new Date().toISOString(), userId, folderId),
+        db
+          .prepare(
+            `UPDATE folders
+            SET parent_folder_id = NULL,
+                updated_at = ?
+            WHERE user_id = ? AND parent_folder_id = ?`
+          )
+          .bind(new Date().toISOString(), userId, folderId),
+        db
+          .prepare(
+            `DELETE FROM folders
+            WHERE id = ? AND user_id = ?`
+          )
+          .bind(folderId, userId)
+      ]);
+
+      return true;
     }
   };
 }
