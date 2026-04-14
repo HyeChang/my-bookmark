@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
@@ -51,6 +51,7 @@ describe("bookmark dashboard", () => {
                 displayTitle: "Manual title",
                 displayContent: "Manual content",
                 displaySummary: "Manual summary",
+                tagIds: ["tag-1"],
                 createdAt: "2026-04-13T08:00:00.000Z",
                 updatedAt: "2026-04-13T08:00:00.000Z"
               }
@@ -75,12 +76,25 @@ describe("bookmark dashboard", () => {
       }
 
       if (url === "/api/tags" && !init?.method) {
-        return new Response(JSON.stringify({ tags: [] }), {
-          status: 200,
-          headers: {
-            "content-type": "application/json"
+        return new Response(
+          JSON.stringify({
+            tags: [
+              {
+                id: "tag-1",
+                name: "research",
+                color: "#2563eb",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
           }
-        });
+        );
       }
 
       throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
@@ -92,9 +106,12 @@ describe("bookmark dashboard", () => {
     expect(screen.getByRole("button", { name: /북마크 저장/i })).toBeInTheDocument();
     expect(await screen.findByText(/manual title/i)).toBeInTheDocument();
     expect(screen.getByText(/https:\/\/example.com\/post/i)).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: /bookmark-list/i })).getByText(/research/i)
+    ).toBeInTheDocument();
   });
 
-  it("creates a bookmark and appends it to the list", async () => {
+  it("creates a bookmark with selected tags and appends it to the list", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
 
@@ -135,12 +152,32 @@ describe("bookmark dashboard", () => {
       }
 
       if (url === "/api/tags" && !init?.method) {
-        return new Response(JSON.stringify({ tags: [] }), {
-          status: 200,
-          headers: {
-            "content-type": "application/json"
+        return new Response(
+          JSON.stringify({
+            tags: [
+              {
+                id: "tag-1",
+                name: "research",
+                color: "#2563eb",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              },
+              {
+                id: "tag-2",
+                name: "later",
+                color: "#16a34a",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
           }
-        });
+        );
       }
 
       if (url === "/api/bookmarks" && init?.method === "POST") {
@@ -162,6 +199,7 @@ describe("bookmark dashboard", () => {
               displayTitle: "Created title",
               displayContent: "Created content",
               displaySummary: "Created summary",
+              tagIds: ["tag-1", "tag-2"],
               createdAt: "2026-04-13T08:00:00.000Z",
               updatedAt: "2026-04-13T08:00:00.000Z"
             }
@@ -200,17 +238,36 @@ describe("bookmark dashboard", () => {
         value: "Created summary"
       }
     });
+    fireEvent.click(screen.getByRole("checkbox", { name: /research/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /later/i }));
     fireEvent.click(screen.getByRole("button", { name: /북마크 저장/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/created title/i)).toBeInTheDocument();
     });
 
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/bookmarks",
-      expect.objectContaining({
-        method: "POST"
-      })
+    const createCall = fetchSpy.mock.calls.find(
+      ([input, init]) =>
+        (typeof input === "string" ? input : input.url) === "/api/bookmarks" &&
+        init?.method === "POST"
     );
+
+    expect(createCall).toBeDefined();
+    expect(createCall?.[1]).toMatchObject({
+      method: "POST"
+    });
+    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({
+      url: "https://example.com/new",
+      userTitle: "Created title",
+      userContent: "Created content",
+      userSummary: "Created summary",
+      tagIds: ["tag-1", "tag-2"]
+    });
+    expect(
+      within(screen.getByRole("region", { name: /bookmark-list/i })).getByText(/research/i)
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: /bookmark-list/i })).getByText(/later/i)
+    ).toBeInTheDocument();
   });
 });

@@ -21,6 +21,7 @@ export type SessionResponse =
 export type Bookmark = {
   id: string;
   folderId: string | null;
+  tagIds: string[];
   url: string;
   isFavorite: boolean;
   bookmarkColor: string | null;
@@ -41,6 +42,7 @@ export type Bookmark = {
 export type CreateBookmarkRequest = {
   url: string;
   folderId?: string | null;
+  tagIds?: string[];
   userTitle?: string | null;
   userContent?: string | null;
   userSummary?: string | null;
@@ -54,6 +56,7 @@ export type CreateBookmarkRequest = {
 
 export type UpdateBookmarkRequest = {
   folderId?: string | null;
+  tagIds?: string[];
   userTitle?: string | null;
   userContent?: string | null;
   userSummary?: string | null;

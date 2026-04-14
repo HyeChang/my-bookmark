@@ -16,7 +16,11 @@ const fakeUser = {
 };
 
 function createInMemoryBookmarkRepository(): BookmarkRepository {
-  const bookmarks = new Map<string, BookmarkRecord>();
+  type BookmarkWithTags = BookmarkRecord & {
+    tagIds: string[];
+  };
+
+  const bookmarks = new Map<string, BookmarkWithTags>();
 
   return {
     async listByUser(userId) {
@@ -24,7 +28,7 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
     },
     async create(input) {
       const now = "2026-04-13T08:00:00.000Z";
-      const bookmark: BookmarkRecord = {
+      const bookmark = {
         id: `bookmark-${bookmarks.size + 1}`,
         userId: input.userId,
         folderId: input.folderId ?? null,
@@ -43,8 +47,9 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
         updatedAt: now,
         displayTitle: input.userTitle ?? input.sourceTitle ?? "",
         displayContent: input.userContent ?? input.sourceContent ?? "",
-        displaySummary: input.userSummary ?? input.sourceSummary ?? ""
-      };
+        displaySummary: input.userSummary ?? input.sourceSummary ?? "",
+        tagIds: input.tagIds ?? []
+      } as BookmarkWithTags;
 
       bookmarks.set(bookmark.id, bookmark);
       return bookmark;
@@ -63,7 +68,7 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
         return null;
       }
 
-      const updated: BookmarkRecord = {
+      const updated = {
         ...bookmark,
         folderId: input.folderId === undefined ? bookmark.folderId : input.folderId,
         isFavorite: input.isFavorite ?? bookmark.isFavorite,
@@ -75,8 +80,9 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
           input.userContent === undefined ? bookmark.userContent : input.userContent,
         userSummary:
           input.userSummary === undefined ? bookmark.userSummary : input.userSummary,
-        updatedAt: "2026-04-13T09:00:00.000Z"
-      };
+        updatedAt: "2026-04-13T09:00:00.000Z",
+        tagIds: input.tagIds === undefined ? bookmark.tagIds : input.tagIds
+      } as BookmarkWithTags;
 
       updated.displayTitle = updated.userTitle ?? updated.sourceTitle ?? "";
       updated.displayContent = updated.userContent ?? updated.sourceContent ?? "";
@@ -129,7 +135,8 @@ describe("bookmark routes", () => {
         userSummary: "Manual summary",
         isFavorite: true,
         urlColor: "#0f172a",
-        bookmarkColor: "#f59e0b"
+        bookmarkColor: "#f59e0b",
+        tagIds: ["tag-1", "tag-2"]
       })
     });
 
@@ -145,7 +152,8 @@ describe("bookmark routes", () => {
         displaySummary: "Manual summary",
         isFavorite: true,
         urlColor: "#0f172a",
-        bookmarkColor: "#f59e0b"
+        bookmarkColor: "#f59e0b",
+        tagIds: ["tag-1", "tag-2"]
       }
     });
   });
@@ -160,7 +168,8 @@ describe("bookmark routes", () => {
       method: "POST",
       body: JSON.stringify({
         url: "https://example.com/post",
-        userTitle: "Manual title"
+        userTitle: "Manual title",
+        tagIds: ["tag-1"]
       })
     });
 
@@ -171,7 +180,8 @@ describe("bookmark routes", () => {
       bookmarks: [
         {
           url: "https://example.com/post",
-          displayTitle: "Manual title"
+          displayTitle: "Manual title",
+          tagIds: ["tag-1"]
         }
       ]
     });
@@ -189,7 +199,8 @@ describe("bookmark routes", () => {
       body: JSON.stringify({
         url: "https://example.com/post",
         userTitle: "Before title",
-        isFavorite: false
+        isFavorite: false,
+        tagIds: ["tag-1"]
       })
     });
     const created = (await createRes.json()) as {
@@ -203,7 +214,8 @@ describe("bookmark routes", () => {
         method: "PATCH",
         body: JSON.stringify({
           userTitle: "After title",
-          isFavorite: true
+          isFavorite: true,
+          tagIds: ["tag-2", "tag-3"]
         })
       }
     );
@@ -214,7 +226,8 @@ describe("bookmark routes", () => {
         id: created.bookmark.id,
         userTitle: "After title",
         displayTitle: "After title",
-        isFavorite: true
+        isFavorite: true,
+        tagIds: ["tag-2", "tag-3"]
       }
     });
   });

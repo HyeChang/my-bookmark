@@ -29,6 +29,11 @@ type BookmarkRow = {
   updated_at: string;
 };
 
+type BookmarkTagRow = {
+  bookmark_id: string;
+  tag_id: string;
+};
+
 export type BookmarkRecord = Bookmark & {
   userId: string;
   normalizedUrl: string;
@@ -76,6 +81,7 @@ function toBookmarkRecord(row: BookmarkRow): BookmarkRecord {
     id: row.id,
     userId: row.user_id,
     folderId: row.folder_id,
+    tagIds: [],
     url: row.url,
     normalizedUrl: row.normalized_url,
     isFavorite: row.is_favorite === 1,
@@ -99,6 +105,7 @@ export function toBookmarkResponse(bookmark: BookmarkRecord): Bookmark {
   return {
     id: bookmark.id,
     folderId: bookmark.folderId,
+    tagIds: bookmark.tagIds,
     url: bookmark.url,
     isFavorite: bookmark.isFavorite,
     bookmarkColor: bookmark.bookmarkColor,
@@ -122,6 +129,111 @@ export function normalizeBookmarkUrl(url: string) {
 }
 
 export function createBookmarkRepository(db: D1Database): BookmarkRepository {
+  async function loadBookmarkTagIds(userId: string, bookmarkIds: string[]) {
+    const tagIdsByBookmarkId = new Map<string, string[]>();
+
+    if (bookmarkIds.length === 0) {
+      return tagIdsByBookmarkId;
+    }
+
+    const placeholders = bookmarkIds.map(() => "?").join(", ");
+    const result = await db
+      .prepare(
+        `SELECT
+          bt.bookmark_id,
+          bt.tag_id
+        FROM bookmark_tags bt
+        INNER JOIN tags t ON t.id = bt.tag_id
+        WHERE t.user_id = ? AND bt.bookmark_id IN (${placeholders})
+        ORDER BY bt.bookmark_id ASC, bt.tag_id ASC`
+      )
+      .bind(userId, ...bookmarkIds)
+      .all<BookmarkTagRow>();
+
+    for (const row of result.results) {
+      const currentTagIds = tagIdsByBookmarkId.get(row.bookmark_id) ?? [];
+      currentTagIds.push(row.tag_id);
+      tagIdsByBookmarkId.set(row.bookmark_id, currentTagIds);
+    }
+
+    return tagIdsByBookmarkId;
+  }
+
+  async function attachBookmarkTagIds(userId: string, bookmarks: BookmarkRecord[]) {
+    const tagIdsByBookmarkId = await loadBookmarkTagIds(
+      userId,
+      bookmarks.map((bookmark) => bookmark.id)
+    );
+
+    return bookmarks.map((bookmark) => ({
+      ...bookmark,
+      tagIds: tagIdsByBookmarkId.get(bookmark.id) ?? []
+    }));
+  }
+
+  function normalizeTagIds(tagIds: string[] | undefined) {
+    if (!tagIds) {
+      return [];
+    }
+
+    return Array.from(
+      new Set(
+        tagIds
+          .filter((tagId): tagId is string => typeof tagId === "string")
+          .map((tagId) => tagId.trim())
+          .filter(Boolean)
+      )
+    );
+  }
+
+  async function assertOwnedTagIds(userId: string, tagIds: string[]) {
+    const normalizedTagIds = normalizeTagIds(tagIds);
+    if (normalizedTagIds.length === 0) {
+      return normalizedTagIds;
+    }
+
+    const placeholders = normalizedTagIds.map(() => "?").join(", ");
+    const result = await db
+      .prepare(
+        `SELECT id
+        FROM tags
+        WHERE user_id = ? AND id IN (${placeholders})`
+      )
+      .bind(userId, ...normalizedTagIds)
+      .all<{ id: string }>();
+
+    const ownedTagIds = new Set(result.results.map((row) => row.id));
+    if (ownedTagIds.size !== normalizedTagIds.length) {
+      throw new Error("invalid_tag_ids");
+    }
+
+    return normalizedTagIds;
+  }
+
+  async function replaceBookmarkTags(bookmarkId: string, tagIds: string[]) {
+    await db
+      .prepare("DELETE FROM bookmark_tags WHERE bookmark_id = ?")
+      .bind(bookmarkId)
+      .run();
+
+    if (tagIds.length === 0) {
+      return;
+    }
+
+    await db.batch(
+      tagIds.map((tagId) =>
+        db
+          .prepare(
+            `INSERT INTO bookmark_tags (
+              bookmark_id,
+              tag_id
+            ) VALUES (?, ?)`
+          )
+          .bind(bookmarkId, tagId)
+      )
+    );
+  }
+
   async function getByUserAndId(userId: string, bookmarkId: string) {
     const row = await db
       .prepare(
@@ -148,7 +260,12 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
       .bind(userId, bookmarkId)
       .first<BookmarkRow>();
 
-    return row ? toBookmarkRecord(row) : null;
+    if (!row) {
+      return null;
+    }
+
+    const [bookmark] = await attachBookmarkTagIds(userId, [toBookmarkRecord(row)]);
+    return bookmark ?? null;
   }
 
   return {
@@ -179,11 +296,12 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
         .bind(userId)
         .all<BookmarkRow>();
 
-      return result.results.map(toBookmarkRecord);
+      return attachBookmarkTagIds(userId, result.results.map(toBookmarkRecord));
     },
     async create(input) {
       const bookmarkId = crypto.randomUUID();
       const now = new Date().toISOString();
+      const tagIds = await assertOwnedTagIds(input.userId, input.tagIds ?? []);
 
       await db
         .prepare(
@@ -226,6 +344,8 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
         )
         .run();
 
+      await replaceBookmarkTags(bookmarkId, tagIds);
+
       const bookmark = await getByUserAndId(input.userId, bookmarkId);
       if (!bookmark) {
         throw new Error("bookmark_create_failed");
@@ -235,6 +355,11 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
     },
     getByUserAndId,
     async update(bookmarkId, userId, input) {
+      const existingBookmark = await getByUserAndId(userId, bookmarkId);
+      if (!existingBookmark) {
+        return null;
+      }
+
       const assignments: string[] = [];
       const values: Array<string | number | null> = [];
 
@@ -267,21 +392,43 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
         values.push(input.urlColor ?? null);
       }
 
-      if (assignments.length === 0) {
-        return getByUserAndId(userId, bookmarkId);
+      const nextTagIds =
+        "tagIds" in input ? await assertOwnedTagIds(userId, input.tagIds ?? []) : null;
+
+      if (assignments.length === 0 && nextTagIds === null) {
+        return existingBookmark;
       }
 
-      assignments.push("updated_at = ?");
-      values.push(new Date().toISOString());
+      const updatedAt = new Date().toISOString();
 
-      await db
-        .prepare(
-          `UPDATE bookmarks
-          SET ${assignments.join(", ")}
-          WHERE id = ? AND user_id = ?`
-        )
-        .bind(...values, bookmarkId, userId)
-        .run();
+      if (assignments.length > 0) {
+        assignments.push("updated_at = ?");
+        values.push(updatedAt);
+
+        await db
+          .prepare(
+            `UPDATE bookmarks
+            SET ${assignments.join(", ")}
+            WHERE id = ? AND user_id = ?`
+          )
+          .bind(...values, bookmarkId, userId)
+          .run();
+      }
+
+      if (nextTagIds !== null) {
+        await replaceBookmarkTags(bookmarkId, nextTagIds);
+
+        if (assignments.length === 0) {
+          await db
+            .prepare(
+              `UPDATE bookmarks
+              SET updated_at = ?
+              WHERE id = ? AND user_id = ?`
+            )
+            .bind(updatedAt, bookmarkId, userId)
+            .run();
+        }
+      }
 
       return getByUserAndId(userId, bookmarkId);
     }

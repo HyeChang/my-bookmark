@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
@@ -93,7 +93,9 @@ describe("folder and tag dashboard", () => {
 
     expect(await screen.findByLabelText(/저장 폴더/i)).toBeInTheDocument();
     expect(await screen.findByRole("option", { name: /reading/i })).toBeInTheDocument();
-    expect(await screen.findByText(/research/i)).toBeInTheDocument();
+    expect(
+      await within(screen.getByRole("region", { name: /tag-manager/i })).findByText(/research/i)
+    ).toBeInTheDocument();
     expect(screen.getByLabelText(/폴더 이름/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/태그 이름/i)).toBeInTheDocument();
   });

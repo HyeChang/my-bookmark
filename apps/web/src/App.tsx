@@ -22,6 +22,7 @@ type SessionState =
 type BookmarkDraft = {
   url: string;
   folderId: string;
+  tagIds: string[];
   userTitle: string;
   userContent: string;
   userSummary: string;
@@ -42,6 +43,7 @@ type TagDraft = {
 const emptyBookmarkDraft: BookmarkDraft = {
   url: "",
   folderId: "",
+  tagIds: [],
   userTitle: "",
   userContent: "",
   userSummary: "",
@@ -198,6 +200,7 @@ export default function App() {
       const payload: CreateBookmarkRequest = {
         url: bookmarkDraft.url,
         folderId: bookmarkDraft.folderId || null,
+        tagIds: bookmarkDraft.tagIds,
         userTitle: bookmarkDraft.userTitle || null,
         userContent: bookmarkDraft.userContent || null,
         userSummary: bookmarkDraft.userSummary || null,
@@ -282,6 +285,19 @@ export default function App() {
       ...currentDraft,
       ...nextValues
     }));
+  }
+
+  function toggleBookmarkTag(tagId: string, checked: boolean) {
+    setBookmarkDraft((currentDraft) => {
+      const nextTagIds = checked
+        ? Array.from(new Set([...currentDraft.tagIds, tagId]))
+        : currentDraft.tagIds.filter((currentTagId) => currentTagId !== tagId);
+
+      return {
+        ...currentDraft,
+        tagIds: nextTagIds
+      };
+    });
   }
 
   function updateFolderDraft(nextValues: Partial<FolderDraft>) {
@@ -369,6 +385,22 @@ export default function App() {
                   onChange={(event) => updateBookmarkDraft({ userSummary: event.target.value })}
                 />
               </label>
+              <fieldset>
+                <legend>태그 선택</legend>
+                {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
+                {tags.map((tag) => (
+                  <label key={tag.id}>
+                    <input
+                      type="checkbox"
+                      name="tagIds"
+                      value={tag.id}
+                      checked={bookmarkDraft.tagIds.includes(tag.id)}
+                      onChange={(event) => toggleBookmarkTag(tag.id, event.target.checked)}
+                    />
+                    {tag.name}
+                  </label>
+                ))}
+              </fieldset>
               <label>
                 즐겨찾기
                 <input
@@ -464,6 +496,9 @@ export default function App() {
                   <strong>{bookmark.displayTitle || bookmark.url}</strong>
                   <p>{bookmark.url}</p>
                   {bookmark.displaySummary ? <p>{bookmark.displaySummary}</p> : null}
+                  {bookmark.tagIds.length > 0 ? (
+                    <p>{bookmark.tagIds.map((tagId) => tags.find((tag) => tag.id === tagId)?.name ?? tagId).join(", ")}</p>
+                  ) : null}
                 </li>
               ))}
             </ul>

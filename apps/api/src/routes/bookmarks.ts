@@ -77,11 +77,20 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         return c.json({ error: "bookmark_repository_unavailable" }, 500);
       }
 
-      const bookmark = await repository.create({
-        ...body,
-        userId: user.uid,
-        normalizedUrl
-      });
+      let bookmark;
+      try {
+        bookmark = await repository.create({
+          ...body,
+          userId: user.uid,
+          normalizedUrl
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === "invalid_tag_ids") {
+          return c.json({ error: "invalid_tag_ids" }, 400);
+        }
+
+        throw error;
+      }
 
       return c.json<BookmarkResponse>(
         {
@@ -136,11 +145,16 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         return c.json({ error: "bookmark_repository_unavailable" }, 500);
       }
 
-      const bookmark = await repository.update(
-        c.req.param("bookmarkId"),
-        user.uid,
-        body
-      );
+      let bookmark;
+      try {
+        bookmark = await repository.update(c.req.param("bookmarkId"), user.uid, body);
+      } catch (error) {
+        if (error instanceof Error && error.message === "invalid_tag_ids") {
+          return c.json({ error: "invalid_tag_ids" }, 400);
+        }
+
+        throw error;
+      }
 
       if (!bookmark) {
         return c.json({ error: "bookmark_not_found" }, 404);
