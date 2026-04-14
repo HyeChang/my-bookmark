@@ -1017,6 +1017,40 @@ export default function App() {
     }
   }
 
+  async function handleFolderMoveToRootDrop() {
+    if (!draggingFolderId) {
+      resetDraggingFolder();
+      return;
+    }
+
+    const draggedFolder = folders.find((folder) => folder.id === draggingFolderId);
+    if (!draggedFolder || draggedFolder.parentFolderId === null) {
+      resetDraggingFolder();
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      setIsReorderingFolders(true);
+      const nextFolders = await moveFolder(draggingFolderId, {
+        parentFolderId: null
+      });
+
+      startTransition(() => {
+        setFolders(nextFolders);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "폴더를 최상위로 이동하지 못했습니다."
+        );
+      });
+    } finally {
+      resetDraggingFolder();
+      setIsReorderingFolders(false);
+    }
+  }
+
   function beginTagEdit(tag: Tag) {
     setEditingTagId(tag.id);
     setTagDraft({
@@ -1742,6 +1776,27 @@ export default function App() {
                 </button>
               ) : null}
             </form>
+            <button
+              type="button"
+              disabled={isReorderingFolders}
+              aria-label="최상위로 이동"
+              onDragOver={(event) => {
+                const draggedFolder = draggingFolderId
+                  ? folders.find((folder) => folder.id === draggingFolderId)
+                  : null;
+                if (!draggedFolder || draggedFolder.parentFolderId === null) {
+                  return;
+                }
+
+                event.preventDefault();
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                void handleFolderMoveToRootDrop();
+              }}
+            >
+              최상위로 이동
+            </button>
             <ul>
               {visibleFolderOptions.map(({ folder, label }) => (
                 <li

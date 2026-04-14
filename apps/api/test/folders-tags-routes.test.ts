@@ -644,6 +644,56 @@ describe("folder and tag routes", () => {
     });
   });
 
+  it("moves a child folder back to the root level", async () => {
+    const repository = createInMemoryFolderRepository();
+    const app = createApp({
+      sessionSecret,
+      folderRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const parentRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Reading"
+      })
+    });
+    const parent = (await parentRes.json()) as {
+      folder: FolderRecord;
+    };
+
+    const childRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Papers",
+        parentFolderId: parent.folder.id
+      })
+    });
+    const child = (await childRes.json()) as {
+      folder: FolderRecord;
+    };
+
+    const moveRes = await authenticatedRequest(app, `/api/folders/${child.folder.id}/move`, {
+      method: "POST",
+      body: JSON.stringify({
+        parentFolderId: null
+      })
+    });
+
+    expect(moveRes.status).toBe(200);
+    await expect(moveRes.json()).resolves.toMatchObject({
+      folders: [
+        {
+          id: parent.folder.id,
+          parentFolderId: null
+        },
+        {
+          id: child.folder.id,
+          parentFolderId: null
+        }
+      ]
+    });
+  });
+
   it("creates and lists tags for the authenticated user", async () => {
     const app = createApp({
       sessionSecret,
