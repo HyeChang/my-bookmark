@@ -1603,7 +1603,15 @@ export default function App() {
             <ul>
               {visibleFolderOptions.map(({ folder, label }) => (
                 <li key={folder.id}>
-                  <span>{label}</span>
+                  <div>
+                    <span>{folder.name}</span>
+                    {folder.parentFolderId ? (
+                      <>
+                        <p>하위 폴더</p>
+                        <p>상위: {getFolderName(folder.parentFolderId)}</p>
+                      </>
+                    ) : null}
+                  </div>
                   <button type="button" onClick={() => beginFolderEdit(folder)}>
                     {folder.name} 폴더 수정 시작
                   </button>

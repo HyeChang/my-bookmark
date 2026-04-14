@@ -385,6 +385,130 @@ describe("folder and tag dashboard", () => {
     );
   });
 
+  it("renders the folder manager as a hierarchical tree and reuses the same order in pickers", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              },
+              {
+                id: "folder-2",
+                name: "Papers",
+                color: "#0f766e",
+                icon: "file-text",
+                parentFolderId: "folder-1",
+                sortOrder: 1,
+                createdAt: "2026-04-13T11:00:00.000Z",
+                updatedAt: "2026-04-13T11:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const folderManager = await screen.findByRole("region", { name: /folder-manager/i });
+    const folderItems = within(folderManager).getAllByRole("listitem");
+
+    expect(within(folderItems[0]).getByText(/^Reading$/i)).toBeInTheDocument();
+    expect(within(folderItems[1]).getByText(/^Papers$/i)).toBeInTheDocument();
+    expect(within(folderItems[1]).getByText(/상위: Reading/i)).toBeInTheDocument();
+    expect(within(folderItems[1]).getByText(/하위 폴더/i)).toBeInTheDocument();
+
+    const bookmarkFormRegion = screen.getByRole("region", { name: /bookmark-form/i });
+    const bookmarkFolderOptions = within(bookmarkFormRegion).getAllByRole("option");
+    expect(bookmarkFolderOptions.map((option) => option.textContent)).toEqual([
+      "폴더 없음",
+      "Reading",
+      "-- Papers"
+    ]);
+
+    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
+    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /고급 필터/i }));
+    const searchFolderOptions = within(bookmarkListRegion)
+      .getAllByRole("option")
+      .filter((option) => option.textContent === "전체 폴더" || option.textContent === "Reading" || option.textContent === "-- Papers");
+    expect(searchFolderOptions.map((option) => option.textContent)).toEqual([
+      "전체 폴더",
+      "Reading",
+      "-- Papers"
+    ]);
+  });
+
   it("updates a folder and a tag from the dashboard", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
