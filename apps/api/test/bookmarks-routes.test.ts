@@ -283,6 +283,43 @@ describe("bookmark routes", () => {
     });
   });
 
+  it("loads bookmark details for the authenticated user", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/post",
+        userTitle: "Detail title",
+        userContent: "Detail content",
+        userSummary: "Detail summary",
+        tagIds: ["tag-1"]
+      })
+    });
+    const created = (await createRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const detailRes = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}`
+    );
+
+    expect(detailRes.status).toBe(200);
+    await expect(detailRes.json()).resolves.toMatchObject({
+      bookmark: {
+        id: created.bookmark.id,
+        userTitle: "Detail title",
+        userContent: "Detail content",
+        userSummary: "Detail summary",
+        tagIds: ["tag-1"]
+      }
+    });
+  });
+
   it("updates an existing bookmark for the authenticated user", async () => {
     const repository = createInMemoryBookmarkRepository();
     const app = createApp({

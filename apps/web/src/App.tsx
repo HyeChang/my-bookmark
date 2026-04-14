@@ -9,7 +9,7 @@ import type {
   Tag
 } from "@bookmark/shared";
 
-import { createBookmark, loadBookmarks } from "./lib/bookmarks";
+import { createBookmark, loadBookmarks, updateBookmark } from "./lib/bookmarks";
 import { signInWithGoogle, signOutFromGoogle } from "./lib/firebase";
 import { createFolder, loadFolders } from "./lib/folders";
 import { exchangeIdTokenForSession, loadSession, logoutSession } from "./lib/session";
@@ -24,6 +24,8 @@ type BookmarkDraft = {
   url: string;
   folderId: string;
   tagIds: string[];
+  bookmarkColor: string;
+  urlColor: string;
   userTitle: string;
   userContent: string;
   userSummary: string;
@@ -50,6 +52,8 @@ const emptyBookmarkDraft: BookmarkDraft = {
   url: "",
   folderId: "",
   tagIds: [],
+  bookmarkColor: "",
+  urlColor: "",
   userTitle: "",
   userContent: "",
   userSummary: "",
@@ -80,6 +84,7 @@ export default function App() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [bookmarkDraft, setBookmarkDraft] = useState<BookmarkDraft>(emptyBookmarkDraft);
+  const [editingBookmarkId, setEditingBookmarkId] = useState<string | null>(null);
   const [bookmarkSearchDraft, setBookmarkSearchDraft] = useState<BookmarkSearchDraft>(
     emptyBookmarkSearchDraft
   );
@@ -222,32 +227,70 @@ export default function App() {
       setErrorMessage(null);
       setIsSavingBookmark(true);
 
-      const payload: CreateBookmarkRequest = {
-        url: bookmarkDraft.url,
-        folderId: bookmarkDraft.folderId || null,
-        tagIds: bookmarkDraft.tagIds,
-        userTitle: bookmarkDraft.userTitle || null,
-        userContent: bookmarkDraft.userContent || null,
-        userSummary: bookmarkDraft.userSummary || null,
-        isFavorite: bookmarkDraft.isFavorite
-      };
-      const createdBookmark = await createBookmark(payload);
-
-      if (appliedBookmarkSearch.query) {
-        const nextBookmarks = await loadBookmarks({
-          query: appliedBookmarkSearch.query,
-          mode: appliedBookmarkSearch.mode
+      if (editingBookmarkId) {
+        const updatedBookmark = await updateBookmark(editingBookmarkId, {
+          folderId: bookmarkDraft.folderId || null,
+          tagIds: bookmarkDraft.tagIds,
+          userTitle: bookmarkDraft.userTitle || null,
+          userContent: bookmarkDraft.userContent || null,
+          userSummary: bookmarkDraft.userSummary || null,
+          isFavorite: bookmarkDraft.isFavorite,
+          bookmarkColor: bookmarkDraft.bookmarkColor || null,
+          urlColor: bookmarkDraft.urlColor || null
         });
 
-        startTransition(() => {
-          setBookmarks(nextBookmarks);
-          setBookmarkDraft(emptyBookmarkDraft);
-        });
+        if (appliedBookmarkSearch.query) {
+          const nextBookmarks = await loadBookmarks({
+            query: appliedBookmarkSearch.query,
+            mode: appliedBookmarkSearch.mode
+          });
+
+          startTransition(() => {
+            setBookmarks(nextBookmarks);
+            setBookmarkDraft(emptyBookmarkDraft);
+            setEditingBookmarkId(null);
+          });
+        } else {
+          startTransition(() => {
+            setBookmarks((currentBookmarks) =>
+              currentBookmarks.map((bookmark) =>
+                bookmark.id === updatedBookmark.id ? updatedBookmark : bookmark
+              )
+            );
+            setBookmarkDraft(emptyBookmarkDraft);
+            setEditingBookmarkId(null);
+          });
+        }
       } else {
-        startTransition(() => {
-          setBookmarks((currentBookmarks) => [createdBookmark, ...currentBookmarks]);
-          setBookmarkDraft(emptyBookmarkDraft);
-        });
+        const payload: CreateBookmarkRequest = {
+          url: bookmarkDraft.url,
+          folderId: bookmarkDraft.folderId || null,
+          tagIds: bookmarkDraft.tagIds,
+          userTitle: bookmarkDraft.userTitle || null,
+          userContent: bookmarkDraft.userContent || null,
+          userSummary: bookmarkDraft.userSummary || null,
+          isFavorite: bookmarkDraft.isFavorite,
+          bookmarkColor: bookmarkDraft.bookmarkColor || null,
+          urlColor: bookmarkDraft.urlColor || null
+        };
+        const createdBookmark = await createBookmark(payload);
+
+        if (appliedBookmarkSearch.query) {
+          const nextBookmarks = await loadBookmarks({
+            query: appliedBookmarkSearch.query,
+            mode: appliedBookmarkSearch.mode
+          });
+
+          startTransition(() => {
+            setBookmarks(nextBookmarks);
+            setBookmarkDraft(emptyBookmarkDraft);
+          });
+        } else {
+          startTransition(() => {
+            setBookmarks((currentBookmarks) => [createdBookmark, ...currentBookmarks]);
+            setBookmarkDraft(emptyBookmarkDraft);
+          });
+        }
       }
     } catch (error) {
       startTransition(() => {
@@ -408,6 +451,26 @@ export default function App() {
     }
   }
 
+  function beginBookmarkEdit(bookmark: Bookmark) {
+    setEditingBookmarkId(bookmark.id);
+    setBookmarkDraft({
+      url: bookmark.url,
+      folderId: bookmark.folderId ?? "",
+      tagIds: bookmark.tagIds,
+      bookmarkColor: bookmark.bookmarkColor ?? "",
+      urlColor: bookmark.urlColor ?? "",
+      userTitle: bookmark.userTitle ?? "",
+      userContent: bookmark.userContent ?? "",
+      userSummary: bookmark.userSummary ?? "",
+      isFavorite: bookmark.isFavorite
+    });
+  }
+
+  function cancelBookmarkEdit() {
+    setEditingBookmarkId(null);
+    setBookmarkDraft(emptyBookmarkDraft);
+  }
+
   return (
     <main>
       <h1>Bookmark</h1>
@@ -428,7 +491,7 @@ export default function App() {
           </section>
 
           <section aria-label="bookmark-form">
-            <h2>북마크 저장</h2>
+            <h2>{editingBookmarkId ? "북마크 수정" : "북마크 저장"}</h2>
             <form onSubmit={(event) => void handleBookmarkSubmit(event)}>
               <label>
                 URL
@@ -437,6 +500,7 @@ export default function App() {
                   type="url"
                   value={bookmarkDraft.url}
                   onChange={(event) => updateBookmarkDraft({ url: event.target.value })}
+                  disabled={Boolean(editingBookmarkId)}
                   required
                 />
               </label>
@@ -479,6 +543,24 @@ export default function App() {
                   onChange={(event) => updateBookmarkDraft({ userSummary: event.target.value })}
                 />
               </label>
+              <label>
+                북마크 색상
+                <input
+                  name="bookmarkColor"
+                  value={bookmarkDraft.bookmarkColor}
+                  onChange={(event) =>
+                    updateBookmarkDraft({ bookmarkColor: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                URL 색상
+                <input
+                  name="urlColor"
+                  value={bookmarkDraft.urlColor}
+                  onChange={(event) => updateBookmarkDraft({ urlColor: event.target.value })}
+                />
+              </label>
               <fieldset>
                 <legend>태그 선택</legend>
                 {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
@@ -505,8 +587,19 @@ export default function App() {
                 />
               </label>
               <button type="submit" disabled={isSavingBookmark}>
-                {isSavingBookmark ? "저장 중..." : "북마크 저장"}
+                {isSavingBookmark
+                  ? editingBookmarkId
+                    ? "수정 중..."
+                    : "저장 중..."
+                  : editingBookmarkId
+                    ? "북마크 수정"
+                    : "북마크 저장"}
               </button>
+              {editingBookmarkId ? (
+                <button type="button" onClick={() => cancelBookmarkEdit()}>
+                  수정 취소
+                </button>
+              ) : null}
             </form>
           </section>
 
@@ -631,6 +724,9 @@ export default function App() {
                   {bookmark.tagIds.length > 0 ? (
                     <p>{bookmark.tagIds.map((tagId) => tags.find((tag) => tag.id === tagId)?.name ?? tagId).join(", ")}</p>
                   ) : null}
+                  <button type="button" onClick={() => beginBookmarkEdit(bookmark)}>
+                    수정
+                  </button>
                 </li>
               ))}
             </ul>

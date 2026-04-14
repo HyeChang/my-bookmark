@@ -3,7 +3,8 @@ import type {
   BookmarkSearchMode,
   BookmarkListResponse,
   BookmarkResponse,
-  CreateBookmarkRequest
+  CreateBookmarkRequest,
+  UpdateBookmarkRequest
 } from "@bookmark/shared";
 
 type LoadBookmarksOptions = {
@@ -45,6 +46,24 @@ export async function createBookmark(input: CreateBookmarkRequest) {
 
   if (!res.ok) {
     throw new Error("Failed to create bookmark");
+  }
+
+  const data = (await res.json()) as BookmarkResponse;
+  return data.bookmark;
+}
+
+export async function updateBookmark(bookmarkId: string, input: UpdateBookmarkRequest) {
+  const res = await fetch(`/api/bookmarks/${bookmarkId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to update bookmark");
   }
 
   const data = (await res.json()) as BookmarkResponse;

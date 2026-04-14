@@ -101,8 +101,11 @@ describe("bookmark dashboard", () => {
     });
 
     render(<App />);
+    const bookmarkFormRegion = await screen.findByRole("region", { name: /bookmark-form/i });
 
-    expect(await screen.findByLabelText(/url/i)).toBeInTheDocument();
+    expect(
+      await within(bookmarkFormRegion).findByLabelText(/^URL$/i)
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /북마크 저장/i })).toBeInTheDocument();
     expect(await screen.findByText(/manual title/i)).toBeInTheDocument();
     expect(screen.getByText(/https:\/\/example.com\/post/i)).toBeInTheDocument();
@@ -217,12 +220,16 @@ describe("bookmark dashboard", () => {
     });
 
     render(<App />);
+    const bookmarkFormRegion = await screen.findByRole("region", { name: /bookmark-form/i });
 
-    fireEvent.change(await screen.findByLabelText(/url/i), {
-      target: {
-        value: "https://example.com/new"
+    fireEvent.change(
+      await within(bookmarkFormRegion).findByLabelText(/^URL$/i),
+      {
+        target: {
+          value: "https://example.com/new"
+        }
       }
-    });
+    );
     fireEvent.change(screen.getByLabelText(/제목/i), {
       target: {
         value: "Created title"
@@ -382,5 +389,214 @@ describe("bookmark dashboard", () => {
         credentials: "include"
       })
     );
+  });
+
+  it("loads a bookmark into edit mode and patches the updated values", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-1",
+                folderId: "folder-1",
+                tagIds: ["tag-1"],
+                url: "https://example.com/post",
+                isFavorite: true,
+                bookmarkColor: "#f59e0b",
+                urlColor: "#0f172a",
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Before title",
+                userContent: "Before content",
+                userSummary: "Before summary",
+                displayTitle: "Before title",
+                displayContent: "Before content",
+                displaySummary: "Before summary",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            tags: [
+              {
+                id: "tag-1",
+                name: "research",
+                color: "#2563eb",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              },
+              {
+                id: "tag-2",
+                name: "later",
+                color: "#16a34a",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/bookmark-1" && init?.method === "PATCH") {
+        return new Response(
+          JSON.stringify({
+            bookmark: {
+              id: "bookmark-1",
+              folderId: "folder-1",
+              tagIds: ["tag-2"],
+              url: "https://example.com/post",
+              isFavorite: false,
+              bookmarkColor: "#dc2626",
+              urlColor: "#1d4ed8",
+              sourceTitle: null,
+              sourceContent: null,
+              sourceSummary: null,
+              userTitle: "After title",
+              userContent: "After content",
+              userSummary: "After summary",
+              displayTitle: "After title",
+              displayContent: "After content",
+              displaySummary: "After summary",
+              createdAt: "2026-04-13T08:00:00.000Z",
+              updatedAt: "2026-04-13T09:00:00.000Z"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /수정/i }));
+
+    expect(screen.getByRole("button", { name: /북마크 수정/i })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Before title")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Before content")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Before summary")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/제목/i), {
+      target: {
+        value: "After title"
+      }
+    });
+    fireEvent.change(screen.getByLabelText(/내용/i), {
+      target: {
+        value: "After content"
+      }
+    });
+    fireEvent.change(screen.getByLabelText(/요약/i), {
+      target: {
+        value: "After summary"
+      }
+    });
+    fireEvent.change(screen.getByLabelText(/북마크 색상/i), {
+      target: {
+        value: "#dc2626"
+      }
+    });
+    fireEvent.change(screen.getByLabelText(/url 색상/i), {
+      target: {
+        value: "#1d4ed8"
+      }
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: /즐겨찾기/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /research/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /later/i }));
+    fireEvent.click(screen.getByRole("button", { name: /북마크 수정/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/after title/i)).toBeInTheDocument();
+    });
+
+    const patchCall = fetchSpy.mock.calls.find(
+      ([input, init]) =>
+        (typeof input === "string" ? input : input.url) === "/api/bookmarks/bookmark-1" &&
+        init?.method === "PATCH"
+    );
+
+    expect(patchCall).toBeDefined();
+    expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
+      folderId: "folder-1",
+      tagIds: ["tag-2"],
+      userTitle: "After title",
+      userContent: "After content",
+      userSummary: "After summary",
+      isFavorite: false,
+      bookmarkColor: "#dc2626",
+      urlColor: "#1d4ed8"
+    });
   });
 });
