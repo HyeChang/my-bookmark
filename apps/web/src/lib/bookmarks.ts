@@ -13,6 +13,9 @@ type LoadBookmarksOptions = {
   favoriteOnly?: boolean;
   folderId?: string;
   tagId?: string;
+  bookmarkColor?: string;
+  urlColor?: string;
+  summaryState?: "all" | "with" | "without";
 };
 
 export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
@@ -31,6 +34,15 @@ export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
   }
   if (options.tagId) {
     searchParams.set("tagId", options.tagId);
+  }
+  if (options.bookmarkColor?.trim()) {
+    searchParams.set("bookmarkColor", options.bookmarkColor.trim());
+  }
+  if (options.urlColor?.trim()) {
+    searchParams.set("urlColor", options.urlColor.trim());
+  }
+  if (options.summaryState && options.summaryState !== "all") {
+    searchParams.set("summaryState", options.summaryState);
   }
 
   const url = searchParams.size > 0 ? `/api/bookmarks?${searchParams.toString()}` : "/api/bookmarks";

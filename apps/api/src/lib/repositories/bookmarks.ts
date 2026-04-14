@@ -69,6 +69,9 @@ export type BookmarkListFilters = {
   favoriteOnly?: boolean;
   folderId?: string;
   tagId?: string;
+  bookmarkColor?: string;
+  urlColor?: string;
+  summaryState?: "with" | "without";
 };
 
 export type BookmarkRepository = {
@@ -319,6 +322,9 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
   }
 
   function matchesBookmarkFilters(bookmark: BookmarkRecord, filters: BookmarkListFilters) {
+    const normalizedBookmarkColor = bookmark.bookmarkColor?.trim().toLowerCase() ?? "";
+    const normalizedUrlColor = bookmark.urlColor?.trim().toLowerCase() ?? "";
+
     if (filters.favoriteOnly && !bookmark.isFavorite) {
       return false;
     }
@@ -328,6 +334,25 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
     }
 
     if (filters.tagId && !bookmark.tagIds.includes(filters.tagId)) {
+      return false;
+    }
+
+    if (
+      filters.bookmarkColor &&
+      normalizedBookmarkColor !== filters.bookmarkColor.trim().toLowerCase()
+    ) {
+      return false;
+    }
+
+    if (filters.urlColor && normalizedUrlColor !== filters.urlColor.trim().toLowerCase()) {
+      return false;
+    }
+
+    if (filters.summaryState === "with" && bookmark.displaySummary.trim().length === 0) {
+      return false;
+    }
+
+    if (filters.summaryState === "without" && bookmark.displaySummary.trim().length > 0) {
       return false;
     }
 

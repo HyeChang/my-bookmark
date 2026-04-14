@@ -287,29 +287,29 @@ describe("bookmark dashboard", () => {
         }
       }
     );
-    fireEvent.change(screen.getByLabelText(/제목/i), {
+    fireEvent.change(within(bookmarkFormRegion).getByLabelText(/제목/i), {
       target: {
         value: "Created title"
       }
     });
-    fireEvent.change(screen.getByLabelText(/내용/i), {
+    fireEvent.change(within(bookmarkFormRegion).getByLabelText(/내용/i), {
       target: {
         value: "Created content"
       }
     });
-    fireEvent.change(screen.getByLabelText(/요약/i), {
+    fireEvent.change(within(bookmarkFormRegion).getByLabelText(/^요약$/i), {
       target: {
         value: "Created summary"
       }
     });
-    fireEvent.change(screen.getByLabelText(/이미지 업로드/i), {
+    fireEvent.change(within(bookmarkFormRegion).getByLabelText(/이미지 업로드/i), {
       target: {
         files: [new File(["fake-image-data"], "capture.png", { type: "image/png" })]
       }
     });
-    fireEvent.click(screen.getByRole("checkbox", { name: /research/i }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /later/i }));
-    fireEvent.click(screen.getByRole("button", { name: /북마크 저장/i }));
+    fireEvent.click(within(bookmarkFormRegion).getByRole("checkbox", { name: /research/i }));
+    fireEvent.click(within(bookmarkFormRegion).getByRole("checkbox", { name: /later/i }));
+    fireEvent.click(within(bookmarkFormRegion).getByRole("button", { name: /북마크 저장/i }));
 
     const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
     await waitFor(() => {
@@ -821,6 +821,158 @@ describe("bookmark dashboard", () => {
       expect(screen.getByLabelText(/즐겨찾기만/i)).not.toBeChecked();
       expect(screen.getByLabelText(/필터 폴더/i)).toHaveValue("");
       expect(screen.getByLabelText(/필터 태그/i)).toHaveValue("");
+    });
+  });
+
+  it("submits bookmark search with color and summary filters and resets them", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (
+        url ===
+          "/api/bookmarks?mode=all&query=paper&bookmarkColor=%23ffaa00&urlColor=%23112233&summaryState=with" &&
+        !init?.method
+      ) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-colored",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/highlighted",
+                isFavorite: false,
+                bookmarkColor: "#FFAA00",
+                urlColor: "#112233",
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Highlighted paper",
+                userContent: "Color matched note",
+                userSummary: "Summary exists",
+                displayTitle: "Highlighted paper",
+                displayContent: "Color matched note",
+                displaySummary: "Summary exists",
+                createdAt: "2026-04-14T03:00:00.000Z",
+                updatedAt: "2026-04-14T03:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    fireEvent.change(await screen.findByLabelText(/검색어/i), {
+      target: {
+        value: "paper"
+      }
+    });
+    fireEvent.change(screen.getByLabelText(/북마크 색상 필터/i), {
+      target: {
+        value: "#ffaa00"
+      }
+    });
+    fireEvent.change(screen.getByLabelText(/url 색상 필터/i), {
+      target: {
+        value: "#112233"
+      }
+    });
+    fireEvent.change(screen.getByLabelText(/요약 필터/i), {
+      target: {
+        value: "with"
+      }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /검색 실행/i }));
+
+    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
+    await waitFor(() => {
+      expect(within(bookmarkListRegion).getByText(/^Highlighted paper$/i)).toBeInTheDocument();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks?mode=all&query=paper&bookmarkColor=%23ffaa00&urlColor=%23112233&summaryState=with",
+      expect.objectContaining({
+        credentials: "include"
+      })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /검색 초기화/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/북마크 색상 필터/i)).toHaveValue("");
+      expect(screen.getByLabelText(/url 색상 필터/i)).toHaveValue("");
+      expect(screen.getByLabelText(/요약 필터/i)).toHaveValue("all");
     });
   });
 

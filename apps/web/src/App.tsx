@@ -70,6 +70,9 @@ type BookmarkSearchDraft = {
   favoriteOnly: boolean;
   folderId: string;
   tagId: string;
+  bookmarkColor: string;
+  urlColor: string;
+  summaryState: "all" | "with" | "without";
 };
 
 type BookmarkRecommendationsState = {
@@ -106,7 +109,10 @@ const emptyBookmarkSearchDraft: BookmarkSearchDraft = {
   mode: "all",
   favoriteOnly: false,
   folderId: "",
-  tagId: ""
+  tagId: "",
+  bookmarkColor: "",
+  urlColor: "",
+  summaryState: "all"
 };
 
 const emptyBookmarkRecommendations: BookmarkRecommendationsState = {
@@ -121,7 +127,10 @@ function normalizeBookmarkSearchDraft(search: BookmarkSearchDraft): BookmarkSear
     mode: search.mode,
     favoriteOnly: search.favoriteOnly,
     folderId: search.folderId.trim(),
-    tagId: search.tagId.trim()
+    tagId: search.tagId.trim(),
+    bookmarkColor: search.bookmarkColor.trim(),
+    urlColor: search.urlColor.trim(),
+    summaryState: search.summaryState
   };
 }
 
@@ -131,7 +140,10 @@ function hasActiveBookmarkSearch(search: BookmarkSearchDraft) {
     normalizedSearch.query ||
       normalizedSearch.favoriteOnly ||
       normalizedSearch.folderId ||
-      normalizedSearch.tagId
+      normalizedSearch.tagId ||
+      normalizedSearch.bookmarkColor ||
+      normalizedSearch.urlColor ||
+      normalizedSearch.summaryState !== "all"
   );
 }
 
@@ -1565,6 +1577,42 @@ export default function App() {
                   ))}
                 </select>
               </label>
+              <label>
+                북마크 색상 필터
+                <input
+                  name="bookmarkSearchBookmarkColor"
+                  value={bookmarkSearchDraft.bookmarkColor}
+                  onChange={(event) =>
+                    updateBookmarkSearchDraft({ bookmarkColor: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                URL 색상 필터
+                <input
+                  name="bookmarkSearchUrlColor"
+                  value={bookmarkSearchDraft.urlColor}
+                  onChange={(event) =>
+                    updateBookmarkSearchDraft({ urlColor: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                요약 필터
+                <select
+                  name="bookmarkSearchSummaryState"
+                  value={bookmarkSearchDraft.summaryState}
+                  onChange={(event) =>
+                    updateBookmarkSearchDraft({
+                      summaryState: event.target.value as "all" | "with" | "without"
+                    })
+                  }
+                >
+                  <option value="all">전체 요약</option>
+                  <option value="with">요약 있음</option>
+                  <option value="without">요약 없음</option>
+                </select>
+              </label>
               <button type="submit">검색 실행</button>
               <button type="button" onClick={() => void handleBookmarkSearchReset()}>
                 검색 초기화
@@ -1581,6 +1629,14 @@ export default function App() {
                 {appliedBookmarkSearch.tagId
                   ? `, 태그:${getTagNames([appliedBookmarkSearch.tagId]).join(", ")}`
                   : ""}
+                {appliedBookmarkSearch.bookmarkColor
+                  ? `, 북마크색상:${appliedBookmarkSearch.bookmarkColor}`
+                  : ""}
+                {appliedBookmarkSearch.urlColor
+                  ? `, URL색상:${appliedBookmarkSearch.urlColor}`
+                  : ""}
+                {appliedBookmarkSearch.summaryState === "with" ? ", 요약있음" : ""}
+                {appliedBookmarkSearch.summaryState === "without" ? ", 요약없음" : ""}
                 )
               </p>
             ) : null}

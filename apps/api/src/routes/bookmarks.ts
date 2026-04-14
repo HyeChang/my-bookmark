@@ -81,7 +81,13 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       const filters = {
         favoriteOnly: c.req.query("favorite") === "1",
         folderId: c.req.query("folderId")?.trim() || undefined,
-        tagId: c.req.query("tagId")?.trim() || undefined
+        tagId: c.req.query("tagId")?.trim() || undefined,
+        bookmarkColor: c.req.query("bookmarkColor")?.trim() || undefined,
+        urlColor: c.req.query("urlColor")?.trim() || undefined,
+        summaryState: (() => {
+          const value = c.req.query("summaryState")?.trim();
+          return value === "with" || value === "without" ? value : undefined;
+        })()
       };
 
       if (requestedMode && !bookmarkSearchModes.includes(mode)) {

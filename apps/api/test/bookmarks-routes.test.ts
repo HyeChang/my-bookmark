@@ -67,6 +67,9 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
   }
 
   function matchesFilters(bookmark: BookmarkWithTags, filters: BookmarkListFilters = {}) {
+    const normalizedBookmarkColor = bookmark.bookmarkColor?.trim().toLowerCase() ?? "";
+    const normalizedUrlColor = bookmark.urlColor?.trim().toLowerCase() ?? "";
+
     if (filters.favoriteOnly && !bookmark.isFavorite) {
       return false;
     }
@@ -76,6 +79,25 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
     }
 
     if (filters.tagId && !bookmark.tagIds.includes(filters.tagId)) {
+      return false;
+    }
+
+    if (
+      filters.bookmarkColor &&
+      normalizedBookmarkColor !== filters.bookmarkColor.trim().toLowerCase()
+    ) {
+      return false;
+    }
+
+    if (filters.urlColor && normalizedUrlColor !== filters.urlColor.trim().toLowerCase()) {
+      return false;
+    }
+
+    if (filters.summaryState === "with" && bookmark.displaySummary.trim().length === 0) {
+      return false;
+    }
+
+    if (filters.summaryState === "without" && bookmark.displaySummary.trim().length > 0) {
       return false;
     }
 
@@ -559,6 +581,98 @@ describe("bookmark routes", () => {
       bookmarks: [
         {
           url: "https://example.com/paper"
+        }
+      ]
+    });
+  });
+
+  it("filters bookmarks by bookmark color, url color, and summary presence", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/highlighted",
+        userTitle: "Highlighted paper",
+        bookmarkColor: "#FFAA00",
+        urlColor: "#112233",
+        userSummary: "Summary exists"
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/no-url-color",
+        userTitle: "Missing URL color",
+        bookmarkColor: "#FFAA00",
+        userSummary: "Summary exists"
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/no-summary",
+        userTitle: "Missing summary",
+        bookmarkColor: "#FFAA00",
+        urlColor: "#112233"
+      })
+    });
+
+    const filteredRes = await authenticatedRequest(
+      app,
+      "/api/bookmarks?bookmarkColor=%23ffaa00&urlColor=%23112233&summaryState=with"
+    );
+
+    expect(filteredRes.status).toBe(200);
+    await expect(filteredRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        {
+          url: "https://example.com/highlighted"
+        }
+      ]
+    });
+  });
+
+  it("applies summary absence filter together with a search query", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/without-summary",
+        userTitle: "Digest note",
+        userContent: "Digest content"
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/with-summary",
+        userTitle: "Digest note",
+        userContent: "Digest content",
+        userSummary: "Digest summary"
+      })
+    });
+
+    const filteredRes = await authenticatedRequest(
+      app,
+      "/api/bookmarks?mode=title&query=digest&summaryState=without"
+    );
+
+    expect(filteredRes.status).toBe(200);
+    await expect(filteredRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        {
+          url: "https://example.com/without-summary"
         }
       ]
     });
