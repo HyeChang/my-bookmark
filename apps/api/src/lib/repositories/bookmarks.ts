@@ -68,7 +68,7 @@ export type UpdateBookmarkInput = UpdateBookmarkRequest & {
 export type BookmarkListFilters = {
   favoriteOnly?: boolean;
   folderId?: string;
-  tagId?: string;
+  tagIds?: string[];
   bookmarkColor?: string;
   urlColor?: string;
   summaryState?: "with" | "without";
@@ -333,7 +333,7 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
       return false;
     }
 
-    if (filters.tagId && !bookmark.tagIds.includes(filters.tagId)) {
+    if (filters.tagIds && !filters.tagIds.every((tagId) => bookmark.tagIds.includes(tagId))) {
       return false;
     }
 

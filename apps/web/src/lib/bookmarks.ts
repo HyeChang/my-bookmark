@@ -17,7 +17,7 @@ type LoadBookmarksOptions = {
   openedWithin?: BookmarkRelativeDateRange;
   favoriteOnly?: boolean;
   folderId?: string;
-  tagId?: string;
+  tagIds?: string[];
   bookmarkColor?: string;
   urlColor?: string;
   summaryState?: "all" | "with" | "without";
@@ -46,8 +46,13 @@ export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
   if (options.folderId) {
     searchParams.set("folderId", options.folderId);
   }
-  if (options.tagId) {
-    searchParams.set("tagId", options.tagId);
+  if (options.tagIds?.length) {
+    for (const tagId of options.tagIds) {
+      const normalizedTagId = tagId.trim();
+      if (normalizedTagId) {
+        searchParams.append("tagId", normalizedTagId);
+      }
+    }
   }
   if (options.bookmarkColor?.trim()) {
     searchParams.set("bookmarkColor", options.bookmarkColor.trim());

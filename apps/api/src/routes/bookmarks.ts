@@ -54,6 +54,10 @@ const bookmarkSearchModes: BookmarkSearchMode[] = ["all", "title", "content", "f
 const bookmarkSortModes: BookmarkSortMode[] = ["created_desc", "opened_desc"];
 const bookmarkRelativeDateRanges: BookmarkRelativeDateRange[] = ["all", "7d", "30d"];
 
+function normalizeTagQueryValues(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
 function resolveDateRangeCutoff(range: BookmarkRelativeDateRange, now: Date) {
   if (range === "all") {
     return null;
@@ -97,10 +101,11 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       const createdWithin = (requestedCreatedWithin ?? "all") as BookmarkRelativeDateRange;
       const requestedOpenedWithin = c.req.query("openedWithin");
       const openedWithin = (requestedOpenedWithin ?? "all") as BookmarkRelativeDateRange;
+      const tagIds = normalizeTagQueryValues(new URL(c.req.url).searchParams.getAll("tagId"));
       const filters = {
         favoriteOnly: c.req.query("favorite") === "1",
         folderId: c.req.query("folderId")?.trim() || undefined,
-        tagId: c.req.query("tagId")?.trim() || undefined,
+        tagIds: tagIds.length > 0 ? tagIds : undefined,
         bookmarkColor: c.req.query("bookmarkColor")?.trim() || undefined,
         urlColor: c.req.query("urlColor")?.trim() || undefined,
         summaryState: (() => {

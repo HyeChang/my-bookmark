@@ -74,7 +74,7 @@ type BookmarkSearchDraft = {
   openedWithin: BookmarkRelativeDateRange;
   favoriteOnly: boolean;
   folderId: string;
-  tagId: string;
+  tagIds: string[];
   bookmarkColor: string;
   urlColor: string;
   summaryState: "all" | "with" | "without";
@@ -117,7 +117,7 @@ const emptyBookmarkSearchDraft: BookmarkSearchDraft = {
   openedWithin: "all",
   favoriteOnly: false,
   folderId: "",
-  tagId: "",
+  tagIds: [],
   bookmarkColor: "",
   urlColor: "",
   summaryState: "all"
@@ -138,7 +138,7 @@ function normalizeBookmarkSearchDraft(search: BookmarkSearchDraft): BookmarkSear
     openedWithin: search.openedWithin,
     favoriteOnly: search.favoriteOnly,
     folderId: search.folderId.trim(),
-    tagId: search.tagId.trim(),
+    tagIds: Array.from(new Set(search.tagIds.map((tagId) => tagId.trim()).filter(Boolean))),
     bookmarkColor: search.bookmarkColor.trim(),
     urlColor: search.urlColor.trim(),
     summaryState: search.summaryState
@@ -154,7 +154,7 @@ function hasActiveBookmarkSearch(search: BookmarkSearchDraft) {
       normalizedSearch.openedWithin !== "all" ||
       normalizedSearch.favoriteOnly ||
       normalizedSearch.folderId ||
-      normalizedSearch.tagId ||
+      normalizedSearch.tagIds.length > 0 ||
       normalizedSearch.bookmarkColor ||
       normalizedSearch.urlColor ||
       normalizedSearch.summaryState !== "all"
@@ -588,6 +588,19 @@ export default function App() {
     });
   }
 
+  function toggleBookmarkSearchTag(tagId: string, checked: boolean) {
+    setBookmarkSearchDraft((currentDraft) => {
+      const nextTagIds = checked
+        ? Array.from(new Set([...currentDraft.tagIds, tagId]))
+        : currentDraft.tagIds.filter((currentTagId) => currentTagId !== tagId);
+
+      return {
+        ...currentDraft,
+        tagIds: nextTagIds
+      };
+    });
+  }
+
   function updateFolderDraft(nextValues: Partial<FolderDraft>) {
     setFolderDraft((currentDraft) => ({
       ...currentDraft,
@@ -697,10 +710,20 @@ export default function App() {
       tagIds: currentDraft.tagIds.filter((currentTagId) => currentTagId !== tagId)
     }));
     setBookmarkSearchDraft((currentDraft) =>
-      currentDraft.tagId === tagId ? { ...currentDraft, tagId: "" } : currentDraft
+      currentDraft.tagIds.includes(tagId)
+        ? {
+            ...currentDraft,
+            tagIds: currentDraft.tagIds.filter((currentTagId) => currentTagId !== tagId)
+          }
+        : currentDraft
     );
     setAppliedBookmarkSearch((currentSearch) =>
-      currentSearch.tagId === tagId ? { ...currentSearch, tagId: "" } : currentSearch
+      currentSearch.tagIds.includes(tagId)
+        ? {
+            ...currentSearch,
+            tagIds: currentSearch.tagIds.filter((currentTagId) => currentTagId !== tagId)
+          }
+        : currentSearch
     );
 
     if (editingTagId === tagId) {
@@ -1038,11 +1061,13 @@ export default function App() {
 
     try {
       setErrorMessage(null);
-      const shouldRefreshSearch = appliedBookmarkSearch.tagId === tag.id;
+      const shouldRefreshSearch = appliedBookmarkSearch.tagIds.includes(tag.id);
       const nextSearch = shouldRefreshSearch
         ? {
             ...appliedBookmarkSearch,
-            tagId: ""
+            tagIds: appliedBookmarkSearch.tagIds.filter(
+              (currentTagId) => currentTagId !== tag.id
+            )
           }
         : appliedBookmarkSearch;
       await deleteTag(tag.id);
@@ -1621,23 +1646,23 @@ export default function App() {
                   ))}
                 </select>
               </label>
-              <label>
-                필터 태그
-                <select
-                  name="bookmarkSearchTagId"
-                  value={bookmarkSearchDraft.tagId}
-                  onChange={(event) =>
-                    updateBookmarkSearchDraft({ tagId: event.target.value })
-                  }
-                >
-                  <option value="">전체 태그</option>
-                  {tags.map((tag) => (
-                    <option key={tag.id} value={tag.id}>
-                      {tag.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <fieldset>
+                <legend>필터 태그</legend>
+                {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
+                {tags.map((tag) => (
+                  <label key={tag.id}>
+                    <input
+                      type="checkbox"
+                      name="bookmarkSearchTagIds"
+                      checked={bookmarkSearchDraft.tagIds.includes(tag.id)}
+                      onChange={(event) =>
+                        toggleBookmarkSearchTag(tag.id, event.target.checked)
+                      }
+                    />
+                    {tag.name}
+                  </label>
+                ))}
+              </fieldset>
               <label>
                 북마크 색상 필터
                 <input
@@ -1692,8 +1717,8 @@ export default function App() {
                 {appliedBookmarkSearch.folderId
                   ? `, 폴더:${getFolderName(appliedBookmarkSearch.folderId)}`
                   : ""}
-                {appliedBookmarkSearch.tagId
-                  ? `, 태그:${getTagNames([appliedBookmarkSearch.tagId]).join(", ")}`
+                {appliedBookmarkSearch.tagIds.length > 0
+                  ? `, 태그:${getTagNames(appliedBookmarkSearch.tagIds).join(", ")}`
                   : ""}
                 {appliedBookmarkSearch.bookmarkColor
                   ? `, 북마크색상:${appliedBookmarkSearch.bookmarkColor}`

@@ -124,7 +124,9 @@ describe("bookmark dashboard", () => {
       await within(bookmarkFormRegion).findByLabelText(/^URL$/i)
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /북마크 저장/i })).toBeInTheDocument();
-    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
+    const bookmarkListRegion = await screen.findByRole("region", {
+      name: /bookmark-list/i
+    });
     expect(await within(bookmarkListRegion).findByText(/^Manual title$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^https:\/\/example\.com\/post$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getAllByText(/^research$/i).length).toBeGreaterThan(0);
@@ -311,7 +313,9 @@ describe("bookmark dashboard", () => {
     fireEvent.click(within(bookmarkFormRegion).getByRole("checkbox", { name: /later/i }));
     fireEvent.click(within(bookmarkFormRegion).getByRole("button", { name: /북마크 저장/i }));
 
-    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
+    const bookmarkListRegion = await screen.findByRole("region", {
+      name: /bookmark-list/i
+    });
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^Created title$/i)).toBeInTheDocument();
     });
@@ -624,7 +628,9 @@ describe("bookmark dashboard", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /검색 실행/i }));
 
-    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
+    const bookmarkListRegion = await screen.findByRole("region", {
+      name: /bookmark-list/i
+    });
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^Model note$/i)).toBeInTheDocument();
     });
@@ -637,7 +643,7 @@ describe("bookmark dashboard", () => {
     );
   });
 
-  it("submits bookmark search with favorite, folder, and tag filters and resets them", async () => {
+  it("submits bookmark search with favorite, folder, and multiple tag filters and resets them", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
 
@@ -670,7 +676,7 @@ describe("bookmark dashboard", () => {
 
       if (
         url ===
-          "/api/bookmarks?mode=all&query=paper&favorite=1&folderId=folder-1&tagId=tag-1" &&
+          "/api/bookmarks?mode=all&query=paper&favorite=1&folderId=folder-1&tagId=tag-1&tagId=tag-2" &&
         !init?.method
       ) {
         return new Response(
@@ -679,7 +685,7 @@ describe("bookmark dashboard", () => {
               {
                 id: "bookmark-filtered",
                 folderId: "folder-1",
-                tagIds: ["tag-1"],
+                tagIds: ["tag-1", "tag-2"],
                 url: "https://example.com/paper",
                 isFavorite: true,
                 bookmarkColor: null,
@@ -758,6 +764,13 @@ describe("bookmark dashboard", () => {
                 color: "#2563eb",
                 createdAt: "2026-04-13T08:00:00.000Z",
                 updatedAt: "2026-04-13T08:00:00.000Z"
+              },
+              {
+                id: "tag-2",
+                name: "video",
+                color: "#16a34a",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
               }
             ]
           }),
@@ -775,37 +788,36 @@ describe("bookmark dashboard", () => {
 
     render(<App />);
 
-    fireEvent.change(await screen.findByLabelText(/검색어/i), {
+    const bookmarkListRegion = await screen.findByRole("region", {
+      name: /bookmark-list/i
+    });
+
+    fireEvent.change(await within(bookmarkListRegion).findByLabelText(/검색어/i), {
       target: {
         value: "paper"
       }
     });
-    fireEvent.click(screen.getByLabelText(/즐겨찾기만/i));
-    fireEvent.change(screen.getByLabelText(/필터 폴더/i), {
+    fireEvent.click(within(bookmarkListRegion).getByLabelText(/즐겨찾기만/i));
+    fireEvent.change(within(bookmarkListRegion).getByLabelText(/필터 폴더/i), {
       target: {
         value: "folder-1"
       }
     });
-    fireEvent.change(screen.getByLabelText(/필터 태그/i), {
-      target: {
-        value: "tag-1"
-      }
-    });
-    fireEvent.click(screen.getByRole("button", { name: /검색 실행/i }));
-
-    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
+    fireEvent.click(within(bookmarkListRegion).getByRole("checkbox", { name: /^research$/i }));
+    fireEvent.click(within(bookmarkListRegion).getByRole("checkbox", { name: /^video$/i }));
+    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /검색 실행/i }));
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^Filtered paper$/i)).toBeInTheDocument();
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/bookmarks?mode=all&query=paper&favorite=1&folderId=folder-1&tagId=tag-1",
+      "/api/bookmarks?mode=all&query=paper&favorite=1&folderId=folder-1&tagId=tag-1&tagId=tag-2",
       expect.objectContaining({
         credentials: "include"
       })
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /검색 초기화/i }));
+    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /검색 초기화/i }));
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -817,10 +829,15 @@ describe("bookmark dashboard", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/검색어/i)).toHaveValue("");
-      expect(screen.getByLabelText(/즐겨찾기만/i)).not.toBeChecked();
-      expect(screen.getByLabelText(/필터 폴더/i)).toHaveValue("");
-      expect(screen.getByLabelText(/필터 태그/i)).toHaveValue("");
+      expect(within(bookmarkListRegion).getByLabelText(/검색어/i)).toHaveValue("");
+      expect(within(bookmarkListRegion).getByLabelText(/즐겨찾기만/i)).not.toBeChecked();
+      expect(within(bookmarkListRegion).getByLabelText(/필터 폴더/i)).toHaveValue("");
+      expect(
+        within(bookmarkListRegion).getByRole("checkbox", { name: /^research$/i })
+      ).not.toBeChecked();
+      expect(
+        within(bookmarkListRegion).getByRole("checkbox", { name: /^video$/i })
+      ).not.toBeChecked();
     });
   });
 

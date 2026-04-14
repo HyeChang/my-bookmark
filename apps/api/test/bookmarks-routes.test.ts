@@ -78,7 +78,7 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
       return false;
     }
 
-    if (filters.tagId && !bookmark.tagIds.includes(filters.tagId)) {
+    if (filters.tagIds && !filters.tagIds.every((tagId) => bookmark.tagIds.includes(tagId))) {
       return false;
     }
 
@@ -541,7 +541,7 @@ describe("bookmark routes", () => {
     });
   });
 
-  it("filters bookmarks by favorite, folder, and tag without a search query", async () => {
+  it("filters bookmarks by favorite, folder, and multiple tags without a search query", async () => {
     const app = createApp({
       sessionSecret,
       bookmarkRepository: createInMemoryBookmarkRepository()
@@ -554,7 +554,7 @@ describe("bookmark routes", () => {
         folderId: "folder-reading",
         userTitle: "AI paper",
         isFavorite: true,
-        tagIds: ["tag-research"]
+        tagIds: ["tag-research", "tag-video"]
       })
     });
 
@@ -564,8 +564,8 @@ describe("bookmark routes", () => {
         url: "https://example.com/video",
         folderId: "folder-reading",
         userTitle: "Video list",
-        isFavorite: false,
-        tagIds: ["tag-video"]
+        isFavorite: true,
+        tagIds: ["tag-research"]
       })
     });
 
@@ -576,13 +576,13 @@ describe("bookmark routes", () => {
         folderId: "folder-archive",
         userTitle: "Archived paper",
         isFavorite: true,
-        tagIds: ["tag-research"]
+        tagIds: ["tag-research", "tag-video"]
       })
     });
 
     const filteredRes = await authenticatedRequest(
       app,
-      "/api/bookmarks?favorite=1&folderId=folder-reading&tagId=tag-research"
+      "/api/bookmarks?favorite=1&folderId=folder-reading&tagId=tag-research&tagId=tag-video"
     );
 
     expect(filteredRes.status).toBe(200);
@@ -595,7 +595,7 @@ describe("bookmark routes", () => {
     });
   });
 
-  it("applies favorite and tag filters together with a search query", async () => {
+  it("applies multiple tag filters together with a search query", async () => {
     const app = createApp({
       sessionSecret,
       bookmarkRepository: createInMemoryBookmarkRepository()
@@ -609,7 +609,7 @@ describe("bookmark routes", () => {
         userTitle: "AI paper",
         userContent: "Transformer notes",
         isFavorite: true,
-        tagIds: ["tag-research"]
+        tagIds: ["tag-research", "tag-video"]
       })
     });
 
@@ -620,14 +620,14 @@ describe("bookmark routes", () => {
         folderId: "folder-reading",
         userTitle: "AI video",
         userContent: "Transformer notes",
-        isFavorite: false,
+        isFavorite: true,
         tagIds: ["tag-research"]
       })
     });
 
     const filteredSearchRes = await authenticatedRequest(
       app,
-      "/api/bookmarks?mode=content&query=transformer&favorite=1&tagId=tag-research"
+      "/api/bookmarks?mode=content&query=transformer&tagId=tag-research&tagId=tag-video"
     );
 
     expect(filteredSearchRes.status).toBe(200);
