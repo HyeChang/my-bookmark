@@ -1,4 +1,9 @@
-import type { Bookmark, CreateBookmarkRequest, UpdateBookmarkRequest } from "@bookmark/shared";
+import type {
+  Bookmark,
+  BookmarkSearchMode,
+  CreateBookmarkRequest,
+  UpdateBookmarkRequest
+} from "@bookmark/shared";
 
 export type BookmarkDisplayRow = {
   id: string;
@@ -34,6 +39,16 @@ type BookmarkTagRow = {
   tag_id: string;
 };
 
+type BookmarkTagNameRow = {
+  bookmark_id: string;
+  name: string;
+};
+
+type FolderRow = {
+  id: string;
+  name: string;
+};
+
 export type BookmarkRecord = Bookmark & {
   userId: string;
   normalizedUrl: string;
@@ -48,6 +63,11 @@ export type UpdateBookmarkInput = UpdateBookmarkRequest;
 
 export type BookmarkRepository = {
   listByUser(userId: string): Promise<BookmarkRecord[]>;
+  searchByUser(
+    userId: string,
+    query: string,
+    mode: BookmarkSearchMode
+  ): Promise<BookmarkRecord[]>;
   create(input: CreateBookmarkInput): Promise<BookmarkRecord>;
   getByUserAndId(userId: string, bookmarkId: string): Promise<BookmarkRecord | null>;
   update(
@@ -171,6 +191,121 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
     }));
   }
 
+  async function loadBookmarkTagNames(userId: string, bookmarkIds: string[]) {
+    const tagNamesByBookmarkId = new Map<string, string[]>();
+
+    if (bookmarkIds.length === 0) {
+      return tagNamesByBookmarkId;
+    }
+
+    const placeholders = bookmarkIds.map(() => "?").join(", ");
+    const result = await db
+      .prepare(
+        `SELECT
+          bt.bookmark_id,
+          t.name
+        FROM bookmark_tags bt
+        INNER JOIN tags t ON t.id = bt.tag_id
+        WHERE t.user_id = ? AND bt.bookmark_id IN (${placeholders})
+        ORDER BY bt.bookmark_id ASC, t.name ASC`
+      )
+      .bind(userId, ...bookmarkIds)
+      .all<BookmarkTagNameRow>();
+
+    for (const row of result.results) {
+      const currentNames = tagNamesByBookmarkId.get(row.bookmark_id) ?? [];
+      currentNames.push(row.name);
+      tagNamesByBookmarkId.set(row.bookmark_id, currentNames);
+    }
+
+    return tagNamesByBookmarkId;
+  }
+
+  async function loadFolderNames(userId: string, folderIds: string[]) {
+    const folderNamesById = new Map<string, string>();
+
+    if (folderIds.length === 0) {
+      return folderNamesById;
+    }
+
+    const placeholders = folderIds.map(() => "?").join(", ");
+    const result = await db
+      .prepare(
+        `SELECT
+          id,
+          name
+        FROM folders
+        WHERE user_id = ? AND id IN (${placeholders})`
+      )
+      .bind(userId, ...folderIds)
+      .all<FolderRow>();
+
+    for (const row of result.results) {
+      folderNamesById.set(row.id, row.name);
+    }
+
+    return folderNamesById;
+  }
+
+  async function listBookmarksByUser(userId: string) {
+    const result = await db
+      .prepare(
+        `SELECT
+          id,
+          user_id,
+          folder_id,
+          url,
+          normalized_url,
+          is_favorite,
+          bookmark_color,
+          url_color,
+          source_title,
+          source_content,
+          source_summary,
+          user_title,
+          user_content,
+          user_summary,
+          created_at,
+          updated_at
+        FROM bookmarks
+        WHERE user_id = ?
+        ORDER BY created_at DESC`
+      )
+      .bind(userId)
+      .all<BookmarkRow>();
+
+    return attachBookmarkTagIds(userId, result.results.map(toBookmarkRecord));
+  }
+
+  function matchesBookmarkQuery(
+    bookmark: BookmarkRecord,
+    query: string,
+    mode: BookmarkSearchMode,
+    tagNames: string[],
+    folderName: string
+  ) {
+    const normalizedQuery = query.toLowerCase();
+
+    if (mode === "title") {
+      return bookmark.displayTitle.toLowerCase().includes(normalizedQuery);
+    }
+
+    if (mode === "content") {
+      return bookmark.displayContent.toLowerCase().includes(normalizedQuery);
+    }
+
+    if (mode === "folder") {
+      return folderName.toLowerCase().includes(normalizedQuery);
+    }
+
+    const tagText = tagNames.join(" ").toLowerCase();
+    return (
+      bookmark.displayTitle.toLowerCase().includes(normalizedQuery) ||
+      bookmark.displayContent.toLowerCase().includes(normalizedQuery) ||
+      tagText.includes(normalizedQuery)
+    );
+  }
+
   function normalizeTagIds(tagIds: string[] | undefined) {
     if (!tagIds) {
       return [];
@@ -269,34 +404,38 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
   }
 
   return {
-    async listByUser(userId) {
-      const result = await db
-        .prepare(
-          `SELECT
-            id,
-            user_id,
-            folder_id,
-            url,
-            normalized_url,
-            is_favorite,
-            bookmark_color,
-            url_color,
-            source_title,
-            source_content,
-            source_summary,
-            user_title,
-            user_content,
-            user_summary,
-            created_at,
-            updated_at
-          FROM bookmarks
-          WHERE user_id = ?
-          ORDER BY created_at DESC`
-        )
-        .bind(userId)
-        .all<BookmarkRow>();
+    listByUser: listBookmarksByUser,
+    async searchByUser(userId, query, mode) {
+      const normalizedQuery = query.trim().toLowerCase();
+      if (!normalizedQuery) {
+        return listBookmarksByUser(userId);
+      }
 
-      return attachBookmarkTagIds(userId, result.results.map(toBookmarkRecord));
+      const bookmarks = await listBookmarksByUser(userId);
+      const tagNamesByBookmarkId = await loadBookmarkTagNames(
+        userId,
+        bookmarks.map((bookmark) => bookmark.id)
+      );
+      const folderNamesById = await loadFolderNames(
+        userId,
+        Array.from(
+          new Set(
+            bookmarks
+              .map((bookmark) => bookmark.folderId)
+              .filter((folderId): folderId is string => Boolean(folderId))
+          )
+        )
+      );
+
+      return bookmarks.filter((bookmark) =>
+        matchesBookmarkQuery(
+          bookmark,
+          normalizedQuery,
+          mode,
+          tagNamesByBookmarkId.get(bookmark.id) ?? [],
+          bookmark.folderId ? folderNamesById.get(bookmark.folderId) ?? "" : ""
+        )
+      );
     },
     async create(input) {
       const bookmarkId = crypto.randomUUID();

@@ -3,6 +3,7 @@ import { startTransition, useEffect, useState, type FormEvent } from "react";
 import type {
   AuthenticatedUser,
   Bookmark,
+  BookmarkSearchMode,
   CreateBookmarkRequest,
   Folder,
   Tag
@@ -40,6 +41,11 @@ type TagDraft = {
   color: string;
 };
 
+type BookmarkSearchDraft = {
+  query: string;
+  mode: BookmarkSearchMode;
+};
+
 const emptyBookmarkDraft: BookmarkDraft = {
   url: "",
   folderId: "",
@@ -61,6 +67,11 @@ const emptyTagDraft: TagDraft = {
   color: ""
 };
 
+const emptyBookmarkSearchDraft: BookmarkSearchDraft = {
+  query: "",
+  mode: "all"
+};
+
 export default function App() {
   const [sessionState, setSessionState] = useState<SessionState>({
     status: "loading"
@@ -69,6 +80,12 @@ export default function App() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [bookmarkDraft, setBookmarkDraft] = useState<BookmarkDraft>(emptyBookmarkDraft);
+  const [bookmarkSearchDraft, setBookmarkSearchDraft] = useState<BookmarkSearchDraft>(
+    emptyBookmarkSearchDraft
+  );
+  const [appliedBookmarkSearch, setAppliedBookmarkSearch] = useState<BookmarkSearchDraft>(
+    emptyBookmarkSearchDraft
+  );
   const [folderDraft, setFolderDraft] = useState<FolderDraft>(emptyFolderDraft);
   const [tagDraft, setTagDraft] = useState<TagDraft>(emptyTagDraft);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
@@ -77,12 +94,15 @@ export default function App() {
   const [isSavingTag, setIsSavingTag] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  async function refreshDashboardData() {
+  async function refreshDashboardData(search = appliedBookmarkSearch) {
     setIsLoadingDashboard(true);
 
     try {
       const [nextBookmarks, nextFolders, nextTags] = await Promise.all([
-        loadBookmarks(),
+        loadBookmarks({
+          query: search.query,
+          mode: search.mode
+        }),
         loadFolders(),
         loadTags()
       ]);
@@ -150,7 +170,10 @@ export default function App() {
       const idToken = await signInWithGoogle();
       const user = await exchangeIdTokenForSession(idToken);
       const [nextBookmarks, nextFolders, nextTags] = await Promise.all([
-        loadBookmarks().catch(() => []),
+        loadBookmarks({
+          query: appliedBookmarkSearch.query,
+          mode: appliedBookmarkSearch.mode
+        }).catch(() => []),
         loadFolders().catch(() => []),
         loadTags().catch(() => [])
       ]);
@@ -185,6 +208,8 @@ export default function App() {
       setFolders([]);
       setTags([]);
       setBookmarkDraft(emptyBookmarkDraft);
+      setBookmarkSearchDraft(emptyBookmarkSearchDraft);
+      setAppliedBookmarkSearch(emptyBookmarkSearchDraft);
       setFolderDraft(emptyFolderDraft);
       setTagDraft(emptyTagDraft);
     });
@@ -208,10 +233,22 @@ export default function App() {
       };
       const createdBookmark = await createBookmark(payload);
 
-      startTransition(() => {
-        setBookmarks((currentBookmarks) => [createdBookmark, ...currentBookmarks]);
-        setBookmarkDraft(emptyBookmarkDraft);
-      });
+      if (appliedBookmarkSearch.query) {
+        const nextBookmarks = await loadBookmarks({
+          query: appliedBookmarkSearch.query,
+          mode: appliedBookmarkSearch.mode
+        });
+
+        startTransition(() => {
+          setBookmarks(nextBookmarks);
+          setBookmarkDraft(emptyBookmarkDraft);
+        });
+      } else {
+        startTransition(() => {
+          setBookmarks((currentBookmarks) => [createdBookmark, ...currentBookmarks]);
+          setBookmarkDraft(emptyBookmarkDraft);
+        });
+      }
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
@@ -287,6 +324,13 @@ export default function App() {
     }));
   }
 
+  function updateBookmarkSearchDraft(nextValues: Partial<BookmarkSearchDraft>) {
+    setBookmarkSearchDraft((currentDraft) => ({
+      ...currentDraft,
+      ...nextValues
+    }));
+  }
+
   function toggleBookmarkTag(tagId: string, checked: boolean) {
     setBookmarkDraft((currentDraft) => {
       const nextTagIds = checked
@@ -312,6 +356,56 @@ export default function App() {
       ...currentDraft,
       ...nextValues
     }));
+  }
+
+  async function handleBookmarkSearchSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    try {
+      setErrorMessage(null);
+      setIsLoadingDashboard(true);
+
+      const nextSearch = {
+        query: bookmarkSearchDraft.query.trim(),
+        mode: bookmarkSearchDraft.mode
+      } satisfies BookmarkSearchDraft;
+      const nextBookmarks = await loadBookmarks(nextSearch);
+
+      startTransition(() => {
+        setBookmarks(nextBookmarks);
+        setAppliedBookmarkSearch(nextSearch);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "북마크 검색에 실패했습니다."
+        );
+      });
+    } finally {
+      setIsLoadingDashboard(false);
+    }
+  }
+
+  async function handleBookmarkSearchReset() {
+    try {
+      setErrorMessage(null);
+      setIsLoadingDashboard(true);
+      const nextBookmarks = await loadBookmarks();
+
+      startTransition(() => {
+        setBookmarks(nextBookmarks);
+        setBookmarkSearchDraft(emptyBookmarkSearchDraft);
+        setAppliedBookmarkSearch(emptyBookmarkSearchDraft);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "북마크 목록을 다시 불러오지 못했습니다."
+        );
+      });
+    } finally {
+      setIsLoadingDashboard(false);
+    }
   }
 
   return (
@@ -488,7 +582,45 @@ export default function App() {
 
           <section aria-label="bookmark-list">
             <h2>저장된 북마크</h2>
+            <form onSubmit={(event) => void handleBookmarkSearchSubmit(event)}>
+              <label>
+                검색어
+                <input
+                  name="bookmarkSearchQuery"
+                  value={bookmarkSearchDraft.query}
+                  onChange={(event) =>
+                    updateBookmarkSearchDraft({ query: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                검색 모드
+                <select
+                  name="bookmarkSearchMode"
+                  value={bookmarkSearchDraft.mode}
+                  onChange={(event) =>
+                    updateBookmarkSearchDraft({
+                      mode: event.target.value as BookmarkSearchMode
+                    })
+                  }
+                >
+                  <option value="all">통합 검색</option>
+                  <option value="title">제목 검색</option>
+                  <option value="content">내용 검색</option>
+                  <option value="folder">폴더명 검색</option>
+                </select>
+              </label>
+              <button type="submit">검색 실행</button>
+              <button type="button" onClick={() => void handleBookmarkSearchReset()}>
+                검색 초기화
+              </button>
+            </form>
             {isLoadingDashboard ? <p>대시보드 데이터를 불러오는 중입니다.</p> : null}
+            {appliedBookmarkSearch.query ? (
+              <p>
+                현재 검색: {appliedBookmarkSearch.query} ({appliedBookmarkSearch.mode})
+              </p>
+            ) : null}
             {bookmarks.length === 0 ? <p>아직 저장된 북마크가 없습니다.</p> : null}
             <ul>
               {bookmarks.map((bookmark) => (

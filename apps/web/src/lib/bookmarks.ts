@@ -1,12 +1,27 @@
 import type {
   Bookmark,
+  BookmarkSearchMode,
   BookmarkListResponse,
   BookmarkResponse,
   CreateBookmarkRequest
 } from "@bookmark/shared";
 
-export async function loadBookmarks() {
-  const res = await fetch("/api/bookmarks", {
+type LoadBookmarksOptions = {
+  query?: string;
+  mode?: BookmarkSearchMode;
+};
+
+export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
+  const searchParams = new URLSearchParams();
+  const query = options.query?.trim();
+
+  if (query) {
+    searchParams.set("mode", options.mode ?? "all");
+    searchParams.set("query", query);
+  }
+
+  const url = searchParams.size > 0 ? `/api/bookmarks?${searchParams.toString()}` : "/api/bookmarks";
+  const res = await fetch(url, {
     credentials: "include"
   });
 

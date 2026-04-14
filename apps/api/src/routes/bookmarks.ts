@@ -1,4 +1,5 @@
 import type {
+  BookmarkSearchMode,
   BookmarkListResponse,
   BookmarkResponse,
   CreateBookmarkRequest,
@@ -21,6 +22,8 @@ type BookmarkRouteOptions = {
   sessionSecret?: string;
 };
 
+const bookmarkSearchModes: BookmarkSearchMode[] = ["all", "title", "content", "folder"];
+
 export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
   return new Hono<{ Bindings: AppBindings }>()
     .get("/", async (c) => {
@@ -41,7 +44,17 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         return c.json({ error: "bookmark_repository_unavailable" }, 500);
       }
 
-      const bookmarks = await repository.listByUser(user.uid);
+      const query = c.req.query("query")?.trim() ?? "";
+      const requestedMode = c.req.query("mode");
+      const mode = (requestedMode ?? "all") as BookmarkSearchMode;
+
+      if (requestedMode && !bookmarkSearchModes.includes(mode)) {
+        return c.json({ error: "invalid_search_mode" }, 400);
+      }
+
+      const bookmarks = query
+        ? await repository.searchByUser(user.uid, query, mode)
+        : await repository.listByUser(user.uid);
 
       return c.json<BookmarkListResponse>({
         bookmarks: bookmarks.map(toBookmarkResponse)

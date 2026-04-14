@@ -15,8 +15,10 @@ export type SessionResponse =
       user: AuthenticatedUser;
     }
   | {
-      authenticated: false;
+    authenticated: false;
     };
+
+export type BookmarkSearchMode = "all" | "title" | "content" | "folder";
 
 export type Bookmark = {
   id: string;

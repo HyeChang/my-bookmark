@@ -270,4 +270,117 @@ describe("bookmark dashboard", () => {
       within(screen.getByRole("region", { name: /bookmark-list/i })).getByText(/later/i)
     ).toBeInTheDocument();
   });
+
+  it("submits bookmark search with the selected search mode", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/bookmarks?mode=content&query=transformer" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-3",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/transformer",
+                isFavorite: false,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Model note",
+                userContent: "Transformer summary",
+                userSummary: null,
+                displayTitle: "Model note",
+                displayContent: "Transformer summary",
+                displaySummary: "",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    fireEvent.change(await screen.findByLabelText(/검색어/i), {
+      target: {
+        value: "transformer"
+      }
+    });
+    fireEvent.change(screen.getByLabelText(/검색 모드/i), {
+      target: {
+        value: "content"
+      }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /검색 실행/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/model note/i)).toBeInTheDocument();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/bookmarks?mode=content&query=transformer",
+      expect.objectContaining({
+        credentials: "include"
+      })
+    );
+  });
 });

@@ -21,10 +21,50 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
   };
 
   const bookmarks = new Map<string, BookmarkWithTags>();
+  const folderNames = new Map<string, string>([
+    ["folder-reading", "Reading"],
+    ["folder-archive", "Archive"]
+  ]);
+  const tagNames = new Map<string, string>([
+    ["tag-research", "research"],
+    ["tag-video", "video"]
+  ]);
+
+  function matchesQuery(bookmark: BookmarkWithTags, query: string, mode: string) {
+    const normalizedQuery = query.toLowerCase();
+    const tagText = bookmark.tagIds
+      .map((tagId) => tagNames.get(tagId) ?? "")
+      .join(" ")
+      .toLowerCase();
+    const folderName = (bookmark.folderId ? folderNames.get(bookmark.folderId) : "")?.toLowerCase() ?? "";
+
+    if (mode === "title") {
+      return bookmark.displayTitle.toLowerCase().includes(normalizedQuery);
+    }
+
+    if (mode === "content") {
+      return bookmark.displayContent.toLowerCase().includes(normalizedQuery);
+    }
+
+    if (mode === "folder") {
+      return folderName.includes(normalizedQuery);
+    }
+
+    return (
+      bookmark.displayTitle.toLowerCase().includes(normalizedQuery) ||
+      bookmark.displayContent.toLowerCase().includes(normalizedQuery) ||
+      tagText.includes(normalizedQuery)
+    );
+  }
 
   return {
     async listByUser(userId) {
       return Array.from(bookmarks.values()).filter((bookmark) => bookmark.userId === userId);
+    },
+    async searchByUser(userId, query, mode) {
+      return Array.from(bookmarks.values()).filter(
+        (bookmark) => bookmark.userId === userId && matchesQuery(bookmark, query, mode)
+      );
     },
     async create(input) {
       const now = "2026-04-13T08:00:00.000Z";
@@ -182,6 +222,62 @@ describe("bookmark routes", () => {
           url: "https://example.com/post",
           displayTitle: "Manual title",
           tagIds: ["tag-1"]
+        }
+      ]
+    });
+  });
+
+  it("searches bookmarks by integrated mode and folder mode", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/paper",
+        folderId: "folder-reading",
+        userTitle: "AI paper",
+        userContent: "Transformer notes",
+        tagIds: ["tag-research"]
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/video",
+        folderId: "folder-archive",
+        userTitle: "Video list",
+        userContent: "Watch later",
+        tagIds: ["tag-video"]
+      })
+    });
+
+    const integratedRes = await authenticatedRequest(
+      app,
+      "/api/bookmarks?mode=all&query=research"
+    );
+    const folderRes = await authenticatedRequest(
+      app,
+      "/api/bookmarks?mode=folder&query=reading"
+    );
+
+    expect(integratedRes.status).toBe(200);
+    await expect(integratedRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        {
+          url: "https://example.com/paper"
+        }
+      ]
+    });
+
+    expect(folderRes.status).toBe(200);
+    await expect(folderRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        {
+          url: "https://example.com/paper"
         }
       ]
     });
