@@ -19,6 +19,7 @@ export type SessionResponse =
     };
 
 export type BookmarkSearchMode = "all" | "title" | "content" | "folder";
+export type BookmarkAssetType = "image" | "capture";
 
 export type Bookmark = {
   id: string;
@@ -73,6 +74,27 @@ export type BookmarkResponse = {
 
 export type BookmarkListResponse = {
   bookmarks: Bookmark[];
+};
+
+export type BookmarkAsset = {
+  id: string;
+  bookmarkId: string;
+  assetType: BookmarkAssetType;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  sortOrder: number;
+  contentUrl: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BookmarkAssetResponse = {
+  asset: BookmarkAsset;
+};
+
+export type BookmarkAssetListResponse = {
+  assets: BookmarkAsset[];
 };
 
 export type Folder = {

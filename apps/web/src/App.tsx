@@ -3,12 +3,14 @@ import { startTransition, useEffect, useState, type FormEvent } from "react";
 import type {
   AuthenticatedUser,
   Bookmark,
+  BookmarkAsset,
   BookmarkSearchMode,
   CreateBookmarkRequest,
   Folder,
   Tag
 } from "@bookmark/shared";
 
+import { loadBookmarkAssets, uploadBookmarkAsset } from "./lib/bookmark-assets";
 import { createBookmark, loadBookmarks, updateBookmark } from "./lib/bookmarks";
 import { signInWithGoogle, signOutFromGoogle } from "./lib/firebase";
 import { createFolder, loadFolders } from "./lib/folders";
@@ -81,10 +83,14 @@ export default function App() {
     status: "loading"
   });
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [bookmarkAssetsByBookmarkId, setBookmarkAssetsByBookmarkId] = useState<
+    Record<string, BookmarkAsset[]>
+  >({});
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [bookmarkDraft, setBookmarkDraft] = useState<BookmarkDraft>(emptyBookmarkDraft);
   const [editingBookmarkId, setEditingBookmarkId] = useState<string | null>(null);
+  const [pendingAssetFiles, setPendingAssetFiles] = useState<File[]>([]);
   const [bookmarkSearchDraft, setBookmarkSearchDraft] = useState<BookmarkSearchDraft>(
     emptyBookmarkSearchDraft
   );
@@ -210,9 +216,11 @@ export default function App() {
     startTransition(() => {
       setSessionState({ status: "anonymous" });
       setBookmarks([]);
+      setBookmarkAssetsByBookmarkId({});
       setFolders([]);
       setTags([]);
       setBookmarkDraft(emptyBookmarkDraft);
+      setPendingAssetFiles([]);
       setBookmarkSearchDraft(emptyBookmarkSearchDraft);
       setAppliedBookmarkSearch(emptyBookmarkSearchDraft);
       setFolderDraft(emptyFolderDraft);
@@ -238,6 +246,7 @@ export default function App() {
           bookmarkColor: bookmarkDraft.bookmarkColor || null,
           urlColor: bookmarkDraft.urlColor || null
         });
+        const uploadedAssets = await uploadPendingAssets(editingBookmarkId);
 
         if (appliedBookmarkSearch.query) {
           const nextBookmarks = await loadBookmarks({
@@ -248,6 +257,16 @@ export default function App() {
           startTransition(() => {
             setBookmarks(nextBookmarks);
             setBookmarkDraft(emptyBookmarkDraft);
+            if (uploadedAssets.length > 0) {
+              setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
+                ...currentAssetsByBookmarkId,
+                [editingBookmarkId]: [
+                  ...(currentAssetsByBookmarkId[editingBookmarkId] ?? []),
+                  ...uploadedAssets
+                ]
+              }));
+            }
+            setPendingAssetFiles([]);
             setEditingBookmarkId(null);
           });
         } else {
@@ -258,6 +277,16 @@ export default function App() {
               )
             );
             setBookmarkDraft(emptyBookmarkDraft);
+            if (uploadedAssets.length > 0) {
+              setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
+                ...currentAssetsByBookmarkId,
+                [editingBookmarkId]: [
+                  ...(currentAssetsByBookmarkId[editingBookmarkId] ?? []),
+                  ...uploadedAssets
+                ]
+              }));
+            }
+            setPendingAssetFiles([]);
             setEditingBookmarkId(null);
           });
         }
@@ -274,6 +303,7 @@ export default function App() {
           urlColor: bookmarkDraft.urlColor || null
         };
         const createdBookmark = await createBookmark(payload);
+        const uploadedAssets = await uploadPendingAssets(createdBookmark.id);
 
         if (appliedBookmarkSearch.query) {
           const nextBookmarks = await loadBookmarks({
@@ -284,11 +314,25 @@ export default function App() {
           startTransition(() => {
             setBookmarks(nextBookmarks);
             setBookmarkDraft(emptyBookmarkDraft);
+            if (uploadedAssets.length > 0) {
+              setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
+                ...currentAssetsByBookmarkId,
+                [createdBookmark.id]: uploadedAssets
+              }));
+            }
+            setPendingAssetFiles([]);
           });
         } else {
           startTransition(() => {
             setBookmarks((currentBookmarks) => [createdBookmark, ...currentBookmarks]);
             setBookmarkDraft(emptyBookmarkDraft);
+            if (uploadedAssets.length > 0) {
+              setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
+                ...currentAssetsByBookmarkId,
+                [createdBookmark.id]: uploadedAssets
+              }));
+            }
+            setPendingAssetFiles([]);
           });
         }
       }
@@ -451,7 +495,7 @@ export default function App() {
     }
   }
 
-  function beginBookmarkEdit(bookmark: Bookmark) {
+  async function beginBookmarkEdit(bookmark: Bookmark) {
     setEditingBookmarkId(bookmark.id);
     setBookmarkDraft({
       url: bookmark.url,
@@ -464,11 +508,43 @@ export default function App() {
       userSummary: bookmark.userSummary ?? "",
       isFavorite: bookmark.isFavorite
     });
+
+    if (bookmarkAssetsByBookmarkId[bookmark.id]) {
+      return;
+    }
+
+    try {
+      const assets = await loadBookmarkAssets(bookmark.id);
+      startTransition(() => {
+        setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
+          ...currentAssetsByBookmarkId,
+          [bookmark.id]: assets
+        }));
+      });
+    } catch {
+      startTransition(() => {
+        setErrorMessage("북마크 이미지를 불러오지 못했습니다.");
+      });
+    }
   }
 
   function cancelBookmarkEdit() {
     setEditingBookmarkId(null);
     setBookmarkDraft(emptyBookmarkDraft);
+    setPendingAssetFiles([]);
+  }
+
+  async function uploadPendingAssets(bookmarkId: string) {
+    if (pendingAssetFiles.length === 0) {
+      return [];
+    }
+
+    const uploadedAssets: BookmarkAsset[] = [];
+    for (const file of pendingAssetFiles) {
+      uploadedAssets.push(await uploadBookmarkAsset(bookmarkId, file));
+    }
+
+    return uploadedAssets;
   }
 
   return (
@@ -561,6 +637,37 @@ export default function App() {
                   onChange={(event) => updateBookmarkDraft({ urlColor: event.target.value })}
                 />
               </label>
+              <label>
+                이미지 업로드
+                <input
+                  name="bookmarkAssetFile"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) =>
+                    setPendingAssetFiles(Array.from(event.target.files ?? []))
+                  }
+                />
+              </label>
+              {pendingAssetFiles.length > 0 ? (
+                <ul>
+                  {pendingAssetFiles.map((file) => (
+                    <li key={`${file.name}-${file.size}`}>{file.name}</li>
+                  ))}
+                </ul>
+              ) : null}
+              {editingBookmarkId &&
+              (bookmarkAssetsByBookmarkId[editingBookmarkId]?.length ?? 0) > 0 ? (
+                <div>
+                  {bookmarkAssetsByBookmarkId[editingBookmarkId].map((asset, index) => (
+                    <img
+                      key={asset.id}
+                      src={asset.contentUrl}
+                      alt={`업로드 이미지 ${index + 1}`}
+                    />
+                  ))}
+                </div>
+              ) : null}
               <fieldset>
                 <legend>태그 선택</legend>
                 {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
@@ -723,6 +830,17 @@ export default function App() {
                   {bookmark.displaySummary ? <p>{bookmark.displaySummary}</p> : null}
                   {bookmark.tagIds.length > 0 ? (
                     <p>{bookmark.tagIds.map((tagId) => tags.find((tag) => tag.id === tagId)?.name ?? tagId).join(", ")}</p>
+                  ) : null}
+                  {(bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0) > 0 ? (
+                    <div>
+                      {bookmarkAssetsByBookmarkId[bookmark.id].map((asset, index) => (
+                        <img
+                          key={asset.id}
+                          src={asset.contentUrl}
+                          alt={`업로드 이미지 ${index + 1}`}
+                        />
+                      ))}
+                    </div>
                   ) : null}
                   <button type="button" onClick={() => beginBookmarkEdit(bookmark)}>
                     수정

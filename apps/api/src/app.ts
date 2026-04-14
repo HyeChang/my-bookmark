@@ -2,9 +2,11 @@ import { Hono } from "hono";
 
 import { createFirebaseVerifier } from "./lib/auth/firebase";
 import type { VerifyIdToken } from "./lib/auth/types";
+import type { BookmarkAssetRepository } from "./lib/repositories/bookmark-assets";
 import type { BookmarkRepository } from "./lib/repositories/bookmarks";
 import type { FolderRepository } from "./lib/repositories/folders";
 import type { TagRepository } from "./lib/repositories/tags";
+import type { BookmarkAssetStorage } from "./lib/storage/assets";
 import { healthRoute } from "./routes/health";
 import { createAuthRoute } from "./routes/auth";
 import { createBookmarkRoute } from "./routes/bookmarks";
@@ -15,6 +17,8 @@ type CreateAppOptions = {
   verifyIdToken?: VerifyIdToken;
   sessionSecret?: string;
   bookmarkRepository?: BookmarkRepository;
+  bookmarkAssetRepository?: BookmarkAssetRepository;
+  assetStorage?: BookmarkAssetStorage;
   folderRepository?: FolderRepository;
   tagRepository?: TagRepository;
 };
@@ -34,6 +38,8 @@ export function createApp(options: CreateAppOptions = {}) {
     "/api/bookmarks",
     createBookmarkRoute({
       bookmarkRepository: options.bookmarkRepository,
+      bookmarkAssetRepository: options.bookmarkAssetRepository,
+      assetStorage: options.assetStorage,
       sessionSecret: options.sessionSecret
     })
   );

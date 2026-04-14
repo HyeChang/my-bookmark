@@ -1,4 +1,6 @@
 import type {
+  BookmarkAssetListResponse,
+  BookmarkAssetResponse,
   BookmarkSearchMode,
   BookmarkListResponse,
   BookmarkResponse,
@@ -10,19 +12,35 @@ import { Hono } from "hono";
 import type { AppBindings } from "../env";
 import { getAuthenticatedUser } from "../lib/auth/current-user";
 import {
+  createBookmarkAssetRepository,
+  toBookmarkAssetResponse,
+  type BookmarkAssetRepository
+} from "../lib/repositories/bookmark-assets";
+import {
   createBookmarkRepository,
   normalizeBookmarkUrl,
   toBookmarkResponse,
   type BookmarkRepository
 } from "../lib/repositories/bookmarks";
 import { syncAuthenticatedUser } from "../lib/repositories/users";
+import {
+  createR2BookmarkAssetStorage,
+  type BookmarkAssetStorage
+} from "../lib/storage/assets";
 
 type BookmarkRouteOptions = {
   bookmarkRepository?: BookmarkRepository;
+  bookmarkAssetRepository?: BookmarkAssetRepository;
+  assetStorage?: BookmarkAssetStorage;
   sessionSecret?: string;
 };
 
 const bookmarkSearchModes: BookmarkSearchMode[] = ["all", "title", "content", "folder"];
+
+function sanitizeFileName(fileName: string) {
+  const normalizedFileName = fileName.trim().replace(/\s+/g, "-");
+  return normalizedFileName.replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 80) || "asset";
+}
 
 export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
   return new Hono<{ Bindings: AppBindings }>()
@@ -175,6 +193,152 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
 
       return c.json<BookmarkResponse>({
         bookmark: toBookmarkResponse(bookmark)
+      });
+    })
+    .get("/:bookmarkId/assets", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const assetRepository =
+        options.bookmarkAssetRepository ??
+        (c.env?.bookmark ? createBookmarkAssetRepository(c.env.bookmark) : null);
+
+      if (!bookmarkRepository || !assetRepository) {
+        return c.json({ error: "bookmark_asset_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      const assets = await assetRepository.listByBookmark(user.uid, bookmark.id);
+      return c.json<BookmarkAssetListResponse>({
+        assets: assets.map((asset) =>
+          toBookmarkAssetResponse(asset, {
+            bookmarkId: bookmark.id
+          })
+        )
+      });
+    })
+    .post("/:bookmarkId/assets", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const assetRepository =
+        options.bookmarkAssetRepository ??
+        (c.env?.bookmark ? createBookmarkAssetRepository(c.env.bookmark) : null);
+      const assetStorage =
+        options.assetStorage ??
+        (c.env?.bookmark_assets ? createR2BookmarkAssetStorage(c.env.bookmark_assets) : null);
+
+      if (!bookmarkRepository || !assetRepository || !assetStorage) {
+        return c.json({ error: "bookmark_asset_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      const formData = await c.req.formData().catch(() => null);
+      const file = formData?.get("file");
+      if (!(file instanceof File)) {
+        return c.json({ error: "missing_file" }, 400);
+      }
+
+      if (file.size === 0) {
+        return c.json({ error: "empty_file" }, 400);
+      }
+
+      if (!file.type.startsWith("image/")) {
+        return c.json({ error: "unsupported_file_type" }, 400);
+      }
+
+      const assetType = formData?.get("assetType") === "capture" ? "capture" : "image";
+      const objectKey = `${user.uid}/${bookmark.id}/${crypto.randomUUID()}-${sanitizeFileName(file.name)}`;
+
+      await assetStorage.put(objectKey, await file.arrayBuffer(), file.type);
+
+      const asset = await assetRepository.create({
+        bookmarkId: bookmark.id,
+        userId: user.uid,
+        assetType,
+        objectKey,
+        mimeType: file.type
+      });
+
+      return c.json<BookmarkAssetResponse>(
+        {
+          asset: toBookmarkAssetResponse(asset, {
+            bookmarkId: bookmark.id
+          })
+        },
+        201
+      );
+    })
+    .get("/:bookmarkId/assets/:assetId/content", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const assetRepository =
+        options.bookmarkAssetRepository ??
+        (c.env?.bookmark ? createBookmarkAssetRepository(c.env.bookmark) : null);
+      const assetStorage =
+        options.assetStorage ??
+        (c.env?.bookmark_assets ? createR2BookmarkAssetStorage(c.env.bookmark_assets) : null);
+
+      if (!bookmarkRepository || !assetRepository || !assetStorage) {
+        return c.json({ error: "bookmark_asset_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      const asset = await assetRepository.getById(
+        user.uid,
+        bookmark.id,
+        c.req.param("assetId")
+      );
+      if (!asset) {
+        return c.json({ error: "bookmark_asset_not_found" }, 404);
+      }
+
+      const object = await assetStorage.get(asset.objectKey);
+      if (!object) {
+        return c.json({ error: "bookmark_asset_content_not_found" }, 404);
+      }
+
+      return new Response(object.body, {
+        headers: {
+          "content-type": object.contentType
+        }
       });
     });
 }

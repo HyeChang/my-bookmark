@@ -216,6 +216,31 @@ describe("bookmark dashboard", () => {
         );
       }
 
+      if (url === "/api/bookmarks/bookmark-2/assets" && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            asset: {
+              id: "asset-1",
+              bookmarkId: "bookmark-2",
+              assetType: "image",
+              mimeType: "image/png",
+              width: null,
+              height: null,
+              sortOrder: 0,
+              contentUrl: "/api/bookmarks/bookmark-2/assets/asset-1/content",
+              createdAt: "2026-04-13T08:00:00.000Z",
+              updatedAt: "2026-04-13T08:00:00.000Z"
+            }
+          }),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
       throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
     });
 
@@ -245,6 +270,11 @@ describe("bookmark dashboard", () => {
         value: "Created summary"
       }
     });
+    fireEvent.change(screen.getByLabelText(/이미지 업로드/i), {
+      target: {
+        files: [new File(["fake-image-data"], "capture.png", { type: "image/png" })]
+      }
+    });
     fireEvent.click(screen.getByRole("checkbox", { name: /research/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: /later/i }));
     fireEvent.click(screen.getByRole("button", { name: /북마크 저장/i }));
@@ -270,6 +300,13 @@ describe("bookmark dashboard", () => {
       userSummary: "Created summary",
       tagIds: ["tag-1", "tag-2"]
     });
+    const uploadCall = fetchSpy.mock.calls.find(
+      ([input, init]) =>
+        (typeof input === "string" ? input : input.url) === "/api/bookmarks/bookmark-2/assets" &&
+        init?.method === "POST"
+    );
+    expect(uploadCall).toBeDefined();
+    expect(screen.getByRole("img", { name: /업로드 이미지 1/i })).toBeInTheDocument();
     expect(
       within(screen.getByRole("region", { name: /bookmark-list/i })).getByText(/research/i)
     ).toBeInTheDocument();
