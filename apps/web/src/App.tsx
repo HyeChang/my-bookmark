@@ -3029,8 +3029,16 @@ export default function App() {
               ) : null}
             </section>
 
-            <section aria-label="recommendation-list" className="surface-card panel-card">
-              <h2>추천 링크</h2>
+            <section aria-label="recommendation-list" className="surface-card panel-card recommendation-panel-card">
+              <header className="recommendation-panel-header">
+                <p className="recommendation-panel-kicker">빠른 진입점</p>
+                <div className="recommendation-panel-title-row">
+                  <h2>추천 링크</h2>
+                  <p className="recommendation-panel-helper">
+                    열람 기록과 즐겨찾기 흐름에서 바로 다시 열 수 있는 링크입니다.
+                  </p>
+                </div>
+              </header>
               <div className="recommendation-grid">
               <div className="recommendation-column">
                 <h3>즐겨찾기 추천</h3>
@@ -3130,9 +3138,16 @@ export default function App() {
                 aria-label="bookmark-detail"
                 className="surface-card panel-card bookmark-detail-card"
               >
-                <h2>북마크 상세</h2>
-                <strong>{selectedBookmark.displayTitle || selectedBookmark.url}</strong>
-                <p className="muted-text">{selectedBookmark.url}</p>
+                <header className="bookmark-detail-header">
+                  <p className="bookmark-detail-kicker">읽기 중심</p>
+                  <div className="bookmark-detail-title-row">
+                    <div className="bookmark-detail-title-copy">
+                      <h2>북마크 상세</h2>
+                      <strong>{selectedBookmark.displayTitle || selectedBookmark.url}</strong>
+                    </div>
+                    <p className="muted-text">{selectedBookmark.url}</p>
+                  </div>
+                </header>
                 <div className="meta-pill-list">
                   <span className="meta-pill">폴더: {getFolderName(selectedBookmark.folderId)}</span>
                   <span className="meta-pill">
@@ -3180,6 +3195,7 @@ export default function App() {
 
                 <div className="bookmark-detail-actions">
                   <div className="bookmark-detail-action-group">
+                    <p className="bookmark-detail-action-label">핵심 액션</p>
                     <button
                       type="button"
                       className="primary-button"
@@ -3196,6 +3212,7 @@ export default function App() {
                     </button>
                   </div>
                   <div className="bookmark-detail-action-group">
+                    <p className="bookmark-detail-action-label">정리 작업</p>
                     <button
                       type="button"
                       className="secondary-button"
@@ -3219,6 +3236,7 @@ export default function App() {
                     </button>
                   </div>
                   <div className="bookmark-detail-action-group bookmark-detail-danger-actions">
+                    <p className="bookmark-detail-action-label">위험 작업</p>
                     <button
                       type="button"
                       className="danger-button"

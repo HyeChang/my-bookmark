@@ -2822,6 +2822,7 @@ describe("bookmark dashboard", () => {
       name: /recommendation-list/i
     });
 
+    expect(within(recommendationRegion).getByText(/^빠른 진입점$/i)).toBeInTheDocument();
     expect(
       await within(recommendationRegion).findByText(/^Favorite recommendation$/i)
     ).toBeInTheDocument();
@@ -3038,6 +3039,7 @@ describe("bookmark dashboard", () => {
     fireEvent.click(await screen.findByRole("button", { name: /상세 보기/i }));
 
     const detailRegion = await screen.findByRole("region", { name: /bookmark-detail/i });
+    expect(within(detailRegion).getByText(/^읽기 중심$/i)).toBeInTheDocument();
     expect(
       within(detailRegion).getByText(/^Detail title$/i, { selector: "strong" })
     ).toBeInTheDocument();
@@ -3065,6 +3067,9 @@ describe("bookmark dashboard", () => {
       "닫기",
       "삭제"
     ]);
+    expect(within(detailRegion).getByText(/^핵심 액션$/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/^정리 작업$/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/^위험 작업$/i)).toBeInTheDocument();
 
     fireEvent.click(within(detailRegion).getByRole("button", { name: /수정 시작/i }));
 
