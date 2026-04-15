@@ -4,7 +4,10 @@
 
 ## 현재 기준점
 
-- 최신 기능 커밋: `3664a4d` (`feat: redesign bookmark cards`)
+- 최신 기능 커밋:
+  - `9655bf6` `feat: add inline folder quick create`
+  - `802eef3` `feat: add folder color and icon pickers`
+  - `9a3872b` `feat: add api error normalization`
 - 직전 리디자인 커밋:
   - `62f288a` `feat: redesign dashboard shell`
   - `999d466` `feat: redesign workspace panels`
@@ -54,11 +57,16 @@
 
 - 폴더 CRUD 완료
 - 태그 CRUD 완료
+- 폴더 색상은 고정 팔레트 선택 방식
+- 폴더 아이콘은 고정 프리셋 선택 방식
 - 폴더 부모 지정 지원
 - 폴더 계층 검색 지원
 - 폴더 드래그 정렬 지원
 - 드래그로 부모 변경 지원
 - 드래그로 루트 이동 지원
+- 북마크 저장 폼 안에서 `새 폴더 바로 추가` 지원
+- 폴더가 없을 때 빠른 폴더 생성은 최상위 폴더로 생성
+- 폴더가 있으면 빠른 폴더 생성 시 부모 폴더 선택 가능
 - 태그는 북마크 생성 / 수정 시 연결 가능
 
 ### 검색 / 필터 / 정렬
@@ -115,6 +123,9 @@
   - 폴더
   - 태그
 - 모바일 북마크 카드 압축형 유지
+- web API 클라이언트 공용 에러 처리 적용:
+  - 네트워크 실패는 `로컬 서버에 연결하지 못했습니다. 실행 중인지 확인해주세요.`로 안내
+  - 폴더 / 북마크 / 태그 / URL 메타 추출 경로는 JSON 에러 코드를 사용자 메시지로 변환
 - 전체 리디자인 1차 완료:
   - 헤더 / 전역 셸
   - 작업 패널 스택
@@ -213,6 +224,7 @@ npm run build:web
 - `wrangler dev`는 루트에서 실행해야 현재 환경 구성과 맞다.
 - 로컬 D1 마이그레이션은 이미 적용된 상태다.
 - Firebase 승인 도메인 / Cloudflare 환경값은 사용자가 직접 설정한 로컬 값 기준이다.
+- 브라우저에서 raw `Failed to fetch` 대신 공용 네트워크 오류 안내를 띄우도록 web 클라이언트를 정리한 상태다.
 
 ## 관련 문서
 

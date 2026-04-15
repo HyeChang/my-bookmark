@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { requestJson } from "../lib/api";
+import { extractBookmarkPreview } from "../lib/bookmark-extract";
+import { createTag } from "../lib/tags";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -46,5 +48,44 @@ describe("api client", () => {
           errorCode === "missing_url" ? "URL을 입력해주세요." : null
       })
     ).rejects.toThrow("URL을 입력해주세요.");
+  });
+
+  it("maps tag validation errors to a specific action message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: "missing_tag_name" }), {
+          status: 400,
+          headers: {
+            "content-type": "application/json"
+          }
+        })
+      )
+    );
+
+    await expect(
+      createTag({
+        name: "",
+        color: "#2563eb"
+      })
+    ).rejects.toThrow("태그 이름을 입력해주세요.");
+  });
+
+  it("maps extract validation errors to a specific action message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: "invalid_url" }), {
+          status: 400,
+          headers: {
+            "content-type": "application/json"
+          }
+        })
+      )
+    );
+
+    await expect(extractBookmarkPreview("not-a-valid-url")).rejects.toThrow(
+      "올바른 URL 형식이 아닙니다."
+    );
   });
 });
