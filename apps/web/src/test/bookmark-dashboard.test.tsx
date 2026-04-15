@@ -1413,6 +1413,106 @@ describe("bookmark dashboard", () => {
     window.dispatchEvent(new Event("resize"));
   });
 
+  it("shows only the bookmark sidebar panel on mobile and switches panels on demand", async () => {
+    vi.stubGlobal("innerWidth", 640);
+    window.dispatchEvent(new Event("resize"));
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const sidebar = await screen.findByRole("complementary", {
+      name: /dashboard-sidebar/i
+    });
+
+    expect(
+      within(sidebar).getByRole("button", { name: /북마크 저장 패널/i })
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(
+      within(sidebar).getByRole("button", { name: /폴더 관리 패널/i })
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(
+      within(sidebar).getByRole("button", { name: /태그 관리 패널/i })
+    ).toHaveAttribute("aria-expanded", "false");
+
+    expect(within(sidebar).getByRole("region", { name: /bookmark-form/i })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole("region", { name: /folder-manager/i })).not.toBeInTheDocument();
+    expect(within(sidebar).queryByRole("region", { name: /tag-manager/i })).not.toBeInTheDocument();
+
+    fireEvent.click(within(sidebar).getByRole("button", { name: /폴더 관리 패널/i }));
+
+    expect(
+      await within(sidebar).findByRole("region", { name: /folder-manager/i })
+    ).toBeInTheDocument();
+    expect(within(sidebar).queryByRole("region", { name: /bookmark-form/i })).not.toBeInTheDocument();
+    expect(await within(sidebar).findByLabelText(/폴더 이름/i)).toBeInTheDocument();
+  });
+
   it("renders compact bookmark cards on mobile", async () => {
     vi.stubGlobal("innerWidth", 640);
     window.dispatchEvent(new Event("resize"));

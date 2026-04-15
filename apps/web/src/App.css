@@ -120,6 +120,45 @@ img {
   letter-spacing: -0.04em;
 }
 
+.sidebar-panel-shell {
+  padding: 0;
+  overflow: hidden;
+}
+
+.sidebar-panel-toggle-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding: 1rem 1.1rem;
+  border: none;
+  background: transparent;
+  color: #14213d;
+}
+
+.sidebar-panel-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+.sidebar-panel-toggle-copy strong {
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.sidebar-panel-toggle-copy span {
+  color: #61708e;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.sidebar-panel-body {
+  padding: 0 1.1rem 1.1rem;
+}
+
 .search-panel-header {
   display: flex;
   align-items: flex-start;
@@ -672,6 +711,18 @@ img {
     flex-direction: column;
     align-items: stretch;
     margin-bottom: 0.75rem;
+  }
+
+  .dashboard-sidebar {
+    gap: 0.8rem;
+  }
+
+  .sidebar-panel-toggle-button {
+    padding: 0.95rem 1rem;
+  }
+
+  .sidebar-panel-body {
+    padding: 0 1rem 1rem;
   }
 
   .search-panel-toggle {
