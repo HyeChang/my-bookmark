@@ -2640,6 +2640,19 @@ describe("bookmark dashboard", () => {
       within(detailRegion).getByRole("img", { name: /업로드 이미지 1/i })
     ).toBeInTheDocument();
 
+    expect(
+      within(detailRegion)
+        .getAllByRole("button")
+        .map((button) => button.textContent?.trim())
+    ).toEqual([
+      "열기 Detail title",
+      "수정 시작",
+      "자동 추출 다시 시도",
+      "사용자 입력 초기화",
+      "닫기",
+      "삭제"
+    ]);
+
     fireEvent.click(within(detailRegion).getByRole("button", { name: /수정 시작/i }));
 
     expect(screen.getByRole("button", { name: /북마크 수정/i })).toBeInTheDocument();

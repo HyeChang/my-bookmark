@@ -2424,7 +2424,7 @@ export default function App() {
                       </div>
                       <button
                         type="button"
-                        className="ghost-button"
+                        className="ghost-button recommendation-action-button"
                         onClick={() => void handleBookmarkOpen(bookmark)}
                       >
                         열기 {bookmark.displayTitle || bookmark.url}
@@ -2454,7 +2454,7 @@ export default function App() {
                       </div>
                       <button
                         type="button"
-                        className="ghost-button"
+                        className="ghost-button recommendation-action-button"
                         onClick={() => void handleBookmarkOpen(bookmark)}
                       >
                         열기 {bookmark.displayTitle || bookmark.url}
@@ -2484,7 +2484,7 @@ export default function App() {
                       </div>
                       <button
                         type="button"
-                        className="ghost-button"
+                        className="ghost-button recommendation-action-button"
                         onClick={() => void handleBookmarkOpen(bookmark)}
                       >
                         열기 {bookmark.displayTitle || bookmark.url}
@@ -2496,7 +2496,10 @@ export default function App() {
               </div>
             </section>
             {selectedBookmark ? (
-              <section aria-label="bookmark-detail" className="surface-card panel-card">
+              <section
+                aria-label="bookmark-detail"
+                className="surface-card panel-card bookmark-detail-card"
+              >
                 <h2>북마크 상세</h2>
                 <strong>{selectedBookmark.displayTitle || selectedBookmark.url}</strong>
                 <p className="muted-text">{selectedBookmark.url}</p>
@@ -2545,45 +2548,55 @@ export default function App() {
                   <p>업로드된 이미지가 없습니다.</p>
                 )}
 
-                <div className="action-row">
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={() => void handleBookmarkOpen(selectedBookmark)}
-                  >
-                    열기 {selectedBookmark.displayTitle || selectedBookmark.url}
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => void handleBookmarkReextract(selectedBookmark.id)}
-                  >
-                    자동 추출 다시 시도
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => void handleResetUserContent(selectedBookmark.id)}
-                  >
-                    사용자 입력 초기화
-                  </button>
-                  <button
-                    type="button"
-                    className="danger-button"
-                    onClick={() => void handleBookmarkDelete(selectedBookmark)}
-                  >
-                    삭제
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => void beginBookmarkEdit(selectedBookmark)}
-                  >
-                    수정 시작
-                  </button>
-                  <button type="button" className="ghost-button" onClick={() => closeBookmarkDetail()}>
-                    닫기
-                  </button>
+                <div className="bookmark-detail-actions">
+                  <div className="bookmark-detail-action-group">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void handleBookmarkOpen(selectedBookmark)}
+                    >
+                      열기 {selectedBookmark.displayTitle || selectedBookmark.url}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void beginBookmarkEdit(selectedBookmark)}
+                    >
+                      수정 시작
+                    </button>
+                  </div>
+                  <div className="bookmark-detail-action-group">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void handleBookmarkReextract(selectedBookmark.id)}
+                    >
+                      자동 추출 다시 시도
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void handleResetUserContent(selectedBookmark.id)}
+                    >
+                      사용자 입력 초기화
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() => closeBookmarkDetail()}
+                    >
+                      닫기
+                    </button>
+                  </div>
+                  <div className="bookmark-detail-action-group bookmark-detail-danger-actions">
+                    <button
+                      type="button"
+                      className="danger-button"
+                      onClick={() => void handleBookmarkDelete(selectedBookmark)}
+                    >
+                      삭제
+                    </button>
+                  </div>
                 </div>
               </section>
             ) : null}

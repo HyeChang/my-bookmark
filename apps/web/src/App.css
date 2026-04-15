@@ -489,6 +489,8 @@ img {
   display: flex;
   flex-direction: column;
   gap: 0.38rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .recommendation-copy strong {
@@ -500,6 +502,28 @@ img {
   border: 1px solid rgba(20, 33, 61, 0.08);
   border-radius: 18px;
   background: rgba(248, 250, 252, 0.88);
+}
+
+.bookmark-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.bookmark-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bookmark-detail-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.bookmark-detail-danger-actions {
+  padding-top: 0.15rem;
 }
 
 .meta-pill {
@@ -606,6 +630,24 @@ img {
   .search-grid-advanced,
   .recommendation-grid,
   .bookmark-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .recommendation-item {
+    align-items: stretch;
+    gap: 0.85rem;
+  }
+
+  .recommendation-action-button,
+  .bookmark-detail-action-group > button {
+    width: 100%;
+  }
+
+  .bookmark-detail-actions {
+    gap: 0.9rem;
+  }
+
+  .asset-grid {
     grid-template-columns: 1fr;
   }
 
