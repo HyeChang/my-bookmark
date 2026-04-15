@@ -190,13 +190,16 @@ describe("bookmark dashboard", () => {
     expect(within(bookmarkListRegion).getByText(/^보관 목록$/i)).toBeInTheDocument();
     expect(await within(bookmarkListRegion).findByText(/^Manual title$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^https:\/\/example\.com\/post$/i)).toBeInTheDocument();
-    expect(within(bookmarkListRegion).getByText(/^상태 배지$/i)).toBeInTheDocument();
-    expect(within(bookmarkListRegion).getByText(/^빠른 조작$/i)).toBeInTheDocument();
-    expect(within(bookmarkListRegion).getAllByText(/^research$/i).length).toBeGreaterThan(0);
+    expect(within(bookmarkListRegion).queryByText(/^상태 배지$/i)).not.toBeInTheDocument();
+    expect(within(bookmarkListRegion).queryByText(/^분류$/i)).not.toBeInTheDocument();
+    expect(within(bookmarkListRegion).queryByText(/^표시 설정$/i)).not.toBeInTheDocument();
+    expect(within(bookmarkListRegion).queryByText(/^빠른 조작$/i)).not.toBeInTheDocument();
+    expect(within(bookmarkListRegion).queryByText(/^research$/i)).not.toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^수동 요약$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^태그 1개$/i)).toBeInTheDocument();
-    expect(within(bookmarkListRegion).getByText(/북마크 색상 #f59e0b/i)).toBeInTheDocument();
-    expect(within(bookmarkListRegion).getByText(/url 색상 #0f172a/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/^색상 2개$/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).queryByText(/북마크 색상 #f59e0b/i)).not.toBeInTheDocument();
+    expect(within(bookmarkListRegion).queryByText(/url 색상 #0f172a/i)).not.toBeInTheDocument();
   });
 
   it("opens and closes the bookmark composer from desktop quick entry", async () => {
@@ -521,8 +524,9 @@ describe("bookmark dashboard", () => {
     );
     expect(uploadCall).toBeDefined();
     expect(within(bookmarkListRegion).getByRole("img", { name: /업로드 이미지 1/i })).toBeInTheDocument();
-    expect(within(bookmarkListRegion).getByText(/^research$/i)).toBeInTheDocument();
-    expect(within(bookmarkListRegion).getByText(/^later$/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).queryByText(/^research$/i)).not.toBeInTheDocument();
+    expect(within(bookmarkListRegion).queryByText(/^later$/i)).not.toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/^태그 2개$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^이미지 1장$/i)).toBeInTheDocument();
   });
 

@@ -3241,9 +3241,6 @@ export default function App() {
                       {bookmark.isFavorite ? <span className="meta-pill">즐겨찾기</span> : null}
                     </div>
                   </div>
-                  {!shouldUseCompactMobileCards ? (
-                    <p className="bookmark-card-section-label">상태 배지</p>
-                  ) : null}
                   <div className="meta-pill-list">
                     <span className="meta-pill">{getBookmarkSummaryStateLabel(bookmark)}</span>
                     <span className="meta-pill">태그 {bookmark.tagIds.length}개</span>
@@ -3252,56 +3249,21 @@ export default function App() {
                         이미지 {bookmarkAssetsByBookmarkId[bookmark.id].length}장
                       </span>
                     ) : null}
-                    {shouldUseCompactMobileCards &&
-                    (bookmark.bookmarkColor || bookmark.urlColor) ? (
-                      <span className="meta-pill">색상 설정됨</span>
+                    {bookmark.bookmarkColor || bookmark.urlColor ? (
+                      <span className="meta-pill">
+                        {shouldUseCompactMobileCards
+                          ? "색상 설정됨"
+                          : `색상 ${
+                              Number(Boolean(bookmark.bookmarkColor)) +
+                              Number(Boolean(bookmark.urlColor))
+                            }개`}
+                      </span>
                     ) : null}
                   </div>
                   {bookmark.displaySummary ? (
                     <p className={shouldUseCompactMobileCards ? "bookmark-card-summary" : undefined}>
                       {bookmark.displaySummary}
                     </p>
-                  ) : null}
-                  {!shouldUseCompactMobileCards && bookmark.tagIds.length > 0 ? (
-                    <>
-                    <p className="bookmark-card-section-label">분류</p>
-                    <div className="meta-pill-list">
-                      {bookmark.tagIds.map((tagId) => (
-                        <span key={tagId} className="meta-pill">
-                          {tags.find((tag) => tag.id === tagId)?.name ?? tagId}
-                        </span>
-                      ))}
-                    </div>
-                    </>
-                  ) : null}
-                  {!shouldUseCompactMobileCards ? (
-                  <>
-                  {(bookmark.bookmarkColor || bookmark.urlColor) ? (
-                    <p className="bookmark-card-section-label">표시 설정</p>
-                  ) : null}
-                  <div className="meta-pill-list">
-                    {bookmark.bookmarkColor ? (
-                      <span className="meta-pill color-pill">
-                        <span
-                          aria-hidden="true"
-                          className="color-swatch"
-                          style={{ backgroundColor: bookmark.bookmarkColor }}
-                        />
-                        북마크 색상 {bookmark.bookmarkColor}
-                      </span>
-                    ) : null}
-                    {bookmark.urlColor ? (
-                      <span className="meta-pill color-pill">
-                        <span
-                          aria-hidden="true"
-                          className="color-swatch"
-                          style={{ backgroundColor: bookmark.urlColor }}
-                        />
-                        URL 색상 {bookmark.urlColor}
-                      </span>
-                    ) : null}
-                  </div>
-                  </>
                   ) : null}
                   {!shouldUseCompactMobileCards &&
                   (bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0) > 0 ? (
@@ -3314,9 +3276,6 @@ export default function App() {
                         />
                       ))}
                     </div>
-                  ) : null}
-                  {!shouldUseCompactMobileCards ? (
-                    <p className="bookmark-card-section-label">빠른 조작</p>
                   ) : null}
                   <div className="action-row bookmark-card-actions">
                     <button type="button" className="primary-button" onClick={() => void handleBookmarkOpen(bookmark)}>
