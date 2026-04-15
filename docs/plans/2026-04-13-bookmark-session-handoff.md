@@ -139,6 +139,9 @@ npm run build:web
 npm run dev:api
 ```
 
+- Windows 더블클릭 실행:
+  - 루트의 `start-bookmark-local.cmd`
+  - 내부에서 `build:web` 후 `dev:api`를 실행하고 `http://localhost:8787`를 연다.
 - 브라우저 접속 주소: `http://localhost:8787`
 - `127.0.0.1` 대신 `localhost` 사용
 
