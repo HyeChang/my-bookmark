@@ -148,6 +148,12 @@ const emptyBookmarkRecommendations: BookmarkRecommendationsState = {
   frequent: []
 };
 
+const MOBILE_SEARCH_BREAKPOINT = 720;
+
+function getIsMobileSearchViewport() {
+  return (globalThis.innerWidth ?? 1024) <= MOBILE_SEARCH_BREAKPOINT;
+}
+
 function normalizeBookmarkSearchDraft(search: BookmarkSearchDraft): BookmarkSearchDraft {
   return {
     query: search.query.trim(),
@@ -549,6 +555,10 @@ export default function App() {
     emptyBookmarkSearchDraft
   );
   const [isAdvancedBookmarkSearchOpen, setIsAdvancedBookmarkSearchOpen] = useState(false);
+  const [isMobileSearchViewport, setIsMobileSearchViewport] = useState(getIsMobileSearchViewport);
+  const [isMobileSearchPanelOpen, setIsMobileSearchPanelOpen] = useState(
+    () => !getIsMobileSearchViewport()
+  );
   const [folderDraft, setFolderDraft] = useState<FolderDraft>(emptyFolderDraft);
   const [tagDraft, setTagDraft] = useState<TagDraft>(emptyTagDraft);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
@@ -640,6 +650,23 @@ export default function App() {
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleResize() {
+      const nextIsMobileSearchViewport = getIsMobileSearchViewport();
+      setIsMobileSearchViewport(nextIsMobileSearchViewport);
+      if (!nextIsMobileSearchViewport) {
+        setIsMobileSearchPanelOpen(true);
+      }
+    }
+
+    handleResize();
+    globalThis.addEventListener("resize", handleResize);
+
+    return () => {
+      globalThis.removeEventListener("resize", handleResize);
     };
   }, []);
 
@@ -1646,6 +1673,8 @@ export default function App() {
     isAdvancedBookmarkSearchOpen ||
     hasActiveBookmarkAdvancedFilters(bookmarkSearchDraft) ||
     hasActiveBookmarkAdvancedFilters(appliedBookmarkSearch);
+  const shouldShowMobileSearchSummary = isMobileSearchViewport && hasActiveBookmarkSearch(appliedBookmarkSearch);
+  const shouldShowSearchPanelBody = !isMobileSearchViewport || isMobileSearchPanelOpen;
   const activeBookmarkSearchSummaryItems = getBookmarkSearchSummaryItems(
     appliedBookmarkSearch,
     {
@@ -2082,8 +2111,30 @@ export default function App() {
           </aside>
 
           <section aria-label="dashboard-main" className="dashboard-main">
-            <section aria-label="search-panel" className="surface-card panel-card">
-              <h2>검색과 필터</h2>
+            <section aria-label="search-panel" className="surface-card panel-card search-panel-card">
+              <div className="search-panel-header">
+                <div className="search-panel-heading">
+                  <h2>검색과 필터</h2>
+                  {shouldShowMobileSearchSummary ? (
+                    <p className="search-panel-helper">
+                      활성 필터 {activeBookmarkSearchSummaryItems.length}개
+                    </p>
+                  ) : null}
+                </div>
+                {isMobileSearchViewport ? (
+                  <button
+                    type="button"
+                    className="secondary-button search-panel-toggle"
+                    aria-expanded={isMobileSearchPanelOpen}
+                    onClick={() =>
+                      setIsMobileSearchPanelOpen((currentState) => !currentState)
+                    }
+                  >
+                    {isMobileSearchPanelOpen ? "검색/필터 닫기" : "검색/필터 열기"}
+                  </button>
+                ) : null}
+              </div>
+              {shouldShowSearchPanelBody ? (
               <form className="search-form" onSubmit={(event) => void handleBookmarkSearchSubmit(event)}>
                 <fieldset className="search-grid search-grid-basic">
                   <legend>기본 검색</legend>
@@ -2311,7 +2362,7 @@ export default function App() {
                     </div>
                   </fieldset>
                 ) : null}
-                <div className="action-row">
+                <div className="action-row search-action-row">
                   <button type="submit" className="primary-button">검색 실행</button>
                   <button
                     type="button"
@@ -2322,7 +2373,8 @@ export default function App() {
                   </button>
                 </div>
               </form>
-              {hasActiveBookmarkSearch(appliedBookmarkSearch) ? (
+              ) : null}
+              {hasActiveBookmarkSearch(appliedBookmarkSearch) && shouldShowSearchPanelBody ? (
                 <div className="filter-summary-card">
                   <p>선택된 필터 {activeBookmarkSearchSummaryItems.length}개</p>
                   <ul aria-label="active-search-filters" className="active-filter-list">

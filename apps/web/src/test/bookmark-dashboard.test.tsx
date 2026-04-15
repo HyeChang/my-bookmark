@@ -1316,6 +1316,103 @@ describe("bookmark dashboard", () => {
     expect(within(searchPanel).getByText(/^상태$/i)).toBeInTheDocument();
   });
 
+  it("starts with a collapsed search panel on mobile and opens it on demand", async () => {
+    vi.stubGlobal(
+      "innerWidth",
+      640
+    );
+    window.dispatchEvent(new Event("resize"));
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const searchPanel = await screen.findByRole("region", { name: /search-panel/i });
+
+    expect(within(searchPanel).queryByLabelText(/검색어/i)).not.toBeInTheDocument();
+    expect(within(searchPanel).getByRole("button", { name: /검색\/필터 열기/i })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /검색\/필터 열기/i }));
+
+    expect(await within(searchPanel).findByLabelText(/검색어/i)).toBeInTheDocument();
+    expect(
+      within(searchPanel).getByRole("button", { name: /검색\/필터 닫기/i })
+    ).toHaveAttribute("aria-expanded", "true");
+
+    fetchSpy.mockRestore();
+    vi.unstubAllGlobals();
+    vi.stubGlobal("innerWidth", 1024);
+    window.dispatchEvent(new Event("resize"));
+  });
+
   it("submits bookmark search with color and summary filters and resets them", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
