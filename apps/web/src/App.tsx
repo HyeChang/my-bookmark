@@ -2518,17 +2518,22 @@ export default function App() {
                       <h2>작업 시작</h2>
                       <span className="workspace-panel-summary">데스크톱 중심</span>
                     </div>
+                    <p className="navigation-sidebar-summary">
+                      북마크 {bookmarks.length}개 · 폴더 {folders.length}개 · 태그 {tags.length}개
+                    </p>
                   </div>
                   <div className="navigation-sidebar-actions">
                     <button type="button" className="primary-button" onClick={() => beginBookmarkCreate()}>
                       새 북마크
                     </button>
-                    <button type="button" className="secondary-button" onClick={() => openFolderManager()}>
-                      새 폴더
-                    </button>
-                    <button type="button" className="ghost-button" onClick={() => openTagManager()}>
-                      태그 관리
-                    </button>
+                    <div className="navigation-sidebar-secondary-actions">
+                      <button type="button" className="secondary-button" onClick={() => openFolderManager()}>
+                        새 폴더
+                      </button>
+                      <button type="button" className="ghost-button" onClick={() => openTagManager()}>
+                        태그 관리
+                      </button>
+                    </div>
                   </div>
                 </section>
               ) : null}

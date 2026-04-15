@@ -185,6 +185,13 @@ img {
   gap: 0.38rem;
 }
 
+.navigation-sidebar-summary {
+  margin: 0;
+  color: #677081;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
 .navigation-sidebar-heading-row {
   display: flex;
   align-items: flex-start;
@@ -210,6 +217,19 @@ img {
 .navigation-sidebar-actions > button {
   width: 100%;
   justify-content: center;
+}
+
+.navigation-sidebar-secondary-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.navigation-sidebar-secondary-actions > button {
+  width: 100%;
+  justify-content: center;
+  min-height: 2.2rem;
+  padding: 0.46rem 0.7rem;
 }
 
 .overlay-backdrop {

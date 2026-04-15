@@ -181,6 +181,9 @@ describe("bookmark dashboard", () => {
     expect(within(searchPanel).getByPlaceholderText(/링크, 제목, 내용 검색/i)).toBeInTheDocument();
     expect(within(searchPanel).getByRole("button", { name: /검색 실행/i })).toBeInTheDocument();
     expect(within(searchPanel).getByRole("button", { name: /고급 필터 열기/i })).toBeInTheDocument();
+    expect(
+      within(navigationSidebar).getByText(/^북마크 1개 · 폴더 0개 · 태그 1개$/i)
+    ).toBeInTheDocument();
     expect(within(navigationSidebar).getByRole("button", { name: /^새 북마크$/i })).toBeInTheDocument();
     expect(within(navigationSidebar).getByRole("button", { name: /^새 폴더$/i })).toBeInTheDocument();
     expect(within(navigationSidebar).getByRole("button", { name: /^태그 관리$/i })).toBeInTheDocument();
