@@ -1,37 +1,192 @@
 import type {
   Bookmark,
+  BookmarkRelativeDateRange,
+  BookmarkSearchMode,
+  BookmarkSortMode,
+  BookmarkTagMode,
   BookmarkListResponse,
   BookmarkResponse,
-  CreateBookmarkRequest
+  CreateBookmarkRequest,
+  UpdateBookmarkRequest
 } from "@bookmark/shared";
+import { requestJson, requestVoid } from "./api";
 
-export async function loadBookmarks() {
-  const res = await fetch("/api/bookmarks", {
-    credentials: "include"
-  });
+type LoadBookmarksOptions = {
+  query?: string;
+  mode?: BookmarkSearchMode;
+  sort?: BookmarkSortMode;
+  createdWithin?: BookmarkRelativeDateRange;
+  openedWithin?: BookmarkRelativeDateRange;
+  favoriteOnly?: boolean;
+  folderId?: string;
+  includeDescendantFolders?: boolean;
+  tagIds?: string[];
+  tagMode?: BookmarkTagMode;
+  bookmarkColor?: string;
+  urlColor?: string;
+  summaryState?: "all" | "with" | "without";
+};
 
-  if (!res.ok) {
-    throw new Error("Failed to load bookmarks");
+function mapBookmarkErrorCode(errorCode: string) {
+  switch (errorCode) {
+    case "missing_url":
+      return "URL을 입력해주세요.";
+    case "invalid_url":
+      return "올바른 URL 형식이 아닙니다.";
+    case "invalid_tag_ids":
+      return "선택한 태그를 다시 확인해주세요.";
+    case "bookmark_not_found":
+      return "북마크를 찾지 못했습니다.";
+    case "bookmark_extract_failed":
+      return "URL 메타 미리보기를 불러오지 못했습니다.";
+    case "bookmark_reextract_failed":
+      return "자동 추출을 다시 수행하지 못했습니다.";
+    default:
+      return null;
+  }
+}
+
+export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
+  const searchParams = new URLSearchParams();
+  const query = options.query?.trim();
+
+  if (query) {
+    searchParams.set("mode", options.mode ?? "all");
+    if (options.tagMode && options.tagMode !== "and" && options.tagIds?.length) {
+      searchParams.set("tagMode", options.tagMode);
+    }
+    searchParams.set("query", query);
+  }
+  if (options.sort && options.sort !== "created_desc") {
+    searchParams.set("sort", options.sort);
+  }
+  if (options.createdWithin && options.createdWithin !== "all") {
+    searchParams.set("createdWithin", options.createdWithin);
+  }
+  if (options.openedWithin && options.openedWithin !== "all") {
+    searchParams.set("openedWithin", options.openedWithin);
+  }
+  if (options.favoriteOnly) {
+    searchParams.set("favorite", "1");
+  }
+  if (options.folderId) {
+    searchParams.set("folderId", options.folderId);
+    if (options.includeDescendantFolders) {
+      searchParams.set("includeDescendantFolders", "1");
+    }
+  }
+  if (options.tagIds?.length) {
+    if (!query && options.tagMode && options.tagMode !== "and") {
+      searchParams.set("tagMode", options.tagMode);
+    }
+    for (const tagId of options.tagIds) {
+      const normalizedTagId = tagId.trim();
+      if (normalizedTagId) {
+        searchParams.append("tagId", normalizedTagId);
+      }
+    }
+  }
+  if (options.bookmarkColor?.trim()) {
+    searchParams.set("bookmarkColor", options.bookmarkColor.trim());
+  }
+  if (options.urlColor?.trim()) {
+    searchParams.set("urlColor", options.urlColor.trim());
+  }
+  if (options.summaryState && options.summaryState !== "all") {
+    searchParams.set("summaryState", options.summaryState);
   }
 
-  const data = (await res.json()) as Partial<BookmarkListResponse>;
+  const url = searchParams.size > 0 ? `/api/bookmarks?${searchParams.toString()}` : "/api/bookmarks";
+  const data = await requestJson<Partial<BookmarkListResponse>>(
+    url,
+    {
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "북마크를 불러오지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
   return Array.isArray(data.bookmarks) ? (data.bookmarks as Bookmark[]) : [];
 }
 
-export async function createBookmark(input: CreateBookmarkRequest) {
-  const res = await fetch("/api/bookmarks", {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "content-type": "application/json"
+export async function loadBookmark(bookmarkId: string) {
+  const data = await requestJson<BookmarkResponse>(
+    `/api/bookmarks/${bookmarkId}`,
+    {
+      credentials: "include"
     },
-    body: JSON.stringify(input)
-  });
+    {
+      fallbackMessage: "북마크 상세 정보를 불러오지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
+  return data.bookmark;
+}
 
-  if (!res.ok) {
-    throw new Error("Failed to create bookmark");
-  }
+export async function reextractBookmark(bookmarkId: string) {
+  const data = await requestJson<BookmarkResponse>(
+    `/api/bookmarks/${bookmarkId}/reextract`,
+    {
+      method: "POST",
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "자동 추출을 다시 수행하지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
+  return data.bookmark;
+}
 
-  const data = (await res.json()) as BookmarkResponse;
+export async function deleteBookmark(bookmarkId: string) {
+  await requestVoid(
+    `/api/bookmarks/${bookmarkId}`,
+    {
+      method: "DELETE",
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "북마크를 삭제하지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
+}
+
+export async function createBookmark(input: CreateBookmarkRequest) {
+  const data = await requestJson<BookmarkResponse>(
+    "/api/bookmarks",
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(input)
+    },
+    {
+      fallbackMessage: "북마크를 저장하지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
+  return data.bookmark;
+}
+
+export async function updateBookmark(bookmarkId: string, input: UpdateBookmarkRequest) {
+  const data = await requestJson<BookmarkResponse>(
+    `/api/bookmarks/${bookmarkId}`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(input)
+    },
+    {
+      fallbackMessage: "북마크를 수정하지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
   return data.bookmark;
 }

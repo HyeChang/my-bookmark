@@ -15,12 +15,19 @@ export type SessionResponse =
       user: AuthenticatedUser;
     }
   | {
-      authenticated: false;
+    authenticated: false;
     };
+
+export type BookmarkSearchMode = "all" | "title" | "content" | "folder";
+export type BookmarkSortMode = "created_desc" | "opened_desc";
+export type BookmarkRelativeDateRange = "all" | "7d" | "30d";
+export type BookmarkTagMode = "and" | "or";
+export type BookmarkAssetType = "image" | "capture";
 
 export type Bookmark = {
   id: string;
   folderId: string | null;
+  tagIds: string[];
   url: string;
   isFavorite: boolean;
   bookmarkColor: string | null;
@@ -41,6 +48,7 @@ export type Bookmark = {
 export type CreateBookmarkRequest = {
   url: string;
   folderId?: string | null;
+  tagIds?: string[];
   userTitle?: string | null;
   userContent?: string | null;
   userSummary?: string | null;
@@ -54,6 +62,7 @@ export type CreateBookmarkRequest = {
 
 export type UpdateBookmarkRequest = {
   folderId?: string | null;
+  tagIds?: string[];
   userTitle?: string | null;
   userContent?: string | null;
   userSummary?: string | null;
@@ -68,6 +77,53 @@ export type BookmarkResponse = {
 
 export type BookmarkListResponse = {
   bookmarks: Bookmark[];
+};
+
+export type BookmarkRecommendationsResponse = {
+  favorites: Bookmark[];
+  recent: Bookmark[];
+  frequent: Bookmark[];
+};
+
+export type BookmarkOpenResponse = {
+  ok: true;
+};
+
+export type BookmarkExtractRequest = {
+  url: string;
+};
+
+export type BookmarkExtractPreview = {
+  url: string;
+  normalizedUrl: string;
+  sourceTitle: string | null;
+  sourceContent: string | null;
+  sourceSummary: string | null;
+};
+
+export type BookmarkExtractResponse = {
+  preview: BookmarkExtractPreview;
+};
+
+export type BookmarkAsset = {
+  id: string;
+  bookmarkId: string;
+  assetType: BookmarkAssetType;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  sortOrder: number;
+  contentUrl: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BookmarkAssetResponse = {
+  asset: BookmarkAsset;
+};
+
+export type BookmarkAssetListResponse = {
+  assets: BookmarkAsset[];
 };
 
 export type Folder = {
@@ -95,6 +151,15 @@ export type UpdateFolderRequest = {
   parentFolderId?: string | null;
 };
 
+export type ReorderFoldersRequest = {
+  parentFolderId?: string | null;
+  folderIds: string[];
+};
+
+export type MoveFolderRequest = {
+  parentFolderId?: string | null;
+};
+
 export type FolderResponse = {
   folder: Folder;
 };
@@ -113,6 +178,11 @@ export type Tag = {
 
 export type CreateTagRequest = {
   name: string;
+  color?: string | null;
+};
+
+export type UpdateTagRequest = {
+  name?: string;
   color?: string | null;
 };
 

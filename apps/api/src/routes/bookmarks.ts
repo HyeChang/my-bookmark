@@ -1,4 +1,13 @@
 import type {
+  BookmarkOpenResponse,
+  BookmarkAssetListResponse,
+  BookmarkAssetResponse,
+  BookmarkExtractRequest,
+  BookmarkExtractResponse,
+  BookmarkRelativeDateRange,
+  BookmarkSearchMode,
+  BookmarkSortMode,
+  BookmarkTagMode,
   BookmarkListResponse,
   BookmarkResponse,
   CreateBookmarkRequest,
@@ -9,17 +18,92 @@ import { Hono } from "hono";
 import type { AppBindings } from "../env";
 import { getAuthenticatedUser } from "../lib/auth/current-user";
 import {
+  createBookmarkExtractor,
+  type BookmarkExtractor
+} from "../lib/extract/bookmark-extractor";
+import {
+  createBookmarkAssetRepository,
+  toBookmarkAssetResponse,
+  type BookmarkAssetRepository
+} from "../lib/repositories/bookmark-assets";
+import {
+  createBookmarkActivityRepository,
+  type BookmarkActivityRepository
+} from "../lib/repositories/bookmark-activity";
+import {
   createBookmarkRepository,
   normalizeBookmarkUrl,
   toBookmarkResponse,
   type BookmarkRepository
 } from "../lib/repositories/bookmarks";
+import {
+  createFolderRepository,
+  type FolderRepository
+} from "../lib/repositories/folders";
 import { syncAuthenticatedUser } from "../lib/repositories/users";
+import {
+  createR2BookmarkAssetStorage,
+  type BookmarkAssetStorage
+} from "../lib/storage/assets";
 
 type BookmarkRouteOptions = {
   bookmarkRepository?: BookmarkRepository;
+  bookmarkAssetRepository?: BookmarkAssetRepository;
+  bookmarkActivityRepository?: BookmarkActivityRepository;
+  assetStorage?: BookmarkAssetStorage;
+  bookmarkExtractor?: BookmarkExtractor;
+  folderRepository?: FolderRepository;
   sessionSecret?: string;
 };
+
+const bookmarkSearchModes: BookmarkSearchMode[] = ["all", "title", "content", "folder"];
+const bookmarkSortModes: BookmarkSortMode[] = ["created_desc", "opened_desc"];
+const bookmarkRelativeDateRanges: BookmarkRelativeDateRange[] = ["all", "7d", "30d"];
+const bookmarkTagModes: BookmarkTagMode[] = ["and", "or"];
+
+function normalizeTagQueryValues(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function resolveDateRangeCutoff(range: BookmarkRelativeDateRange, now: Date) {
+  if (range === "all") {
+    return null;
+  }
+
+  const days = range === "7d" ? 7 : 30;
+  return now.getTime() - days * 24 * 60 * 60 * 1000;
+}
+
+function collectDescendantFolderIds(
+  folders: Array<{ id: string; parentFolderId: string | null }>,
+  rootFolderId: string
+) {
+  const descendants = new Set<string>();
+  const pendingFolderIds = [rootFolderId];
+
+  while (pendingFolderIds.length > 0) {
+    const currentFolderId = pendingFolderIds.pop();
+    if (!currentFolderId) {
+      continue;
+    }
+
+    for (const folder of folders) {
+      if (folder.parentFolderId !== currentFolderId || descendants.has(folder.id)) {
+        continue;
+      }
+
+      descendants.add(folder.id);
+      pendingFolderIds.push(folder.id);
+    }
+  }
+
+  return descendants;
+}
+
+function sanitizeFileName(fileName: string) {
+  const normalizedFileName = fileName.trim().replace(/\s+/g, "-");
+  return normalizedFileName.replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 80) || "asset";
+}
 
 export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
   return new Hono<{ Bindings: AppBindings }>()
@@ -41,7 +125,155 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         return c.json({ error: "bookmark_repository_unavailable" }, 500);
       }
 
-      const bookmarks = await repository.listByUser(user.uid);
+      const query = c.req.query("query")?.trim() ?? "";
+      const requestedMode = c.req.query("mode");
+      const mode = (requestedMode ?? "all") as BookmarkSearchMode;
+      const requestedSort = c.req.query("sort");
+      const sort = (requestedSort ?? "created_desc") as BookmarkSortMode;
+      const requestedCreatedWithin = c.req.query("createdWithin");
+      const createdWithin = (requestedCreatedWithin ?? "all") as BookmarkRelativeDateRange;
+      const requestedOpenedWithin = c.req.query("openedWithin");
+      const openedWithin = (requestedOpenedWithin ?? "all") as BookmarkRelativeDateRange;
+      const requestedTagMode = c.req.query("tagMode");
+      const tagMode = (requestedTagMode ?? "and") as BookmarkTagMode;
+      const requestedFolderId = c.req.query("folderId")?.trim() || undefined;
+      const includeDescendantFolders =
+        Boolean(requestedFolderId) && c.req.query("includeDescendantFolders") === "1";
+      const tagIds = normalizeTagQueryValues(new URL(c.req.url).searchParams.getAll("tagId"));
+      let folderIds: string[] | undefined;
+
+      if (requestedFolderId && includeDescendantFolders) {
+        const folderRepository =
+          options.folderRepository ??
+          (c.env?.bookmark ? createFolderRepository(c.env.bookmark) : null);
+
+        if (!folderRepository) {
+          return c.json({ error: "folder_repository_unavailable" }, 500);
+        }
+
+        const folders = await folderRepository.listByUser(user.uid);
+        folderIds = [
+          requestedFolderId,
+          ...collectDescendantFolderIds(folders, requestedFolderId)
+        ];
+      }
+
+      const filters = {
+        favoriteOnly: c.req.query("favorite") === "1",
+        folderId: folderIds ? undefined : requestedFolderId,
+        folderIds,
+        tagIds: tagIds.length > 0 ? tagIds : undefined,
+        tagMode: tagIds.length > 0 ? tagMode : undefined,
+        bookmarkColor: c.req.query("bookmarkColor")?.trim() || undefined,
+        urlColor: c.req.query("urlColor")?.trim() || undefined,
+        summaryState: (() => {
+          const value = c.req.query("summaryState")?.trim();
+          return value === "with" || value === "without" ? value : undefined;
+        })()
+      };
+
+      if (requestedMode && !bookmarkSearchModes.includes(mode)) {
+        return c.json({ error: "invalid_search_mode" }, 400);
+      }
+
+      if (requestedSort && !bookmarkSortModes.includes(sort)) {
+        return c.json({ error: "invalid_sort_mode" }, 400);
+      }
+
+      if (requestedTagMode && !bookmarkTagModes.includes(tagMode)) {
+        return c.json({ error: "invalid_tag_mode" }, 400);
+      }
+
+      if (
+        requestedCreatedWithin &&
+        !bookmarkRelativeDateRanges.includes(createdWithin)
+      ) {
+        return c.json({ error: "invalid_created_within" }, 400);
+      }
+
+      if (requestedOpenedWithin && !bookmarkRelativeDateRanges.includes(openedWithin)) {
+        return c.json({ error: "invalid_opened_within" }, 400);
+      }
+
+      let bookmarks = query
+        ? await repository.searchByUser(user.uid, query, mode, filters)
+        : await repository.listByUser(user.uid, filters);
+
+      const needsOpenStats = sort === "opened_desc" || openedWithin !== "all";
+      let openStatsByBookmarkId = new Map<string, BookmarkActivityRepository extends never ? never : Awaited<ReturnType<BookmarkActivityRepository["listOpenStats"]>>[number]>();
+
+      if (needsOpenStats) {
+        const bookmarkActivityRepository =
+          options.bookmarkActivityRepository ??
+          (c.env?.bookmark ? createBookmarkActivityRepository(c.env.bookmark) : null);
+
+        if (!bookmarkActivityRepository) {
+          return c.json({ error: "bookmark_activity_repository_unavailable" }, 500);
+        }
+
+        const openStats = await bookmarkActivityRepository.listOpenStats(
+          user.uid,
+          Math.max(bookmarks.length, 50)
+        );
+        openStatsByBookmarkId = new Map(
+          openStats.map((entry) => [entry.bookmarkId, entry])
+        );
+      }
+
+      const now = new Date();
+      const createdCutoff = resolveDateRangeCutoff(createdWithin, now);
+      const openedCutoff = resolveDateRangeCutoff(openedWithin, now);
+
+      if (createdCutoff !== null || openedCutoff !== null) {
+        bookmarks = bookmarks.filter((bookmark) => {
+          if (createdCutoff !== null) {
+            const createdAt = Date.parse(bookmark.createdAt);
+            if (Number.isNaN(createdAt) || createdAt < createdCutoff) {
+              return false;
+            }
+          }
+
+          if (openedCutoff !== null) {
+            const openStat = openStatsByBookmarkId.get(bookmark.id);
+            if (!openStat) {
+              return false;
+            }
+
+            const lastOpenedAt = Date.parse(openStat.lastOpenedAt);
+            if (Number.isNaN(lastOpenedAt) || lastOpenedAt < openedCutoff) {
+              return false;
+            }
+          }
+
+          return true;
+        });
+      }
+
+      if (sort === "opened_desc") {
+        
+        bookmarks.sort((left, right) => {
+          const leftStat = openStatsByBookmarkId.get(left.id);
+          const rightStat = openStatsByBookmarkId.get(right.id);
+
+          if (leftStat && !rightStat) {
+            return -1;
+          }
+
+          if (!leftStat && rightStat) {
+            return 1;
+          }
+
+          if (leftStat && rightStat) {
+            return (
+              rightStat.lastOpenedAt.localeCompare(leftStat.lastOpenedAt) ||
+              rightStat.openCount - leftStat.openCount ||
+              right.createdAt.localeCompare(left.createdAt)
+            );
+          }
+
+          return right.createdAt.localeCompare(left.createdAt);
+        });
+      }
 
       return c.json<BookmarkListResponse>({
         bookmarks: bookmarks.map(toBookmarkResponse)
@@ -77,11 +309,31 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         return c.json({ error: "bookmark_repository_unavailable" }, 500);
       }
 
-      const bookmark = await repository.create({
-        ...body,
-        userId: user.uid,
-        normalizedUrl
-      });
+      const shouldExtractSourceValues =
+        !body.sourceTitle && !body.sourceContent && !body.sourceSummary;
+      const extractedPreview = shouldExtractSourceValues
+        ? await (options.bookmarkExtractor ?? createBookmarkExtractor())
+            .extract(normalizedUrl)
+            .catch(() => null)
+        : null;
+
+      let bookmark;
+      try {
+        bookmark = await repository.create({
+          ...body,
+          sourceTitle: body.sourceTitle ?? extractedPreview?.sourceTitle ?? null,
+          sourceContent: body.sourceContent ?? extractedPreview?.sourceContent ?? null,
+          sourceSummary: body.sourceSummary ?? extractedPreview?.sourceSummary ?? null,
+          userId: user.uid,
+          normalizedUrl
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === "invalid_tag_ids") {
+          return c.json({ error: "invalid_tag_ids" }, 400);
+        }
+
+        throw error;
+      }
 
       return c.json<BookmarkResponse>(
         {
@@ -89,6 +341,39 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         },
         201
       );
+    })
+    .post("/extract", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const body = await c.req.json<BookmarkExtractRequest>().catch(() => null);
+      if (!body?.url) {
+        return c.json({ error: "missing_url" }, 400);
+      }
+
+      const extractor = options.bookmarkExtractor ?? createBookmarkExtractor();
+
+      try {
+        const preview = await extractor.extract(body.url);
+        return c.json<BookmarkExtractResponse>({
+          preview
+        });
+      } catch (error) {
+        if (error instanceof TypeError) {
+          return c.json({ error: "invalid_url" }, 400);
+        }
+
+        if (
+          error instanceof Error &&
+          error.message === "bookmark_extract_unsupported_content_type"
+        ) {
+          return c.json({ error: "bookmark_extract_unsupported_content_type" }, 422);
+        }
+
+        return c.json({ error: "bookmark_extract_failed" }, 502);
+      }
     })
     .get("/:bookmarkId", async (c) => {
       const user = await getAuthenticatedUser(c, options.sessionSecret);
@@ -136,11 +421,16 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         return c.json({ error: "bookmark_repository_unavailable" }, 500);
       }
 
-      const bookmark = await repository.update(
-        c.req.param("bookmarkId"),
-        user.uid,
-        body
-      );
+      let bookmark;
+      try {
+        bookmark = await repository.update(c.req.param("bookmarkId"), user.uid, body);
+      } catch (error) {
+        if (error instanceof Error && error.message === "invalid_tag_ids") {
+          return c.json({ error: "invalid_tag_ids" }, 400);
+        }
+
+        throw error;
+      }
 
       if (!bookmark) {
         return c.json({ error: "bookmark_not_found" }, 404);
@@ -149,5 +439,319 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       return c.json<BookmarkResponse>({
         bookmark: toBookmarkResponse(bookmark)
       });
+    })
+    .delete("/:bookmarkId", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const assetRepository =
+        options.bookmarkAssetRepository ??
+        (c.env?.bookmark ? createBookmarkAssetRepository(c.env.bookmark) : null);
+      const assetStorage =
+        options.assetStorage ??
+        (c.env?.bookmark_assets ? createR2BookmarkAssetStorage(c.env.bookmark_assets) : null);
+
+      if (!bookmarkRepository) {
+        return c.json({ error: "bookmark_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      const assets = assetRepository
+        ? await assetRepository.listByBookmark(user.uid, bookmark.id)
+        : [];
+
+      if (assets.length > 0 && !assetStorage) {
+        return c.json({ error: "bookmark_asset_repository_unavailable" }, 500);
+      }
+
+      if (assetStorage) {
+        for (const asset of assets) {
+          await assetStorage.delete(asset.objectKey);
+        }
+      }
+
+      await bookmarkRepository.delete(bookmark.id, user.uid);
+
+      return c.body(null, 204);
+    })
+    .post("/:bookmarkId/open", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const bookmarkActivityRepository =
+        options.bookmarkActivityRepository ??
+        (c.env?.bookmark ? createBookmarkActivityRepository(c.env.bookmark) : null);
+
+      if (!bookmarkRepository || !bookmarkActivityRepository) {
+        return c.json({ error: "bookmark_activity_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      await bookmarkActivityRepository.recordOpen(user.uid, bookmark.id);
+
+      return c.json<BookmarkOpenResponse>({
+        ok: true
+      });
+    })
+    .post("/:bookmarkId/reextract", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const bookmarkExtractor = options.bookmarkExtractor ?? createBookmarkExtractor();
+
+      if (!bookmarkRepository) {
+        return c.json({ error: "bookmark_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      try {
+        const preview = await bookmarkExtractor.extract(bookmark.url);
+        const updatedBookmark = await bookmarkRepository.update(bookmark.id, user.uid, {
+          sourceTitle: preview.sourceTitle,
+          sourceContent: preview.sourceContent,
+          sourceSummary: preview.sourceSummary
+        });
+
+        if (!updatedBookmark) {
+          return c.json({ error: "bookmark_not_found" }, 404);
+        }
+
+        return c.json<BookmarkResponse>({
+          bookmark: toBookmarkResponse(updatedBookmark)
+        });
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === "bookmark_extract_unsupported_content_type"
+        ) {
+          return c.json({ error: "bookmark_extract_unsupported_content_type" }, 422);
+        }
+
+        return c.json({ error: "bookmark_reextract_failed" }, 502);
+      }
+    })
+    .get("/:bookmarkId/assets", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const assetRepository =
+        options.bookmarkAssetRepository ??
+        (c.env?.bookmark ? createBookmarkAssetRepository(c.env.bookmark) : null);
+
+      if (!bookmarkRepository || !assetRepository) {
+        return c.json({ error: "bookmark_asset_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      const assets = await assetRepository.listByBookmark(user.uid, bookmark.id);
+      return c.json<BookmarkAssetListResponse>({
+        assets: assets.map((asset) =>
+          toBookmarkAssetResponse(asset, {
+            bookmarkId: bookmark.id
+          })
+        )
+      });
+    })
+    .post("/:bookmarkId/assets", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const assetRepository =
+        options.bookmarkAssetRepository ??
+        (c.env?.bookmark ? createBookmarkAssetRepository(c.env.bookmark) : null);
+      const assetStorage =
+        options.assetStorage ??
+        (c.env?.bookmark_assets ? createR2BookmarkAssetStorage(c.env.bookmark_assets) : null);
+
+      if (!bookmarkRepository || !assetRepository || !assetStorage) {
+        return c.json({ error: "bookmark_asset_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      const formData = await c.req.formData().catch(() => null);
+      const file = formData?.get("file");
+      if (!(file instanceof File)) {
+        return c.json({ error: "missing_file" }, 400);
+      }
+
+      if (file.size === 0) {
+        return c.json({ error: "empty_file" }, 400);
+      }
+
+      if (!file.type.startsWith("image/")) {
+        return c.json({ error: "unsupported_file_type" }, 400);
+      }
+
+      const assetType = formData?.get("assetType") === "capture" ? "capture" : "image";
+      const objectKey = `${user.uid}/${bookmark.id}/${crypto.randomUUID()}-${sanitizeFileName(file.name)}`;
+
+      await assetStorage.put(objectKey, await file.arrayBuffer(), file.type);
+
+      const asset = await assetRepository.create({
+        bookmarkId: bookmark.id,
+        userId: user.uid,
+        assetType,
+        objectKey,
+        mimeType: file.type
+      });
+
+      return c.json<BookmarkAssetResponse>(
+        {
+          asset: toBookmarkAssetResponse(asset, {
+            bookmarkId: bookmark.id
+          })
+        },
+        201
+      );
+    })
+    .get("/:bookmarkId/assets/:assetId/content", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const assetRepository =
+        options.bookmarkAssetRepository ??
+        (c.env?.bookmark ? createBookmarkAssetRepository(c.env.bookmark) : null);
+      const assetStorage =
+        options.assetStorage ??
+        (c.env?.bookmark_assets ? createR2BookmarkAssetStorage(c.env.bookmark_assets) : null);
+
+      if (!bookmarkRepository || !assetRepository || !assetStorage) {
+        return c.json({ error: "bookmark_asset_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      const asset = await assetRepository.getById(
+        user.uid,
+        bookmark.id,
+        c.req.param("assetId")
+      );
+      if (!asset) {
+        return c.json({ error: "bookmark_asset_not_found" }, 404);
+      }
+
+      const object = await assetStorage.get(asset.objectKey);
+      if (!object) {
+        return c.json({ error: "bookmark_asset_content_not_found" }, 404);
+      }
+
+      return new Response(object.body, {
+        headers: {
+          "content-type": object.contentType
+        }
+      });
+    })
+    .delete("/:bookmarkId/assets/:assetId", async (c) => {
+      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const assetRepository =
+        options.bookmarkAssetRepository ??
+        (c.env?.bookmark ? createBookmarkAssetRepository(c.env.bookmark) : null);
+      const assetStorage =
+        options.assetStorage ??
+        (c.env?.bookmark_assets ? createR2BookmarkAssetStorage(c.env.bookmark_assets) : null);
+
+      if (!bookmarkRepository || !assetRepository || !assetStorage) {
+        return c.json({ error: "bookmark_asset_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      const asset = await assetRepository.getById(
+        user.uid,
+        bookmark.id,
+        c.req.param("assetId")
+      );
+      if (!asset) {
+        return c.json({ error: "bookmark_asset_not_found" }, 404);
+      }
+
+      await assetRepository.delete(user.uid, bookmark.id, asset.id);
+      await assetStorage.delete(asset.objectKey);
+
+      return c.body(null, 204);
     });
 }
