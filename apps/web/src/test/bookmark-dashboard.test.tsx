@@ -138,10 +138,8 @@ describe("bookmark dashboard", () => {
     expect(navigationSidebar).toBeInTheDocument();
     expect(bookmarkResults).toBeInTheDocument();
     expect(bookmarkDetailRegion).toBeInTheDocument();
-    const folderManagerRegion = screen.getByRole("region", { name: /folder-manager/i });
-    const tagManagerRegion = screen.getByRole("region", { name: /tag-manager/i });
-    expect(folderManagerRegion).toBeInTheDocument();
-    expect(tagManagerRegion).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /folder-manager/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /tag-manager/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /bookmark-form/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: /bookmark-composer-dialog/i })).not.toBeInTheDocument();
     expect(within(sidebar).queryByRole("region", { name: /folder-manager/i })).not.toBeInTheDocument();
@@ -149,8 +147,6 @@ describe("bookmark dashboard", () => {
     const searchPanel = within(mainPanel).getByRole("region", { name: /search-panel/i });
     expect(within(sidebar).getByText(/^작업 패널$/i)).toBeInTheDocument();
     expect(within(mainPanel).getByText(/^작업 결과$/i)).toBeInTheDocument();
-    expect(within(folderManagerRegion).getByText(/^구조 정리$/i)).toBeInTheDocument();
-    expect(within(tagManagerRegion).getByText(/^분류 체계$/i)).toBeInTheDocument();
     expect(within(searchPanel).getByText(/^탐색 기준$/i)).toBeInTheDocument();
     expect(within(searchPanel).getByText(/^기본 검색$/i)).toBeInTheDocument();
     expect(within(searchPanel).getByRole("button", { name: /검색 실행/i })).toBeInTheDocument();

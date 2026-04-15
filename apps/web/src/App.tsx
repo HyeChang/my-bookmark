@@ -621,6 +621,8 @@ export default function App() {
   );
   const [bookmarkDraft, setBookmarkDraft] = useState<BookmarkDraft>(emptyBookmarkDraft);
   const [isBookmarkComposerOpen, setIsBookmarkComposerOpen] = useState(false);
+  const [isFolderManagerOpen, setIsFolderManagerOpen] = useState(false);
+  const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [editingBookmarkId, setEditingBookmarkId] = useState<string | null>(null);
   const [pendingAssetFiles, setPendingAssetFiles] = useState<File[]>([]);
   const [bookmarkPreview, setBookmarkPreview] = useState<BookmarkExtractPreview | null>(null);
@@ -1122,7 +1124,16 @@ export default function App() {
     }));
   }
 
+  function openFolderManager() {
+    setErrorMessage(null);
+    setEditingFolderId(null);
+    setFolderDraft(emptyFolderDraft);
+    setDraggingFolderId(null);
+    setIsFolderManagerOpen(true);
+  }
+
   function beginFolderEdit(folder: Folder) {
+    setIsFolderManagerOpen(true);
     setEditingFolderId(folder.id);
     setFolderDraft({
       name: folder.name,
@@ -1135,6 +1146,12 @@ export default function App() {
   function cancelFolderEdit() {
     setEditingFolderId(null);
     setFolderDraft(emptyFolderDraft);
+  }
+
+  function closeFolderManager() {
+    cancelFolderEdit();
+    setDraggingFolderId(null);
+    setIsFolderManagerOpen(false);
   }
 
   async function handleQuickFolderCreate() {
@@ -1361,7 +1378,15 @@ export default function App() {
     }
   }
 
+  function openTagManager() {
+    setErrorMessage(null);
+    setEditingTagId(null);
+    setTagDraft(emptyTagDraft);
+    setIsTagManagerOpen(true);
+  }
+
   function beginTagEdit(tag: Tag) {
+    setIsTagManagerOpen(true);
     setEditingTagId(tag.id);
     setTagDraft({
       name: tag.name,
@@ -1372,6 +1397,11 @@ export default function App() {
   function cancelTagEdit() {
     setEditingTagId(null);
     setTagDraft(emptyTagDraft);
+  }
+
+  function closeTagManager() {
+    cancelTagEdit();
+    setIsTagManagerOpen(false);
   }
 
   function replaceTagState(nextTag: Tag) {
@@ -1836,6 +1866,9 @@ export default function App() {
   const shouldUseMobileSidebarPanels = isMobileSearchViewport;
   const shouldRenderDesktopBookmarkComposer =
     !shouldUseMobileSidebarPanels && isBookmarkComposerOpen;
+  const shouldRenderDesktopFolderManager =
+    !shouldUseMobileSidebarPanels && isFolderManagerOpen;
+  const shouldRenderDesktopTagManager = !shouldUseMobileSidebarPanels && isTagManagerOpen;
   const shouldShowMobileSearchSummary = isMobileSearchViewport && hasActiveBookmarkSearch(appliedBookmarkSearch);
   const shouldShowSearchPanelBody = !isMobileSearchViewport || isMobileSearchPanelOpen;
   const activeBookmarkSearchSummaryItems = getBookmarkSearchSummaryItems(
@@ -2057,6 +2090,223 @@ export default function App() {
     );
   }
 
+  function renderFolderManagerContent() {
+    return (
+      <>
+        <form className="stack-form" onSubmit={(event) => void handleFolderSubmit(event)}>
+          <label>
+            폴더 이름
+            <input
+              name="folderName"
+              value={folderDraft.name}
+              onChange={(event) => updateFolderDraft({ name: event.target.value })}
+              required
+            />
+          </label>
+          {renderFolderColorPicker(folderDraft.color, (value) => updateFolderDraft({ color: value }))}
+          {renderFolderIconPicker(folderDraft.icon, (value) => updateFolderDraft({ icon: value }))}
+          <label>
+            부모 폴더
+            <select
+              name="folderParentFolderId"
+              value={folderDraft.parentFolderId}
+              onChange={(event) => updateFolderDraft({ parentFolderId: event.target.value })}
+            >
+              <option value="">상위 없음</option>
+              {parentFolderOptions.map(({ folder, label }) => (
+                <option key={folder.id} value={folder.id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="action-row">
+            <button type="submit" className="primary-button" disabled={isSavingFolder}>
+              {isSavingFolder
+                ? editingFolderId
+                  ? "수정 중..."
+                  : "추가 중..."
+                : editingFolderId
+                  ? "폴더 수정"
+                  : "폴더 추가"}
+            </button>
+            {editingFolderId ? (
+              <button type="button" className="secondary-button" onClick={() => cancelFolderEdit()}>
+                수정 취소
+              </button>
+            ) : null}
+          </div>
+        </form>
+        <button
+          type="button"
+          className="dropzone-button"
+          disabled={isReorderingFolders}
+          aria-label="최상위로 이동"
+          onDragOver={(event) => {
+            const draggedFolder = draggingFolderId
+              ? folders.find((folder) => folder.id === draggingFolderId)
+              : null;
+            if (!draggedFolder || draggedFolder.parentFolderId === null) {
+              return;
+            }
+
+            event.preventDefault();
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            void handleFolderMoveToRootDrop();
+          }}
+        >
+          최상위로 이동
+        </button>
+        <ul className="folder-tree">
+          {visibleFolderOptions.map(({ folder, label }) => (
+            <li
+              key={folder.id}
+              className={`folder-tree-item${folder.parentFolderId ? " folder-tree-item-child" : ""}`}
+              onDragOver={(event) => {
+                if (
+                  !draggingFolderId ||
+                  draggingFolderId === folder.id ||
+                  folders.find((currentFolder) => currentFolder.id === draggingFolderId)
+                    ?.parentFolderId !== folder.parentFolderId
+                ) {
+                  return;
+                }
+
+                event.preventDefault();
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                void handleFolderReorderDrop(folder);
+              }}
+            >
+              <div className="folder-tree-summary">
+                <strong>{label}</strong>
+                {folder.parentFolderId ? (
+                  <div className="folder-tree-meta">
+                    <p>하위 폴더</p>
+                    <p>상위: {getFolderName(folder.parentFolderId)}</p>
+                  </div>
+                ) : null}
+              </div>
+              <div className="folder-tree-actions">
+                <button
+                  type="button"
+                  className="ghost-button"
+                  draggable
+                  disabled={isReorderingFolders}
+                  aria-label={`${folder.name} 폴더 드래그 정렬`}
+                  onDragStart={() => setDraggingFolderId(folder.id)}
+                  onDragEnd={() => resetDraggingFolder()}
+                >
+                  드래그 정렬
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  disabled={isReorderingFolders}
+                  aria-label={`${folder.name} 폴더 하위로 이동`}
+                  onDragOver={(event) => {
+                    event.stopPropagation();
+                    if (!draggingFolderId || draggingFolderId === folder.id) {
+                      return;
+                    }
+
+                    const descendantFolderIds = getFolderDescendantIds(folders, draggingFolderId);
+                    if (descendantFolderIds.has(folder.id)) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    event.stopPropagation();
+                    event.preventDefault();
+                    void handleFolderMoveDrop(folder);
+                  }}
+                >
+                  하위로 이동
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => beginFolderEdit(folder)}
+                >
+                  {folder.name} 폴더 수정 시작
+                </button>
+                <button
+                  type="button"
+                  className="danger-button"
+                  onClick={() => void handleFolderDelete(folder)}
+                >
+                  {folder.name} 폴더 삭제
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </>
+    );
+  }
+
+  function renderTagManagerContent() {
+    return (
+      <>
+        <form className="stack-form" onSubmit={(event) => void handleTagSubmit(event)}>
+          <label>
+            태그 이름
+            <input
+              name="tagName"
+              value={tagDraft.name}
+              onChange={(event) => updateTagDraft({ name: event.target.value })}
+              required
+            />
+          </label>
+          <label>
+            태그 색상
+            <input
+              name="tagColor"
+              value={tagDraft.color}
+              onChange={(event) => updateTagDraft({ color: event.target.value })}
+            />
+          </label>
+          <div className="action-row">
+            <button type="submit" className="primary-button" disabled={isSavingTag}>
+              {isSavingTag
+                ? editingTagId
+                  ? "수정 중..."
+                  : "추가 중..."
+                : editingTagId
+                  ? "태그 수정"
+                  : "태그 추가"}
+            </button>
+            {editingTagId ? (
+              <button type="button" className="secondary-button" onClick={() => cancelTagEdit()}>
+                수정 취소
+              </button>
+            ) : null}
+          </div>
+        </form>
+        <ul className="tag-list">
+          {tags.map((tag) => (
+            <li key={tag.id} className="tag-list-item">
+              <span>{tag.name}</span>
+              <div className="inline-actions">
+                <button type="button" className="secondary-button" onClick={() => beginTagEdit(tag)}>
+                  {tag.name} 태그 수정 시작
+                </button>
+                <button type="button" className="danger-button" onClick={() => void handleTagDelete(tag)}>
+                  {tag.name} 태그 삭제
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </>
+    );
+  }
+
   return (
     <main className="app-shell">
       <header className="app-hero">
@@ -2102,10 +2352,10 @@ export default function App() {
                     <button type="button" className="primary-button" onClick={() => beginBookmarkCreate()}>
                       새 북마크
                     </button>
-                    <button type="button" className="secondary-button">
+                    <button type="button" className="secondary-button" onClick={() => openFolderManager()}>
                       새 폴더
                     </button>
-                    <button type="button" className="ghost-button">
+                    <button type="button" className="ghost-button" onClick={() => openTagManager()}>
                       태그 관리
                     </button>
                   </div>
@@ -2317,164 +2567,7 @@ export default function App() {
                   summary: folderPanelSummary,
                   kicker: folderPanelKicker,
                   regionLabel: "folder-manager",
-                  children: (
-                    <>
-                      <form className="stack-form" onSubmit={(event) => void handleFolderSubmit(event)}>
-                        <label>
-                          폴더 이름
-                          <input
-                            name="folderName"
-                            value={folderDraft.name}
-                            onChange={(event) => updateFolderDraft({ name: event.target.value })}
-                            required
-                          />
-                        </label>
-                        {renderFolderColorPicker(folderDraft.color, (value) =>
-                          updateFolderDraft({ color: value })
-                        )}
-                        {renderFolderIconPicker(folderDraft.icon, (value) =>
-                          updateFolderDraft({ icon: value })
-                        )}
-                        <label>
-                          부모 폴더
-                          <select
-                            name="folderParentFolderId"
-                            value={folderDraft.parentFolderId}
-                            onChange={(event) =>
-                              updateFolderDraft({ parentFolderId: event.target.value })
-                            }
-                          >
-                            <option value="">상위 없음</option>
-                            {parentFolderOptions.map(({ folder, label }) => (
-                              <option key={folder.id} value={folder.id}>
-                                {label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <div className="action-row">
-                          <button type="submit" className="primary-button" disabled={isSavingFolder}>
-                            {isSavingFolder
-                              ? editingFolderId
-                                ? "수정 중..."
-                                : "추가 중..."
-                              : editingFolderId
-                                ? "폴더 수정"
-                                : "폴더 추가"}
-                          </button>
-                          {editingFolderId ? (
-                            <button type="button" className="secondary-button" onClick={() => cancelFolderEdit()}>
-                              수정 취소
-                            </button>
-                          ) : null}
-                        </div>
-                      </form>
-                      <button
-                        type="button"
-                        className="dropzone-button"
-                        disabled={isReorderingFolders}
-                        aria-label="최상위로 이동"
-                        onDragOver={(event) => {
-                          const draggedFolder = draggingFolderId
-                            ? folders.find((folder) => folder.id === draggingFolderId)
-                            : null;
-                          if (!draggedFolder || draggedFolder.parentFolderId === null) {
-                            return;
-                          }
-
-                          event.preventDefault();
-                        }}
-                        onDrop={(event) => {
-                          event.preventDefault();
-                          void handleFolderMoveToRootDrop();
-                        }}
-                      >
-                        최상위로 이동
-                      </button>
-                      <ul className="folder-tree">
-                        {visibleFolderOptions.map(({ folder, label }) => (
-                          <li
-                            key={folder.id}
-                            className={`folder-tree-item${folder.parentFolderId ? " folder-tree-item-child" : ""}`}
-                            onDragOver={(event) => {
-                              if (
-                                !draggingFolderId ||
-                                draggingFolderId === folder.id ||
-                                folders.find((currentFolder) => currentFolder.id === draggingFolderId)
-                                  ?.parentFolderId !== folder.parentFolderId
-                              ) {
-                                return;
-                              }
-
-                              event.preventDefault();
-                            }}
-                            onDrop={(event) => {
-                              event.preventDefault();
-                              void handleFolderReorderDrop(folder);
-                            }}
-                          >
-                            <div className="folder-tree-summary">
-                              <strong>{label}</strong>
-                              {folder.parentFolderId ? (
-                                <div className="folder-tree-meta">
-                                  <p>하위 폴더</p>
-                                  <p>상위: {getFolderName(folder.parentFolderId)}</p>
-                                </div>
-                              ) : null}
-                            </div>
-                            <div className="folder-tree-actions">
-                              <button
-                                type="button"
-                                className="ghost-button"
-                                draggable
-                                disabled={isReorderingFolders}
-                                aria-label={`${folder.name} 폴더 드래그 정렬`}
-                                onDragStart={() => setDraggingFolderId(folder.id)}
-                                onDragEnd={() => resetDraggingFolder()}
-                              >
-                                드래그 정렬
-                              </button>
-                              <button
-                                type="button"
-                                className="ghost-button"
-                                disabled={isReorderingFolders}
-                                aria-label={`${folder.name} 폴더 하위로 이동`}
-                                onDragOver={(event) => {
-                                  event.stopPropagation();
-                                  if (!draggingFolderId || draggingFolderId === folder.id) {
-                                    return;
-                                  }
-
-                                  const descendantFolderIds = getFolderDescendantIds(
-                                    folders,
-                                    draggingFolderId
-                                  );
-                                  if (descendantFolderIds.has(folder.id)) {
-                                    return;
-                                  }
-
-                                  event.preventDefault();
-                                }}
-                                onDrop={(event) => {
-                                  event.stopPropagation();
-                                  event.preventDefault();
-                                  void handleFolderMoveDrop(folder);
-                                }}
-                              >
-                                하위로 이동
-                              </button>
-                              <button type="button" className="secondary-button" onClick={() => beginFolderEdit(folder)}>
-                                {folder.name} 폴더 수정 시작
-                              </button>
-                              <button type="button" className="danger-button" onClick={() => void handleFolderDelete(folder)}>
-                                {folder.name} 폴더 삭제
-                              </button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )
+                  children: renderFolderManagerContent()
                 })}
                 {renderMobileSidebarPanelBody({
                   panelId: "tag",
@@ -2482,60 +2575,7 @@ export default function App() {
                   summary: tagPanelSummary,
                   kicker: tagPanelKicker,
                   regionLabel: "tag-manager",
-                  children: (
-                    <>
-                      <form className="stack-form" onSubmit={(event) => void handleTagSubmit(event)}>
-                        <label>
-                          태그 이름
-                          <input
-                            name="tagName"
-                            value={tagDraft.name}
-                            onChange={(event) => updateTagDraft({ name: event.target.value })}
-                            required
-                          />
-                        </label>
-                        <label>
-                          태그 색상
-                          <input
-                            name="tagColor"
-                            value={tagDraft.color}
-                            onChange={(event) => updateTagDraft({ color: event.target.value })}
-                          />
-                        </label>
-                        <div className="action-row">
-                          <button type="submit" className="primary-button" disabled={isSavingTag}>
-                            {isSavingTag
-                              ? editingTagId
-                                ? "수정 중..."
-                                : "추가 중..."
-                              : editingTagId
-                                ? "태그 수정"
-                                : "태그 추가"}
-                          </button>
-                          {editingTagId ? (
-                            <button type="button" className="secondary-button" onClick={() => cancelTagEdit()}>
-                              수정 취소
-                            </button>
-                          ) : null}
-                        </div>
-                      </form>
-                      <ul className="tag-list">
-                        {tags.map((tag) => (
-                          <li key={tag.id} className="tag-list-item">
-                            <span>{tag.name}</span>
-                            <div className="inline-actions">
-                              <button type="button" className="secondary-button" onClick={() => beginTagEdit(tag)}>
-                                {tag.name} 태그 수정 시작
-                              </button>
-                              <button type="button" className="danger-button" onClick={() => void handleTagDelete(tag)}>
-                                {tag.name} 태그 삭제
-                              </button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )
+                  children: renderTagManagerContent()
                 })}
               </div>
             ) : null}
@@ -3388,235 +3428,65 @@ export default function App() {
               </section>
             </div>
           ) : null}
-          {!shouldUseMobileSidebarPanels ? (
-            <section aria-label="desktop-management-panels" className="dashboard-sidebar desktop-management-panels">
-              {renderDesktopSidebarPanel({
-                panelId: "folder",
-                heading: "폴더 관리",
-                summary: folderPanelSummary,
-                kicker: folderPanelKicker,
-                regionLabel: "folder-manager",
-                children: (
-                  <>
-                    <form className="stack-form" onSubmit={(event) => void handleFolderSubmit(event)}>
-                      <label>
-                        폴더 이름
-                        <input
-                          name="folderName"
-                          value={folderDraft.name}
-                          onChange={(event) => updateFolderDraft({ name: event.target.value })}
-                          required
-                        />
-                      </label>
-                      {renderFolderColorPicker(folderDraft.color, (value) =>
-                        updateFolderDraft({ color: value })
-                      )}
-                      {renderFolderIconPicker(folderDraft.icon, (value) =>
-                        updateFolderDraft({ icon: value })
-                      )}
-                      <label>
-                        부모 폴더
-                        <select
-                          name="folderParentFolderId"
-                          value={folderDraft.parentFolderId}
-                          onChange={(event) =>
-                            updateFolderDraft({ parentFolderId: event.target.value })
-                          }
-                        >
-                          <option value="">상위 없음</option>
-                          {parentFolderOptions.map(({ folder, label }) => (
-                            <option key={folder.id} value={folder.id}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <div className="action-row">
-                        <button type="submit" className="primary-button" disabled={isSavingFolder}>
-                          {isSavingFolder
-                            ? editingFolderId
-                              ? "수정 중..."
-                              : "추가 중..."
-                            : editingFolderId
-                              ? "폴더 수정"
-                              : "폴더 추가"}
-                        </button>
-                        {editingFolderId ? (
-                          <button type="button" className="secondary-button" onClick={() => cancelFolderEdit()}>
-                            수정 취소
-                          </button>
-                        ) : null}
-                      </div>
-                    </form>
-                    <button
-                      type="button"
-                      className="dropzone-button"
-                      disabled={isReorderingFolders}
-                      aria-label="최상위로 이동"
-                      onDragOver={(event) => {
-                        const draggedFolder = draggingFolderId
-                          ? folders.find((folder) => folder.id === draggingFolderId)
-                          : null;
-                        if (!draggedFolder || draggedFolder.parentFolderId === null) {
-                          return;
-                        }
-
-                        event.preventDefault();
-                      }}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        void handleFolderMoveToRootDrop();
-                      }}
-                    >
-                      최상위로 이동
-                    </button>
-                    <ul className="folder-tree">
-                      {visibleFolderOptions.map(({ folder, label }) => (
-                        <li
-                          key={folder.id}
-                          className={`folder-tree-item${folder.parentFolderId ? " folder-tree-item-child" : ""}`}
-                          onDragOver={(event) => {
-                            if (
-                              !draggingFolderId ||
-                              draggingFolderId === folder.id ||
-                              folders.find((currentFolder) => currentFolder.id === draggingFolderId)
-                                ?.parentFolderId !== folder.parentFolderId
-                            ) {
-                              return;
-                            }
-
-                            event.preventDefault();
-                          }}
-                          onDrop={(event) => {
-                            event.preventDefault();
-                            void handleFolderReorderDrop(folder);
-                          }}
-                        >
-                          <div className="folder-tree-summary">
-                            <strong>{label}</strong>
-                            {folder.parentFolderId ? (
-                              <div className="folder-tree-meta">
-                                <p>하위 폴더</p>
-                                <p>상위: {getFolderName(folder.parentFolderId)}</p>
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="folder-tree-actions">
-                            <button
-                              type="button"
-                              className="ghost-button"
-                              draggable
-                              disabled={isReorderingFolders}
-                              aria-label={`${folder.name} 폴더 드래그 정렬`}
-                              onDragStart={() => setDraggingFolderId(folder.id)}
-                              onDragEnd={() => resetDraggingFolder()}
-                            >
-                              드래그 정렬
-                            </button>
-                            <button
-                              type="button"
-                              className="ghost-button"
-                              disabled={isReorderingFolders}
-                              aria-label={`${folder.name} 폴더 하위로 이동`}
-                              onDragOver={(event) => {
-                                event.stopPropagation();
-                                if (!draggingFolderId || draggingFolderId === folder.id) {
-                                  return;
-                                }
-
-                                const descendantFolderIds = getFolderDescendantIds(
-                                  folders,
-                                  draggingFolderId
-                                );
-                                if (descendantFolderIds.has(folder.id)) {
-                                  return;
-                                }
-
-                                event.preventDefault();
-                              }}
-                              onDrop={(event) => {
-                                event.stopPropagation();
-                                event.preventDefault();
-                                void handleFolderMoveDrop(folder);
-                              }}
-                            >
-                              하위로 이동
-                            </button>
-                            <button type="button" className="secondary-button" onClick={() => beginFolderEdit(folder)}>
-                              {folder.name} 폴더 수정 시작
-                            </button>
-                            <button type="button" className="danger-button" onClick={() => void handleFolderDelete(folder)}>
-                              {folder.name} 폴더 삭제
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )
-              })}
-              {renderDesktopSidebarPanel({
-                panelId: "tag",
-                heading: "태그 관리",
-                summary: tagPanelSummary,
-                kicker: tagPanelKicker,
-                regionLabel: "tag-manager",
-                children: (
-                  <>
-                    <form className="stack-form" onSubmit={(event) => void handleTagSubmit(event)}>
-                      <label>
-                        태그 이름
-                        <input
-                          name="tagName"
-                          value={tagDraft.name}
-                          onChange={(event) => updateTagDraft({ name: event.target.value })}
-                          required
-                        />
-                      </label>
-                      <label>
-                        태그 색상
-                        <input
-                          name="tagColor"
-                          value={tagDraft.color}
-                          onChange={(event) => updateTagDraft({ color: event.target.value })}
-                        />
-                      </label>
-                      <div className="action-row">
-                        <button type="submit" className="primary-button" disabled={isSavingTag}>
-                          {isSavingTag
-                            ? editingTagId
-                              ? "수정 중..."
-                              : "추가 중..."
-                            : editingTagId
-                              ? "태그 수정"
-                              : "태그 추가"}
-                        </button>
-                        {editingTagId ? (
-                          <button type="button" className="secondary-button" onClick={() => cancelTagEdit()}>
-                            수정 취소
-                          </button>
-                        ) : null}
-                      </div>
-                    </form>
-                    <ul className="tag-list">
-                      {tags.map((tag) => (
-                        <li key={tag.id} className="tag-list-item">
-                          <span>{tag.name}</span>
-                          <div className="inline-actions">
-                            <button type="button" className="secondary-button" onClick={() => beginTagEdit(tag)}>
-                              {tag.name} 태그 수정 시작
-                            </button>
-                            <button type="button" className="danger-button" onClick={() => void handleTagDelete(tag)}>
-                              {tag.name} 태그 삭제
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )
-              })}
-            </section>
+          {shouldRenderDesktopFolderManager ? (
+            <div className="overlay-backdrop">
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-label="folder-manager-dialog"
+                className="surface-card overlay-dialog-shell"
+              >
+                <div className="overlay-dialog-header">
+                  <div className="overlay-dialog-title">
+                    <p className="workspace-panel-kicker">구조 오버레이</p>
+                    <h2>{editingFolderId ? "폴더 수정" : "폴더 관리"}</h2>
+                  </div>
+                  <button type="button" className="ghost-button" onClick={() => closeFolderManager()}>
+                    닫기
+                  </button>
+                </div>
+                <div className="overlay-dialog-panel">
+                  {renderDesktopSidebarPanel({
+                    panelId: "folder",
+                    heading: "폴더 관리",
+                    summary: folderPanelSummary,
+                    kicker: folderPanelKicker,
+                    regionLabel: "folder-manager",
+                    children: renderFolderManagerContent()
+                  })}
+                </div>
+              </section>
+            </div>
+          ) : null}
+          {shouldRenderDesktopTagManager ? (
+            <div className="overlay-backdrop">
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-label="tag-manager-dialog"
+                className="surface-card overlay-dialog-shell"
+              >
+                <div className="overlay-dialog-header">
+                  <div className="overlay-dialog-title">
+                    <p className="workspace-panel-kicker">분류 오버레이</p>
+                    <h2>{editingTagId ? "태그 수정" : "태그 관리"}</h2>
+                  </div>
+                  <button type="button" className="ghost-button" onClick={() => closeTagManager()}>
+                    닫기
+                  </button>
+                </div>
+                <div className="overlay-dialog-panel">
+                  {renderDesktopSidebarPanel({
+                    panelId: "tag",
+                    heading: "태그 관리",
+                    summary: tagPanelSummary,
+                    kicker: tagPanelKicker,
+                    regionLabel: "tag-manager",
+                    children: renderTagManagerContent()
+                  })}
+                </div>
+              </section>
+            </div>
           ) : null}
           </div>
         </section>

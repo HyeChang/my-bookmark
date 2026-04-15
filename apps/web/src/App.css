@@ -180,12 +180,6 @@ img {
   gap: 0.85rem;
 }
 
-.desktop-management-panels {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
 .overlay-backdrop {
   position: fixed;
   inset: 0;

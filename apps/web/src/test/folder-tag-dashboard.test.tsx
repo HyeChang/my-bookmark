@@ -20,6 +20,32 @@ async function openDesktopBookmarkComposer() {
   return within(composerDialog).getByRole("region", { name: /bookmark-form/i });
 }
 
+async function openFolderManagerOverlay() {
+  const navigationSidebar = await screen.findByRole("region", {
+    name: /navigation-sidebar/i
+  });
+  fireEvent.click(within(navigationSidebar).getByRole("button", { name: /^새 폴더$/i }));
+
+  const folderDialog = await screen.findByRole("dialog", {
+    name: /folder-manager-dialog/i
+  });
+
+  return within(folderDialog).getByRole("region", { name: /folder-manager/i });
+}
+
+async function openTagManagerOverlay() {
+  const navigationSidebar = await screen.findByRole("region", {
+    name: /navigation-sidebar/i
+  });
+  fireEvent.click(within(navigationSidebar).getByRole("button", { name: /^태그 관리$/i }));
+
+  const tagDialog = await screen.findByRole("dialog", {
+    name: /tag-manager-dialog/i
+  });
+
+  return within(tagDialog).getByRole("region", { name: /tag-manager/i });
+}
+
 describe("folder and tag dashboard", () => {
   it("shows existing folders and tags for an authenticated user", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -120,22 +146,20 @@ describe("folder and tag dashboard", () => {
 
     render(<App />);
 
+    expect(screen.queryByRole("region", { name: /folder-manager/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /tag-manager/i })).not.toBeInTheDocument();
     const bookmarkFormRegion = await openDesktopBookmarkComposer();
     expect(await within(bookmarkFormRegion).findByLabelText(/저장 폴더/i)).toBeInTheDocument();
     expect(
       await within(bookmarkFormRegion).findByRole("option", { name: /reading/i })
     ).toBeInTheDocument();
-    expect(
-      (
-        await within(screen.getByRole("region", { name: /tag-manager/i })).findAllByText(
-          /research/i
-        )
-      ).length
-    ).toBeGreaterThan(0);
-    expect(screen.getByLabelText(/폴더 이름/i)).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: /폴더 색상/i })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: /폴더 아이콘/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/태그 이름/i)).toBeInTheDocument();
+    const tagManagerRegion = await openTagManagerOverlay();
+    expect((await within(tagManagerRegion).findAllByText(/research/i)).length).toBeGreaterThan(0);
+    const folderManagerRegion = await openFolderManagerOverlay();
+    expect(within(folderManagerRegion).getByLabelText(/폴더 이름/i)).toBeInTheDocument();
+    expect(within(folderManagerRegion).getByRole("group", { name: /폴더 색상/i })).toBeInTheDocument();
+    expect(within(folderManagerRegion).getByRole("group", { name: /폴더 아이콘/i })).toBeInTheDocument();
+    expect(within(tagManagerRegion).getByLabelText(/태그 이름/i)).toBeInTheDocument();
   });
 
   it("creates a folder and appends it to the folder list and picker", async () => {
@@ -230,15 +254,16 @@ describe("folder and tag dashboard", () => {
     });
 
     render(<App />);
+    const folderManager = await openFolderManagerOverlay();
 
-    fireEvent.change(await screen.findByLabelText(/폴더 이름/i), {
+    fireEvent.change(within(folderManager).getByLabelText(/폴더 이름/i), {
       target: {
         value: "Articles"
       }
     });
-    fireEvent.click(screen.getByRole("button", { name: /폴더 색상 청록 선택/i }));
-    fireEvent.click(screen.getByRole("button", { name: /폴더 아이콘 신문 선택/i }));
-    fireEvent.click(screen.getByRole("button", { name: /폴더 추가/i }));
+    fireEvent.click(within(folderManager).getByRole("button", { name: /폴더 색상 청록 선택/i }));
+    fireEvent.click(within(folderManager).getByRole("button", { name: /폴더 아이콘 신문 선택/i }));
+    fireEvent.click(within(folderManager).getByRole("button", { name: /폴더 추가/i }));
 
     await waitFor(() => {
       expect(screen.getAllByText(/articles/i).length).toBeGreaterThan(0);
@@ -361,7 +386,7 @@ describe("folder and tag dashboard", () => {
 
     render(<App />);
 
-    const folderManager = await screen.findByRole("region", { name: /folder-manager/i });
+    const folderManager = await openFolderManagerOverlay();
     fireEvent.change(within(folderManager).getByLabelText(/폴더 이름/i), {
       target: {
         value: "Papers"
@@ -488,7 +513,7 @@ describe("folder and tag dashboard", () => {
 
     render(<App />);
 
-    const folderManager = await screen.findByRole("region", { name: /folder-manager/i });
+    const folderManager = await openFolderManagerOverlay();
     const folderItems = within(folderManager).getAllByRole("listitem");
 
     expect(within(folderItems[0]).getByText(/^Reading$/i)).toBeInTheDocument();
@@ -667,7 +692,7 @@ describe("folder and tag dashboard", () => {
 
     render(<App />);
 
-    const folderManager = await screen.findByRole("region", { name: /folder-manager/i });
+    const folderManager = await openFolderManagerOverlay();
     const dragHandle = within(folderManager).getByRole("button", {
       name: /reading 폴더 드래그 정렬/i
     });
@@ -839,7 +864,7 @@ describe("folder and tag dashboard", () => {
 
     render(<App />);
 
-    const folderManager = await screen.findByRole("region", { name: /folder-manager/i });
+    const folderManager = await openFolderManagerOverlay();
     const dragHandle = within(folderManager).getByRole("button", {
       name: /articles 폴더 드래그 정렬/i
     });
@@ -1008,7 +1033,7 @@ describe("folder and tag dashboard", () => {
 
     render(<App />);
 
-    const folderManager = await screen.findByRole("region", { name: /folder-manager/i });
+    const folderManager = await openFolderManagerOverlay();
     const dragHandle = within(folderManager).getByRole("button", {
       name: /papers 폴더 드래그 정렬/i
     });
@@ -1188,14 +1213,15 @@ describe("folder and tag dashboard", () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /reading 폴더 수정 시작/i }));
-    fireEvent.change(screen.getByLabelText(/폴더 이름/i), {
+    const folderManager = await openFolderManagerOverlay();
+    fireEvent.click(within(folderManager).getByRole("button", { name: /reading 폴더 수정 시작/i }));
+    fireEvent.change(within(folderManager).getByLabelText(/폴더 이름/i), {
       target: { value: "Articles" }
     });
-    fireEvent.click(screen.getByRole("button", { name: /폴더 색상 청록 선택/i }));
-    fireEvent.click(screen.getByRole("button", { name: /폴더 아이콘 신문 선택/i }));
+    fireEvent.click(within(folderManager).getByRole("button", { name: /폴더 색상 청록 선택/i }));
+    fireEvent.click(within(folderManager).getByRole("button", { name: /폴더 아이콘 신문 선택/i }));
     fireEvent.click(
-      within(screen.getByRole("region", { name: /folder-manager/i })).getByRole("button", {
+      within(folderManager).getByRole("button", {
         name: /^폴더 수정$/i
       })
     );
@@ -1204,15 +1230,16 @@ describe("folder and tag dashboard", () => {
       expect(screen.getAllByText(/articles/i).length).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /research 태그 수정 시작/i }));
-    fireEvent.change(screen.getByLabelText(/태그 이름/i), {
+    const tagManager = await openTagManagerOverlay();
+    fireEvent.click(within(tagManager).getByRole("button", { name: /research 태그 수정 시작/i }));
+    fireEvent.change(within(tagManager).getByLabelText(/태그 이름/i), {
       target: { value: "reference" }
     });
-    fireEvent.change(screen.getByLabelText(/태그 색상/i), {
+    fireEvent.change(within(tagManager).getByLabelText(/태그 색상/i), {
       target: { value: "#0f766e" }
     });
     fireEvent.click(
-      within(screen.getByRole("region", { name: /tag-manager/i })).getByRole("button", {
+      within(tagManager).getByRole("button", {
         name: /^태그 수정$/i
       })
     );
@@ -1354,18 +1381,18 @@ describe("folder and tag dashboard", () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /reading 폴더 삭제/i }));
+    const folderManager = await openFolderManagerOverlay();
+    fireEvent.click(within(folderManager).getByRole("button", { name: /reading 폴더 삭제/i }));
 
     await waitFor(() => {
       expect(screen.queryByRole("option", { name: /reading/i })).not.toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /research 태그 삭제/i }));
+    const tagManager = await openTagManagerOverlay();
+    fireEvent.click(within(tagManager).getByRole("button", { name: /research 태그 삭제/i }));
 
     await waitFor(() => {
-      expect(
-        within(screen.getByRole("region", { name: /tag-manager/i })).queryByText(/research/i)
-      ).not.toBeInTheDocument();
+      expect(within(tagManager).queryByText(/research/i)).not.toBeInTheDocument();
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(
