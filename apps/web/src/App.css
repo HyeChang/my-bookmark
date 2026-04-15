@@ -726,6 +726,63 @@ img {
   font-size: 0.86rem;
 }
 
+.manager-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.manager-surface {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 0.95rem;
+  border: 1px solid rgba(31, 37, 51, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.manager-editor-surface {
+  position: sticky;
+  top: 0;
+}
+
+.manager-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.manager-section-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #1b2230;
+}
+
+.manager-section-header p {
+  margin: 0;
+  color: #677081;
+  font-size: 0.84rem;
+}
+
+.manager-section-kicker {
+  margin: 0;
+  color: #7a5641;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.manager-stack-form {
+  gap: 0.85rem;
+}
+
+.manager-dropzone {
+  margin-bottom: 0.15rem;
+}
+
 .search-form {
   display: flex;
   flex-direction: column;
@@ -1453,6 +1510,14 @@ img {
 
   .bookmark-composer-grid {
     grid-template-columns: 1fr;
+  }
+
+  .manager-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-editor-surface {
+    position: static;
   }
 }
 

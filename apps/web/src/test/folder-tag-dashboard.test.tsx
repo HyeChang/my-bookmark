@@ -163,7 +163,11 @@ describe("folder and tag dashboard", () => {
     ).toBeInTheDocument();
     const tagManagerRegion = await openTagManagerOverlay();
     expect((await within(tagManagerRegion).findAllByText(/research/i)).length).toBeGreaterThan(0);
+    expect(within(tagManagerRegion).getByText(/^입력 설정$/i)).toBeInTheDocument();
+    expect(within(tagManagerRegion).getByText(/^현재 태그$/i)).toBeInTheDocument();
     const folderManagerRegion = await openFolderManagerOverlay();
+    expect(within(folderManagerRegion).getByText(/^입력 설정$/i)).toBeInTheDocument();
+    expect(within(folderManagerRegion).getByText(/^현재 폴더$/i)).toBeInTheDocument();
     expect(within(folderManagerRegion).getByLabelText(/폴더 이름/i)).toBeInTheDocument();
     expect(within(folderManagerRegion).getByRole("group", { name: /폴더 색상/i })).toBeInTheDocument();
     expect(within(folderManagerRegion).getByRole("group", { name: /폴더 아이콘/i })).toBeInTheDocument();
