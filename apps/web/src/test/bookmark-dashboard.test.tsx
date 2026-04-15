@@ -8,6 +8,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function openBookmarkActionMenu(bookmarkListRegion: HTMLElement, bookmarkName: string) {
+  fireEvent.click(
+    within(bookmarkListRegion).getByRole("button", {
+      name: new RegExp(`${bookmarkName} 북마크 더보기`, "i")
+    })
+  );
+}
+
 describe("bookmark dashboard", () => {
   it("shows the bookmark form and stored bookmarks for an authenticated user", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -2762,9 +2770,12 @@ describe("bookmark dashboard", () => {
 
     render(<App />);
     const bookmarkListRegion = await screen.findByRole("region", { name: /bookmark-list/i });
+    openBookmarkActionMenu(bookmarkListRegion, "Before title");
 
     fireEvent.click(
-      await within(bookmarkListRegion).findByRole("button", { name: /^수정$/i })
+      await within(bookmarkListRegion).findByRole("button", {
+        name: /before title 북마크 수정/i
+      })
     );
 
     const composerDialog = await screen.findByRole("dialog", {
@@ -2983,9 +2994,12 @@ describe("bookmark dashboard", () => {
 
     render(<App />);
     const bookmarkListRegion = await screen.findByRole("region", { name: /bookmark-list/i });
+    openBookmarkActionMenu(bookmarkListRegion, "Delete asset title");
 
     fireEvent.click(
-      await within(bookmarkListRegion).findByRole("button", { name: /^수정$/i })
+      await within(bookmarkListRegion).findByRole("button", {
+        name: /delete asset title 북마크 수정/i
+      })
     );
     const bookmarkFormRegion = await screen.findByRole("region", {
       name: /bookmark-form/i

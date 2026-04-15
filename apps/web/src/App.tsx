@@ -646,6 +646,7 @@ export default function App() {
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
+  const [openBookmarkActionMenuId, setOpenBookmarkActionMenuId] = useState<string | null>(null);
   const [openFolderActionMenuId, setOpenFolderActionMenuId] = useState<string | null>(null);
   const [openTagActionMenuId, setOpenTagActionMenuId] = useState<string | null>(null);
   const [isQuickFolderOpen, setIsQuickFolderOpen] = useState(false);
@@ -1523,6 +1524,7 @@ export default function App() {
   }
 
   async function beginBookmarkEdit(bookmark: Bookmark) {
+    setOpenBookmarkActionMenuId(null);
     setIsBookmarkComposerOpen(true);
     setIsBookmarkComposerClassificationOpen(bookmark.tagIds.length > 0 || bookmark.isFavorite);
     setIsBookmarkComposerDisplayOpen(
@@ -1591,6 +1593,7 @@ export default function App() {
 
   function beginBookmarkCreate() {
     setErrorMessage(null);
+    setOpenBookmarkActionMenuId(null);
     setEditingBookmarkId(null);
     setIsBookmarkComposerClassificationOpen(false);
     setIsBookmarkComposerDisplayOpen(false);
@@ -1605,6 +1608,7 @@ export default function App() {
   async function openBookmarkDetail(bookmarkId: string) {
     try {
       setErrorMessage(null);
+      setOpenBookmarkActionMenuId(null);
       const [bookmark, assets] = await Promise.all([
         loadBookmark(bookmarkId),
         loadBookmarkAssets(bookmarkId)
@@ -1731,6 +1735,7 @@ export default function App() {
   async function handleBookmarkOpen(bookmark: Bookmark) {
     try {
       setErrorMessage(null);
+      setOpenBookmarkActionMenuId(null);
       await recordBookmarkOpen(bookmark.id);
       startTransition(() => {
         setRecommendations((currentRecommendations) => ({
@@ -1772,6 +1777,7 @@ export default function App() {
   }
 
   async function handleBookmarkDelete(bookmark: Bookmark) {
+    setOpenBookmarkActionMenuId(null);
     if (!globalThis.confirm?.(`'${bookmark.displayTitle || bookmark.url}' 북마크를 삭제할까요?`)) {
       return;
     }
@@ -1824,6 +1830,12 @@ export default function App() {
         );
       });
     }
+  }
+
+  function toggleBookmarkActionMenu(bookmarkId: string) {
+    setOpenBookmarkActionMenuId((currentBookmarkId) =>
+      currentBookmarkId === bookmarkId ? null : bookmarkId
+    );
   }
 
   async function handleTagDelete(tag: Tag) {
@@ -3299,12 +3311,50 @@ export default function App() {
                     <button type="button" className="secondary-button" onClick={() => void openBookmarkDetail(bookmark.id)}>
                       상세 보기
                     </button>
-                    <button type="button" className="secondary-button" onClick={() => beginBookmarkEdit(bookmark)}>
-                      수정
-                    </button>
-                    <button type="button" className="danger-button" onClick={() => void handleBookmarkDelete(bookmark)}>
-                      삭제
-                    </button>
+                    {shouldUseCompactMobileCards ? (
+                      <>
+                        <button type="button" className="secondary-button" onClick={() => beginBookmarkEdit(bookmark)}>
+                          수정
+                        </button>
+                        <button type="button" className="danger-button" onClick={() => void handleBookmarkDelete(bookmark)}>
+                          삭제
+                        </button>
+                      </>
+                    ) : (
+                      <div className="folder-action-menu-shell bookmark-card-menu-shell">
+                        <button
+                          type="button"
+                          className="ghost-button folder-action-trigger"
+                          aria-label={`${bookmark.displayTitle || bookmark.url} 북마크 더보기`}
+                          aria-expanded={openBookmarkActionMenuId === bookmark.id}
+                          onClick={() => toggleBookmarkActionMenu(bookmark.id)}
+                        >
+                          더보기
+                        </button>
+                        {openBookmarkActionMenuId === bookmark.id ? (
+                          <div
+                            role="menu"
+                            aria-label={`${bookmark.displayTitle || bookmark.url} 북마크 메뉴`}
+                            className="folder-action-menu"
+                          >
+                            <button
+                              type="button"
+                              className="secondary-button folder-action-menu-item"
+                              onClick={() => beginBookmarkEdit(bookmark)}
+                            >
+                              {bookmark.displayTitle || bookmark.url} 북마크 수정
+                            </button>
+                            <button
+                              type="button"
+                              className="danger-button folder-action-menu-item"
+                              onClick={() => void handleBookmarkDelete(bookmark)}
+                            >
+                              {bookmark.displayTitle || bookmark.url} 북마크 삭제
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                 </li>
               ))}
