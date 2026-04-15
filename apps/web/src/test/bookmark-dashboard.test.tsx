@@ -834,6 +834,21 @@ describe("bookmark dashboard", () => {
       expect(within(bookmarkListRegion).getByText(/^Filtered paper$/i)).toBeInTheDocument();
     });
     expect(within(searchPanel).getByText(/선택된 필터 6개/i)).toBeInTheDocument();
+    expect(
+      within(searchPanel).getByRole("button", {
+        name: /검색 조건 제거: 검색어 - paper/i
+      })
+    ).toHaveTextContent("검색어");
+    expect(
+      within(searchPanel).getByRole("button", {
+        name: /검색 조건 제거: 분류 - 태그 research/i
+      })
+    ).toHaveTextContent("분류");
+    expect(
+      within(searchPanel).getByRole("button", {
+        name: /검색 조건 제거: 분류 - 태그 video/i
+      })
+    ).toHaveTextContent("분류");
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/bookmarks?mode=all&tagMode=or&query=paper&favorite=1&folderId=folder-1&tagId=tag-1&tagId=tag-2",
@@ -1023,7 +1038,7 @@ describe("bookmark dashboard", () => {
 
     fireEvent.click(
       within(searchPanel).getByRole("button", {
-        name: /검색 조건 제거: 즐겨찾기만/i
+        name: /검색 조건 제거: 상태 - 즐겨찾기만/i
       })
     );
 
@@ -1045,7 +1060,7 @@ describe("bookmark dashboard", () => {
     );
     expect(
       within(searchPanel).queryByRole("button", {
-        name: /검색 조건 제거: 즐겨찾기만/i
+        name: /검색 조건 제거: 상태 - 즐겨찾기만/i
       })
     ).not.toBeInTheDocument();
   });

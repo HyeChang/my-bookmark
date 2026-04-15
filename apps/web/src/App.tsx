@@ -97,7 +97,8 @@ type RecommendationKind = keyof BookmarkRecommendationsState;
 
 type BookmarkSearchSummaryItem = {
   key: string;
-  label: string;
+  groupLabel: string;
+  valueLabel: string;
   nextSearch: BookmarkSearchDraft;
 };
 
@@ -209,15 +210,12 @@ function getBookmarkSortLabel(sort: BookmarkSortMode) {
   return sort === "opened_desc" ? "최근 열람순" : "최근 추가순";
 }
 
-function getBookmarkRelativeDateRangeLabel(
-  range: BookmarkRelativeDateRange,
-  prefix: string
-) {
+function getBookmarkRelativeDateRangeValue(range: BookmarkRelativeDateRange) {
   switch (range) {
     case "7d":
-      return `${prefix}: 최근 7일`;
+      return "최근 7일";
     case "30d":
-      return `${prefix}: 최근 30일`;
+      return "최근 30일";
     default:
       return null;
   }
@@ -263,25 +261,33 @@ function getBookmarkSearchSummaryItems(
   const items: BookmarkSearchSummaryItem[] = [];
   const push = (
     key: string,
-    label: string,
+    groupLabel: string,
+    valueLabel: string,
     buildNextSearch: (currentSearch: BookmarkSearchDraft) => BookmarkSearchDraft
   ) => {
     items.push({
       key,
-      label,
+      groupLabel,
+      valueLabel,
       nextSearch: normalizeBookmarkSearchDraft(buildNextSearch(normalizedSearch))
     });
   };
 
   if (normalizedSearch.query) {
-    push(`query:${normalizedSearch.query}`, `검색어: ${normalizedSearch.query}`, (currentSearch) => ({
-      ...currentSearch,
-      query: ""
-    }));
+    push(
+      `query:${normalizedSearch.query}`,
+      "검색어",
+      normalizedSearch.query,
+      (currentSearch) => ({
+        ...currentSearch,
+        query: ""
+      })
+    );
     if (normalizedSearch.mode !== "all") {
       push(
         `mode:${normalizedSearch.mode}`,
-        `모드: ${getBookmarkSearchModeLabel(normalizedSearch.mode)}`,
+        "검색",
+        getBookmarkSearchModeLabel(normalizedSearch.mode),
         (currentSearch) => ({
           ...currentSearch,
           mode: "all"
@@ -291,49 +297,63 @@ function getBookmarkSearchSummaryItems(
   }
 
   if (normalizedSearch.sort !== "created_desc") {
-    push(`sort:${normalizedSearch.sort}`, `정렬: ${getBookmarkSortLabel(normalizedSearch.sort)}`, (currentSearch) => ({
-      ...currentSearch,
-      sort: "created_desc"
-    }));
+    push(
+      `sort:${normalizedSearch.sort}`,
+      "정렬",
+      getBookmarkSortLabel(normalizedSearch.sort),
+      (currentSearch) => ({
+        ...currentSearch,
+        sort: "created_desc"
+      })
+    );
   }
 
-  const createdWithinLabel = getBookmarkRelativeDateRangeLabel(
-    normalizedSearch.createdWithin,
-    "최근 추가"
-  );
-  if (createdWithinLabel) {
-    push(`createdWithin:${normalizedSearch.createdWithin}`, createdWithinLabel, (currentSearch) => ({
-      ...currentSearch,
-      createdWithin: "all"
-    }));
+  const createdWithinValue = getBookmarkRelativeDateRangeValue(normalizedSearch.createdWithin);
+  if (createdWithinValue) {
+    push(
+      `createdWithin:${normalizedSearch.createdWithin}`,
+      "기간",
+      `최근 추가 ${createdWithinValue}`,
+      (currentSearch) => ({
+        ...currentSearch,
+        createdWithin: "all"
+      })
+    );
   }
 
-  const openedWithinLabel = getBookmarkRelativeDateRangeLabel(
-    normalizedSearch.openedWithin,
-    "최근 열람"
-  );
-  if (openedWithinLabel) {
-    push(`openedWithin:${normalizedSearch.openedWithin}`, openedWithinLabel, (currentSearch) => ({
-      ...currentSearch,
-      openedWithin: "all"
-    }));
+  const openedWithinValue = getBookmarkRelativeDateRangeValue(normalizedSearch.openedWithin);
+  if (openedWithinValue) {
+    push(
+      `openedWithin:${normalizedSearch.openedWithin}`,
+      "기간",
+      `최근 열람 ${openedWithinValue}`,
+      (currentSearch) => ({
+        ...currentSearch,
+        openedWithin: "all"
+      })
+    );
   }
 
   if (normalizedSearch.favoriteOnly) {
-    push("favoriteOnly", "즐겨찾기만", (currentSearch) => ({
+    push("favoriteOnly", "상태", "즐겨찾기만", (currentSearch) => ({
       ...currentSearch,
       favoriteOnly: false
     }));
   }
 
   if (normalizedSearch.folderId) {
-    push(`folder:${normalizedSearch.folderId}`, `폴더: ${options.getFolderName(normalizedSearch.folderId)}`, (currentSearch) => ({
-      ...currentSearch,
-      folderId: "",
-      includeDescendantFolders: false
-    }));
+    push(
+      `folder:${normalizedSearch.folderId}`,
+      "분류",
+      `폴더 ${options.getFolderName(normalizedSearch.folderId)}`,
+      (currentSearch) => ({
+        ...currentSearch,
+        folderId: "",
+        includeDescendantFolders: false
+      })
+    );
     if (normalizedSearch.includeDescendantFolders) {
-      push("includeDescendantFolders", "하위 폴더 포함", (currentSearch) => ({
+      push("includeDescendantFolders", "분류", "하위 폴더 포함", (currentSearch) => ({
         ...currentSearch,
         includeDescendantFolders: false
       }));
@@ -343,19 +363,24 @@ function getBookmarkSearchSummaryItems(
   if (normalizedSearch.tagIds.length > 0) {
     const tagNames = options.getTagNames(normalizedSearch.tagIds);
     normalizedSearch.tagIds.forEach((tagId, index) => {
-      push(`tag:${tagId}`, `태그: ${tagNames[index] ?? tagId}`, (currentSearch) => {
-        const nextTagIds = currentSearch.tagIds.filter((currentTagId) => currentTagId !== tagId);
+      push(
+        `tag:${tagId}`,
+        "분류",
+        `태그 ${tagNames[index] ?? tagId}`,
+        (currentSearch) => {
+          const nextTagIds = currentSearch.tagIds.filter((currentTagId) => currentTagId !== tagId);
 
-        return {
-          ...currentSearch,
-          tagIds: nextTagIds,
-          tagMode: nextTagIds.length === 0 ? "and" : currentSearch.tagMode
-        };
-      });
+          return {
+            ...currentSearch,
+            tagIds: nextTagIds,
+            tagMode: nextTagIds.length === 0 ? "and" : currentSearch.tagMode
+          };
+        }
+      );
     });
 
     if (normalizedSearch.tagMode !== "and") {
-      push("tagMode", "태그 조건: 하나라도 포함", (currentSearch) => ({
+      push("tagMode", "분류", "하나라도 포함", (currentSearch) => ({
         ...currentSearch,
         tagMode: "and"
       }));
@@ -363,28 +388,38 @@ function getBookmarkSearchSummaryItems(
   }
 
   if (normalizedSearch.bookmarkColor) {
-    push(`bookmarkColor:${normalizedSearch.bookmarkColor}`, `북마크 색상: ${normalizedSearch.bookmarkColor}`, (currentSearch) => ({
-      ...currentSearch,
-      bookmarkColor: ""
-    }));
+    push(
+      `bookmarkColor:${normalizedSearch.bookmarkColor}`,
+      "상태",
+      `북마크 색상 ${normalizedSearch.bookmarkColor}`,
+      (currentSearch) => ({
+        ...currentSearch,
+        bookmarkColor: ""
+      })
+    );
   }
 
   if (normalizedSearch.urlColor) {
-    push(`urlColor:${normalizedSearch.urlColor}`, `URL 색상: ${normalizedSearch.urlColor}`, (currentSearch) => ({
-      ...currentSearch,
-      urlColor: ""
-    }));
+    push(
+      `urlColor:${normalizedSearch.urlColor}`,
+      "상태",
+      `URL 색상 ${normalizedSearch.urlColor}`,
+      (currentSearch) => ({
+        ...currentSearch,
+        urlColor: ""
+      })
+    );
   }
 
   if (normalizedSearch.summaryState === "with") {
-    push("summaryState:with", "요약 있음", (currentSearch) => ({
+    push("summaryState:with", "상태", "요약 있음", (currentSearch) => ({
       ...currentSearch,
       summaryState: "all"
     }));
   }
 
   if (normalizedSearch.summaryState === "without") {
-    push("summaryState:without", "요약 없음", (currentSearch) => ({
+    push("summaryState:without", "상태", "요약 없음", (currentSearch) => ({
       ...currentSearch,
       summaryState: "all"
     }));
@@ -2296,10 +2331,14 @@ export default function App() {
                         <button
                           type="button"
                           className="chip-button"
-                          aria-label={`검색 조건 제거: ${item.label}`}
+                          aria-label={`검색 조건 제거: ${item.groupLabel} - ${item.valueLabel}`}
                           onClick={() => void applyBookmarkSearch(item.nextSearch)}
                         >
-                          {item.label} ×
+                          <span className="chip-button-group">{item.groupLabel}</span>
+                          <span className="chip-button-value">{item.valueLabel}</span>
+                          <span className="chip-button-remove" aria-hidden="true">
+                            ×
+                          </span>
                         </button>
                       </li>
                     ))}
