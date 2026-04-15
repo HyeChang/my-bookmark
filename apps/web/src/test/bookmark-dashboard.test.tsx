@@ -1448,12 +1448,28 @@ describe("bookmark dashboard", () => {
       }
 
       if (url === "/api/folders" && !init?.method) {
-        return new Response(JSON.stringify({ folders: [] }), {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              }
+            ]
+          }),
+          {
           status: 200,
           headers: {
             "content-type": "application/json"
           }
-        });
+        }
+        );
       }
 
       if (url === "/api/recommendations" && !init?.method) {
@@ -1473,12 +1489,25 @@ describe("bookmark dashboard", () => {
       }
 
       if (url === "/api/tags" && !init?.method) {
-        return new Response(JSON.stringify({ tags: [] }), {
+        return new Response(
+          JSON.stringify({
+            tags: [
+              {
+                id: "tag-1",
+                name: "research",
+                color: "#2563eb",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
           status: 200,
           headers: {
             "content-type": "application/json"
           }
-        });
+        }
+        );
       }
 
       throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
@@ -1490,21 +1519,28 @@ describe("bookmark dashboard", () => {
       name: /dashboard-sidebar/i
     });
 
-    expect(
-      within(sidebar).getByRole("button", { name: /북마크 저장 패널/i })
-    ).toHaveAttribute("aria-expanded", "true");
-    expect(
-      within(sidebar).getByRole("button", { name: /폴더 관리 패널/i })
-    ).toHaveAttribute("aria-expanded", "false");
-    expect(
-      within(sidebar).getByRole("button", { name: /태그 관리 패널/i })
-    ).toHaveAttribute("aria-expanded", "false");
+    const bookmarkPanelButton = within(sidebar).getByRole("button", {
+      name: /북마크 저장 패널/i
+    });
+    const folderPanelButton = within(sidebar).getByRole("button", {
+      name: /폴더 관리 패널/i
+    });
+    const tagPanelButton = within(sidebar).getByRole("button", {
+      name: /태그 관리 패널/i
+    });
+
+    expect(bookmarkPanelButton).toHaveAttribute("aria-expanded", "true");
+    expect(folderPanelButton).toHaveAttribute("aria-expanded", "false");
+    expect(tagPanelButton).toHaveAttribute("aria-expanded", "false");
+    expect(bookmarkPanelButton).toHaveTextContent(/새 북마크/i);
+    expect(folderPanelButton).toHaveTextContent(/폴더 1개/i);
+    expect(tagPanelButton).toHaveTextContent(/태그 1개/i);
 
     expect(within(sidebar).getByRole("region", { name: /bookmark-form/i })).toBeInTheDocument();
     expect(within(sidebar).queryByRole("region", { name: /folder-manager/i })).not.toBeInTheDocument();
     expect(within(sidebar).queryByRole("region", { name: /tag-manager/i })).not.toBeInTheDocument();
 
-    fireEvent.click(within(sidebar).getByRole("button", { name: /폴더 관리 패널/i }));
+    fireEvent.click(folderPanelButton);
 
     expect(
       await within(sidebar).findByRole("region", { name: /folder-manager/i })

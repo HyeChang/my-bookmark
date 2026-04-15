@@ -1692,10 +1692,34 @@ export default function App() {
   const parentFolderOptions = getHierarchicalFolderOptions(folders, disallowedParentFolderIds);
   const visibleFolderOptions = getHierarchicalFolderOptions(folders);
   const bookmarkPanelTitle = editingBookmarkId ? "북마크 수정" : "북마크 저장";
+  const hasActiveBookmarkDraft =
+    Boolean(
+      bookmarkDraft.url.trim() ||
+        bookmarkDraft.userTitle.trim() ||
+        bookmarkDraft.userContent.trim() ||
+        bookmarkDraft.userSummary.trim() ||
+        bookmarkDraft.bookmarkColor.trim() ||
+        bookmarkDraft.urlColor.trim()
+    ) ||
+    bookmarkDraft.tagIds.length > 0 ||
+    bookmarkDraft.isFavorite ||
+    pendingAssetFiles.length > 0;
+  const bookmarkPanelSummary = editingBookmarkId
+    ? "수정 중"
+    : hasActiveBookmarkDraft
+      ? "작성 중"
+      : "새 북마크";
+  const folderPanelSummary = editingFolderId
+    ? `수정 중 · 폴더 ${folders.length}개`
+    : `폴더 ${folders.length}개`;
+  const tagPanelSummary = editingTagId
+    ? `수정 중 · 태그 ${tags.length}개`
+    : `태그 ${tags.length}개`;
 
   function renderSidebarPanel(options: {
     panelId: MobileSidebarPanelId;
     heading: string;
+    summary: string;
     regionLabel: string;
     children: ReactNode;
   }) {
@@ -1738,9 +1762,14 @@ export default function App() {
         >
           <span className="sidebar-panel-toggle-copy">
             <strong>{options.heading}</strong>
-            <span>{isExpanded ? "열림" : "닫힘"}</span>
+            <span>{options.summary}</span>
           </span>
-          <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
+          <span className="sidebar-panel-toggle-meta">
+            <span className="sidebar-panel-toggle-state">
+              {isExpanded ? "열림" : "닫힘"}
+            </span>
+            <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
+          </span>
         </button>
         {isExpanded ? (
           <section
@@ -1787,6 +1816,7 @@ export default function App() {
             {renderSidebarPanel({
               panelId: "bookmark",
               heading: bookmarkPanelTitle,
+              summary: bookmarkPanelSummary,
               regionLabel: "bookmark-form",
               children: (
                 <form className="stack-form" onSubmit={(event) => void handleBookmarkSubmit(event)}>
@@ -1963,6 +1993,7 @@ export default function App() {
             {renderSidebarPanel({
               panelId: "folder",
               heading: "폴더 관리",
+              summary: folderPanelSummary,
               regionLabel: "folder-manager",
               children: (
                 <>
@@ -2137,6 +2168,7 @@ export default function App() {
             {renderSidebarPanel({
               panelId: "tag",
               heading: "태그 관리",
+              summary: tagPanelSummary,
               regionLabel: "tag-manager",
               children: (
                 <>
