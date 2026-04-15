@@ -139,6 +139,7 @@ describe("bookmark dashboard", () => {
     expect(within(bookmarkFormRegion).getByText(/^작성 흐름$/i)).toBeInTheDocument();
     expect(within(folderManagerRegion).getByText(/^구조 정리$/i)).toBeInTheDocument();
     expect(within(tagManagerRegion).getByText(/^분류 체계$/i)).toBeInTheDocument();
+    expect(within(searchPanel).getByText(/^탐색 기준$/i)).toBeInTheDocument();
 
     expect(
       await within(bookmarkFormRegion).findByLabelText(/^URL$/i)
@@ -844,6 +845,7 @@ describe("bookmark dashboard", () => {
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^Filtered paper$/i)).toBeInTheDocument();
     });
+    expect(within(searchPanel).getByText(/^현재 작업 조건$/i)).toBeInTheDocument();
     expect(within(searchPanel).getByText(/선택된 필터 6개/i)).toBeInTheDocument();
     expect(
       within(searchPanel).getByRole("button", {

@@ -2728,9 +2728,20 @@ export default function App() {
             <section aria-label="search-panel" className="surface-card panel-card search-panel-card">
               <div className="search-panel-header">
                 <div className="search-panel-heading">
-                  <h2>검색과 필터</h2>
+                  <p className="search-panel-kicker">탐색 기준</p>
+                  <div className="search-panel-title-row">
+                    <h2>검색과 필터</h2>
+                    {shouldShowMobileSearchSummary ? (
+                      <span className="search-panel-summary-pill">
+                        활성 필터 {activeBookmarkSearchSummaryItems.length}개
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="search-panel-helper">
+                    검색 입력부터 고급 조건 초안까지 한 번에 조정합니다.
+                  </p>
                   {shouldShowMobileSearchSummary ? (
-                    <p className="search-panel-helper">
+                    <p className="search-panel-helper search-panel-helper-mobile">
                       활성 필터 {activeBookmarkSearchSummaryItems.length}개
                     </p>
                   ) : null}
@@ -2750,7 +2761,7 @@ export default function App() {
               </div>
               {shouldShowSearchPanelBody ? (
               <form className="search-form" onSubmit={(event) => void handleBookmarkSearchSubmit(event)}>
-                <fieldset className="search-grid search-grid-basic">
+                <fieldset className="search-grid search-grid-basic search-grid-surface">
                   <legend>기본 검색</legend>
                   <label>
                     검색어
@@ -2806,7 +2817,7 @@ export default function App() {
                   </button>
                 </fieldset>
                 {shouldShowAdvancedBookmarkSearch ? (
-                  <fieldset className="search-grid search-grid-advanced">
+                  <fieldset className="search-grid search-grid-advanced search-grid-surface">
                     <legend>고급 필터</legend>
                     <div className="search-filter-group">
                       <h3>기간</h3>
@@ -2990,7 +3001,12 @@ export default function App() {
               ) : null}
               {hasActiveBookmarkSearch(appliedBookmarkSearch) && shouldShowSearchPanelBody ? (
                 <div className="filter-summary-card">
-                  <p>선택된 필터 {activeBookmarkSearchSummaryItems.length}개</p>
+                  <div className="filter-summary-header">
+                    <p className="filter-summary-kicker">현재 작업 조건</p>
+                    <p className="filter-summary-count">
+                      선택된 필터 {activeBookmarkSearchSummaryItems.length}개
+                    </p>
+                  </div>
                   <ul aria-label="active-search-filters" className="active-filter-list">
                     {activeBookmarkSearchSummaryItems.map((item) => (
                       <li key={item.key}>
