@@ -245,6 +245,23 @@ function getBookmarkSummaryStateLabel(bookmark: Bookmark) {
   return "요약 없음";
 }
 
+function getBookmarkDetailFieldRows(bookmark: Bookmark, mode: "user" | "source") {
+  const rows =
+    mode === "user"
+      ? [
+          { label: "제목", value: bookmark.userTitle },
+          { label: "내용", value: bookmark.userContent },
+          { label: "요약", value: bookmark.userSummary }
+        ]
+      : [
+          { label: "제목", value: bookmark.sourceTitle },
+          { label: "내용", value: bookmark.sourceContent },
+          { label: "요약", value: bookmark.sourceSummary }
+        ];
+
+  return rows.filter((row) => hasTextContent(row.value));
+}
+
 function getRecommendationReasonLabel(kind: RecommendationKind) {
   switch (kind) {
     case "favorites":
@@ -1943,6 +1960,16 @@ export default function App() {
   const parentFolderOptions = getHierarchicalFolderOptions(folders, disallowedParentFolderIds);
   const visibleFolderOptions = getHierarchicalFolderOptions(folders);
   const quickFolderParentOptions = getHierarchicalFolderOptions(folders);
+  const selectedBookmarkUserDetailRows = selectedBookmark
+    ? getBookmarkDetailFieldRows(selectedBookmark, "user")
+    : [];
+  const selectedBookmarkSourceDetailRows = selectedBookmark
+    ? getBookmarkDetailFieldRows(selectedBookmark, "source")
+    : [];
+  const selectedBookmarkAssetCount = selectedBookmark
+    ? bookmarkAssetsByBookmarkId[selectedBookmark.id]?.length ?? 0
+    : 0;
+  const selectedBookmarkTagNames = selectedBookmark ? getTagNames(selectedBookmark.tagIds) : [];
   const bookmarkPanelTitle = editingBookmarkId ? "북마크 수정" : "북마크 저장";
   const hasActiveBookmarkDraft =
     Boolean(
@@ -3348,38 +3375,45 @@ export default function App() {
                     <p className="muted-text">{selectedBookmark.url}</p>
                   </div>
                 </header>
-                <div className="meta-pill-list">
-                  <span className="meta-pill">폴더: {getFolderName(selectedBookmark.folderId)}</span>
-                  <span className="meta-pill">
-                    태그: {getTagNames(selectedBookmark.tagIds).join(", ") || "없음"}
-                  </span>
+                <div className="meta-pill-list bookmark-detail-meta">
+                  <span className="meta-pill">{getFolderName(selectedBookmark.folderId)}</span>
+                  <span className="meta-pill">{getBookmarkSummaryStateLabel(selectedBookmark)}</span>
+                  <span className="meta-pill">태그 {selectedBookmark.tagIds.length}개</span>
+                  {selectedBookmarkAssetCount > 0 ? (
+                    <span className="meta-pill">이미지 {selectedBookmarkAssetCount}장</span>
+                  ) : null}
                 </div>
+                {selectedBookmarkTagNames.length > 0 ? (
+                  <p className="bookmark-detail-tag-line">{selectedBookmarkTagNames.join(", ")}</p>
+                ) : null}
 
                 <section className="detail-block">
-                  <h3>사용자 입력값</h3>
-                  {selectedBookmark.userTitle ? <p>{selectedBookmark.userTitle}</p> : null}
-                  {selectedBookmark.userContent ? <p>{selectedBookmark.userContent}</p> : null}
-                  {selectedBookmark.userSummary ? <p>{selectedBookmark.userSummary}</p> : null}
-                  {!selectedBookmark.userTitle &&
-                  !selectedBookmark.userContent &&
-                  !selectedBookmark.userSummary ? (
+                  <h3>직접 정리한 내용</h3>
+                  {selectedBookmarkUserDetailRows.map((row) => (
+                    <div key={row.label} className="detail-row">
+                      <p className="detail-row-label">{row.label}</p>
+                      <p className="detail-row-value">{row.value}</p>
+                    </div>
+                  ))}
+                  {selectedBookmarkUserDetailRows.length === 0 ? (
                     <p>사용자 입력값이 없습니다.</p>
                   ) : null}
                 </section>
 
                 <section className="detail-block">
-                  <h3>자동 추출값</h3>
-                  {selectedBookmark.sourceTitle ? <p>{selectedBookmark.sourceTitle}</p> : null}
-                  {selectedBookmark.sourceContent ? <p>{selectedBookmark.sourceContent}</p> : null}
-                  {selectedBookmark.sourceSummary ? <p>{selectedBookmark.sourceSummary}</p> : null}
-                  {!selectedBookmark.sourceTitle &&
-                  !selectedBookmark.sourceContent &&
-                  !selectedBookmark.sourceSummary ? (
+                  <h3>자동 추출 내용</h3>
+                  {selectedBookmarkSourceDetailRows.map((row) => (
+                    <div key={row.label} className="detail-row">
+                      <p className="detail-row-label">{row.label}</p>
+                      <p className="detail-row-value">{row.value}</p>
+                    </div>
+                  ))}
+                  {selectedBookmarkSourceDetailRows.length === 0 ? (
                     <p>자동 추출값이 없습니다.</p>
                   ) : null}
                 </section>
 
-                {(bookmarkAssetsByBookmarkId[selectedBookmark.id]?.length ?? 0) > 0 ? (
+                {selectedBookmarkAssetCount > 0 ? (
                   <div className="asset-grid">
                     {bookmarkAssetsByBookmarkId[selectedBookmark.id].map((asset, index) => (
                       <img

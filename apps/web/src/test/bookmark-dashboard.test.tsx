@@ -3448,13 +3448,19 @@ describe("bookmark dashboard", () => {
       within(detailRegion).getByText(/^Detail title$/i, { selector: "strong" })
     ).toBeInTheDocument();
     expect(within(detailRegion).getByText(/^https:\/\/example\.com\/detail$/i)).toBeInTheDocument();
+    expect(within(detailRegion).queryByText(/^사용자 입력값$/i)).not.toBeInTheDocument();
+    expect(within(detailRegion).queryByText(/^자동 추출값$/i)).not.toBeInTheDocument();
+    expect(within(detailRegion).getByText(/^직접 정리한 내용$/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/^자동 추출 내용$/i)).toBeInTheDocument();
     expect(within(detailRegion).getByText(/Detail manual content/i)).toBeInTheDocument();
     expect(within(detailRegion).getByText(/Detail manual summary/i)).toBeInTheDocument();
     expect(within(detailRegion).getByText(/Source title/i)).toBeInTheDocument();
     expect(within(detailRegion).getByText(/Source content/i)).toBeInTheDocument();
     expect(within(detailRegion).getByText(/Source summary/i)).toBeInTheDocument();
-    expect(within(detailRegion).getByText(/폴더:\s*Reading/i)).toBeInTheDocument();
-    expect(within(detailRegion).getByText(/태그:\s*research/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/^Reading$/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/^태그 1개$/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/^research$/i)).toBeInTheDocument();
+    expect(within(detailRegion).getByText(/^이미지 1장$/i)).toBeInTheDocument();
     expect(
       within(detailRegion).getByRole("img", { name: /업로드 이미지 1/i })
     ).toBeInTheDocument();
