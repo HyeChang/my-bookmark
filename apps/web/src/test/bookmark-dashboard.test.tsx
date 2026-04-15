@@ -129,11 +129,16 @@ describe("bookmark dashboard", () => {
     expect(screen.getByText(/^개인 아카이브 작업 공간$/i)).toBeInTheDocument();
     expect(workspace).toContainElement(sidebar);
     expect(workspace).toContainElement(mainPanel);
-    expect(within(sidebar).getByRole("region", { name: /folder-manager/i })).toBeInTheDocument();
-    expect(within(sidebar).getByRole("region", { name: /tag-manager/i })).toBeInTheDocument();
+    const folderManagerRegion = within(sidebar).getByRole("region", { name: /folder-manager/i });
+    const tagManagerRegion = within(sidebar).getByRole("region", { name: /tag-manager/i });
+    expect(folderManagerRegion).toBeInTheDocument();
+    expect(tagManagerRegion).toBeInTheDocument();
     const searchPanel = within(mainPanel).getByRole("region", { name: /search-panel/i });
     expect(within(sidebar).getByText(/^작업 패널$/i)).toBeInTheDocument();
     expect(within(mainPanel).getByText(/^작업 결과$/i)).toBeInTheDocument();
+    expect(within(bookmarkFormRegion).getByText(/^작성 흐름$/i)).toBeInTheDocument();
+    expect(within(folderManagerRegion).getByText(/^구조 정리$/i)).toBeInTheDocument();
+    expect(within(tagManagerRegion).getByText(/^분류 체계$/i)).toBeInTheDocument();
 
     expect(
       await within(bookmarkFormRegion).findByLabelText(/^URL$/i)
@@ -1539,6 +1544,9 @@ describe("bookmark dashboard", () => {
     expect(bookmarkPanelButton).toHaveAttribute("aria-selected", "true");
     expect(folderPanelButton).toHaveAttribute("aria-selected", "false");
     expect(tagPanelButton).toHaveAttribute("aria-selected", "false");
+    expect(bookmarkPanelButton).toHaveTextContent(/작성 흐름/i);
+    expect(folderPanelButton).toHaveTextContent(/구조 정리/i);
+    expect(tagPanelButton).toHaveTextContent(/분류 체계/i);
     expect(bookmarkPanelButton).toHaveTextContent(/새 북마크/i);
     expect(folderPanelButton).toHaveTextContent(/폴더 1개/i);
     expect(tagPanelButton).toHaveTextContent(/태그 1개/i);
@@ -1669,6 +1677,9 @@ describe("bookmark dashboard", () => {
     expect(bookmarkTab).toHaveAttribute("aria-selected", "true");
     expect(folderTab).toHaveAttribute("aria-selected", "false");
     expect(tagTab).toHaveAttribute("aria-selected", "false");
+    expect(bookmarkTab).toHaveTextContent(/작성 흐름/i);
+    expect(folderTab).toHaveTextContent(/구조 정리/i);
+    expect(tagTab).toHaveTextContent(/분류 체계/i);
     expect(bookmarkTab).toHaveTextContent(/새 북마크/i);
     expect(folderTab).toHaveTextContent(/1개/i);
     expect(tagTab).toHaveTextContent(/1개/i);

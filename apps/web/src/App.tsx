@@ -1715,17 +1715,37 @@ export default function App() {
   const tagPanelSummary = editingTagId
     ? `수정 중 · 태그 ${tags.length}개`
     : `태그 ${tags.length}개`;
+  const bookmarkPanelKicker = "작성 흐름";
+  const folderPanelKicker = "구조 정리";
+  const tagPanelKicker = "분류 체계";
+
+  function renderWorkspacePanelHeader(options: {
+    heading: string;
+    summary: string;
+    kicker: string;
+  }) {
+    return (
+      <header className="workspace-panel-header">
+        <p className="workspace-panel-kicker">{options.kicker}</p>
+        <div className="workspace-panel-heading-row">
+          <h2>{options.heading}</h2>
+          <span className="workspace-panel-summary">{options.summary}</span>
+        </div>
+      </header>
+    );
+  }
 
   function renderSidebarPanel(options: {
     panelId: MobileSidebarPanelId;
     heading: string;
     summary: string;
+    kicker: string;
     regionLabel: string;
     children: ReactNode;
   }) {
     const panelContent = (
       <>
-        {!shouldUseMobileSidebarPanels ? <h2>{options.heading}</h2> : null}
+        {!shouldUseMobileSidebarPanels ? renderWorkspacePanelHeader(options) : null}
         {options.children}
       </>
     );
@@ -1749,6 +1769,7 @@ export default function App() {
     panelId: MobileSidebarPanelId;
     heading: string;
     summary: string;
+    kicker: string;
     regionLabel: string;
     children: ReactNode;
   }) {
@@ -1759,6 +1780,7 @@ export default function App() {
     panelId: MobileSidebarPanelId;
     heading: string;
     summary: string;
+    kicker: string;
   }) {
     const isSelected = mobileSidebarPanel === options.panelId;
     const panelId = `sidebar-panel-${options.panelId}`;
@@ -1776,6 +1798,7 @@ export default function App() {
         onClick={() => setMobileSidebarPanel(options.panelId)}
       >
         <span className="sidebar-segment-copy">
+          <span className="sidebar-segment-kicker">{options.kicker}</span>
           <strong>{options.heading}</strong>
           <span>{options.summary}</span>
         </span>
@@ -1785,6 +1808,9 @@ export default function App() {
 
   function renderMobileSidebarPanelBody(options: {
     panelId: MobileSidebarPanelId;
+    heading: string;
+    summary: string;
+    kicker: string;
     regionLabel: string;
     children: ReactNode;
   }) {
@@ -1803,7 +1829,10 @@ export default function App() {
         aria-labelledby={`sidebar-tab-${options.panelId}`}
         className="surface-card panel-card sidebar-panel-shell sidebar-panel-body-panel"
       >
-        <div className="sidebar-panel-body">{options.children}</div>
+        <div className="sidebar-panel-body">
+          {renderWorkspacePanelHeader(options)}
+          {options.children}
+        </div>
       </section>
     );
   }
@@ -1846,21 +1875,27 @@ export default function App() {
                     {renderMobileSidebarTabButton({
                       panelId: "bookmark",
                       heading: bookmarkPanelTitle,
-                      summary: bookmarkPanelSummary
+                      summary: bookmarkPanelSummary,
+                      kicker: bookmarkPanelKicker
                     })}
                     {renderMobileSidebarTabButton({
                       panelId: "folder",
                       heading: "폴더",
-                      summary: folderPanelSummary
+                      summary: folderPanelSummary,
+                      kicker: folderPanelKicker
                     })}
                     {renderMobileSidebarTabButton({
                       panelId: "tag",
                       heading: "태그",
-                      summary: tagPanelSummary
+                      summary: tagPanelSummary,
+                      kicker: tagPanelKicker
                     })}
                   </div>
                   {renderMobileSidebarPanelBody({
                     panelId: "bookmark",
+                    heading: bookmarkPanelTitle,
+                    summary: bookmarkPanelSummary,
+                    kicker: bookmarkPanelKicker,
                     regionLabel: "bookmark-form",
                     children: (
                       <form className="stack-form" onSubmit={(event) => void handleBookmarkSubmit(event)}>
@@ -2035,6 +2070,9 @@ export default function App() {
                 })}
                 {renderMobileSidebarPanelBody({
                   panelId: "folder",
+                  heading: "폴더 관리",
+                  summary: folderPanelSummary,
+                  kicker: folderPanelKicker,
                   regionLabel: "folder-manager",
                   children: (
                     <>
@@ -2207,6 +2245,9 @@ export default function App() {
                 })}
                 {renderMobileSidebarPanelBody({
                   panelId: "tag",
+                  heading: "태그 관리",
+                  summary: tagPanelSummary,
+                  kicker: tagPanelKicker,
                   regionLabel: "tag-manager",
                   children: (
                     <>
@@ -2269,6 +2310,7 @@ export default function App() {
               panelId: "bookmark",
               heading: bookmarkPanelTitle,
               summary: bookmarkPanelSummary,
+              kicker: bookmarkPanelKicker,
               regionLabel: "bookmark-form",
               children: (
                 <form className="stack-form" onSubmit={(event) => void handleBookmarkSubmit(event)}>
@@ -2446,6 +2488,7 @@ export default function App() {
               panelId: "folder",
               heading: "폴더 관리",
               summary: folderPanelSummary,
+              kicker: folderPanelKicker,
               regionLabel: "folder-manager",
               children: (
                 <>
@@ -2621,6 +2664,7 @@ export default function App() {
               panelId: "tag",
               heading: "태그 관리",
               summary: tagPanelSummary,
+              kicker: tagPanelKicker,
               regionLabel: "tag-manager",
               children: (
                 <>
