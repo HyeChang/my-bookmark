@@ -3231,6 +3231,12 @@ describe("bookmark dashboard", () => {
 
     expect(within(recommendationRegion).getByText(/^빠른 진입점$/i)).toBeInTheDocument();
     expect(
+      within(recommendationRegion).queryByText(
+        /열람 기록과 즐겨찾기 흐름에서 바로 다시 열 수 있는 링크입니다\./i
+      )
+    ).not.toBeInTheDocument();
+    expect(within(recommendationRegion).getByText(/^자주 다시 여는 링크입니다\.$/i)).toBeInTheDocument();
+    expect(
       await within(recommendationRegion).findByText(/^Favorite recommendation$/i)
     ).toBeInTheDocument();
     expect(within(recommendationRegion).getByText(/^Recent recommendation$/i)).toBeInTheDocument();
@@ -3238,8 +3244,17 @@ describe("bookmark dashboard", () => {
     expect(within(recommendationRegion).getByText(/^즐겨찾기 기반$/i)).toBeInTheDocument();
     expect(within(recommendationRegion).getByText(/^최근 열람 기반$/i)).toBeInTheDocument();
     expect(within(recommendationRegion).getByText(/^반복 열람 기반$/i)).toBeInTheDocument();
+    const favoriteRecommendationItem = within(recommendationRegion)
+      .getByText(/^Favorite recommendation$/i)
+      .closest("li");
+    expect(favoriteRecommendationItem).not.toBeNull();
+    expect(
+      within(favoriteRecommendationItem as HTMLElement).getByRole("button", {
+        name: /Favorite recommendation 열기/i
+      })
+    ).toHaveTextContent(/^열기$/i);
 
-    fireEvent.click(screen.getByRole("button", { name: /열기 favorite recommendation/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Favorite recommendation 열기/i }));
 
     await waitFor(() => {
       expect(openSpy).toHaveBeenCalledWith(

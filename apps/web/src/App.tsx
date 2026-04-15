@@ -3150,7 +3150,7 @@ export default function App() {
                 <div className="recommendation-panel-title-row">
                   <h2>추천 링크</h2>
                   <p className="recommendation-panel-helper">
-                    열람 기록과 즐겨찾기 흐름에서 바로 다시 열 수 있는 링크입니다.
+                    자주 다시 여는 링크입니다.
                   </p>
                 </div>
               </header>
@@ -3162,13 +3162,11 @@ export default function App() {
                   {recommendations.favorites.map((bookmark) => (
                     <li key={`favorite-${bookmark.id}`} className="recommendation-item">
                       <div className="recommendation-copy">
-                        <div className="meta-pill-list">
-                          <span className="meta-pill meta-pill-accent">
-                            {getRecommendationReasonLabel("favorites")}
-                          </span>
-                          <span className="meta-pill">{getFolderName(bookmark.folderId)}</span>
-                        </div>
+                        <span className="meta-pill meta-pill-accent">
+                          {getRecommendationReasonLabel("favorites")}
+                        </span>
                         <strong>{bookmark.displayTitle || bookmark.url}</strong>
+                        <p className="recommendation-meta-line">{getFolderName(bookmark.folderId)}</p>
                         <p className="muted-text">
                           {hasTextContent(bookmark.displaySummary)
                             ? bookmark.displaySummary
@@ -3178,9 +3176,10 @@ export default function App() {
                       <button
                         type="button"
                         className="ghost-button recommendation-action-button"
+                        aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
                         onClick={() => void handleBookmarkOpen(bookmark)}
                       >
-                        열기 {bookmark.displayTitle || bookmark.url}
+                        열기
                       </button>
                     </li>
                   ))}
@@ -3192,13 +3191,11 @@ export default function App() {
                   {recommendations.recent.map((bookmark) => (
                     <li key={`recent-${bookmark.id}`} className="recommendation-item">
                       <div className="recommendation-copy">
-                        <div className="meta-pill-list">
-                          <span className="meta-pill meta-pill-accent">
-                            {getRecommendationReasonLabel("recent")}
-                          </span>
-                          <span className="meta-pill">{getFolderName(bookmark.folderId)}</span>
-                        </div>
+                        <span className="meta-pill meta-pill-accent">
+                          {getRecommendationReasonLabel("recent")}
+                        </span>
                         <strong>{bookmark.displayTitle || bookmark.url}</strong>
+                        <p className="recommendation-meta-line">{getFolderName(bookmark.folderId)}</p>
                         <p className="muted-text">
                           {hasTextContent(bookmark.displaySummary)
                             ? bookmark.displaySummary
@@ -3208,9 +3205,10 @@ export default function App() {
                       <button
                         type="button"
                         className="ghost-button recommendation-action-button"
+                        aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
                         onClick={() => void handleBookmarkOpen(bookmark)}
                       >
-                        열기 {bookmark.displayTitle || bookmark.url}
+                        열기
                       </button>
                     </li>
                   ))}
@@ -3222,13 +3220,11 @@ export default function App() {
                   {recommendations.frequent.map((bookmark) => (
                     <li key={`frequent-${bookmark.id}`} className="recommendation-item">
                       <div className="recommendation-copy">
-                        <div className="meta-pill-list">
-                          <span className="meta-pill meta-pill-accent">
-                            {getRecommendationReasonLabel("frequent")}
-                          </span>
-                          <span className="meta-pill">{getFolderName(bookmark.folderId)}</span>
-                        </div>
+                        <span className="meta-pill meta-pill-accent">
+                          {getRecommendationReasonLabel("frequent")}
+                        </span>
                         <strong>{bookmark.displayTitle || bookmark.url}</strong>
+                        <p className="recommendation-meta-line">{getFolderName(bookmark.folderId)}</p>
                         <p className="muted-text">
                           {hasTextContent(bookmark.displaySummary)
                             ? bookmark.displaySummary
@@ -3238,9 +3234,10 @@ export default function App() {
                       <button
                         type="button"
                         className="ghost-button recommendation-action-button"
+                        aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
                         onClick={() => void handleBookmarkOpen(bookmark)}
                       >
-                        열기 {bookmark.displayTitle || bookmark.url}
+                        열기
                       </button>
                     </li>
                   ))}
