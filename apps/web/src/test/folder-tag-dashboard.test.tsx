@@ -33,6 +33,14 @@ async function openFolderManagerOverlay() {
   return within(folderDialog).getByRole("region", { name: /folder-manager/i });
 }
 
+function openFolderActionMenu(folderManager: HTMLElement, folderName: string) {
+  fireEvent.click(
+    within(folderManager).getByRole("button", {
+      name: new RegExp(`${folderName} 폴더 더보기`, "i")
+    })
+  );
+}
+
 async function openTagManagerOverlay() {
   const navigationSidebar = await screen.findByRole("region", {
     name: /navigation-sidebar/i
@@ -160,6 +168,118 @@ describe("folder and tag dashboard", () => {
     expect(within(folderManagerRegion).getByRole("group", { name: /폴더 색상/i })).toBeInTheDocument();
     expect(within(folderManagerRegion).getByRole("group", { name: /폴더 아이콘/i })).toBeInTheDocument();
     expect(within(tagManagerRegion).getByLabelText(/태그 이름/i)).toBeInTheDocument();
+  });
+
+  it("shows folder row actions through a more menu while keeping the drag handle visible", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const folderManager = await openFolderManagerOverlay();
+    const folderItem = within(folderManager).getByRole("listitem");
+
+    expect(
+      within(folderItem).getByRole("button", { name: /reading 폴더 드래그 정렬/i })
+    ).toBeInTheDocument();
+    expect(
+      within(folderItem).getByRole("button", { name: /reading 폴더 더보기/i })
+    ).toBeInTheDocument();
+    expect(
+      within(folderItem).queryByRole("button", { name: /reading 폴더 수정 시작/i })
+    ).not.toBeInTheDocument();
+    expect(
+      within(folderItem).queryByRole("button", { name: /reading 폴더 삭제/i })
+    ).not.toBeInTheDocument();
+
+    openFolderActionMenu(folderManager, "Reading");
+
+    expect(
+      within(folderItem).getByRole("button", { name: /reading 폴더 수정 시작/i })
+    ).toBeInTheDocument();
+    expect(
+      within(folderItem).getByRole("button", { name: /reading 폴더 삭제/i })
+    ).toBeInTheDocument();
   });
 
   it("creates a folder and appends it to the folder list and picker", async () => {
@@ -1214,6 +1334,7 @@ describe("folder and tag dashboard", () => {
     render(<App />);
 
     const folderManager = await openFolderManagerOverlay();
+    openFolderActionMenu(folderManager, "Reading");
     fireEvent.click(within(folderManager).getByRole("button", { name: /reading 폴더 수정 시작/i }));
     fireEvent.change(within(folderManager).getByLabelText(/폴더 이름/i), {
       target: { value: "Articles" }
@@ -1382,6 +1503,7 @@ describe("folder and tag dashboard", () => {
     render(<App />);
 
     const folderManager = await openFolderManagerOverlay();
+    openFolderActionMenu(folderManager, "Reading");
     fireEvent.click(within(folderManager).getByRole("button", { name: /reading 폴더 삭제/i }));
 
     await waitFor(() => {

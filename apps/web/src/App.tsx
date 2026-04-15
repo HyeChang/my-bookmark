@@ -644,6 +644,7 @@ export default function App() {
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
+  const [openFolderActionMenuId, setOpenFolderActionMenuId] = useState<string | null>(null);
   const [isQuickFolderOpen, setIsQuickFolderOpen] = useState(false);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [isSavingBookmark, setIsSavingBookmark] = useState(false);
@@ -1129,11 +1130,13 @@ export default function App() {
     setEditingFolderId(null);
     setFolderDraft(emptyFolderDraft);
     setDraggingFolderId(null);
+    setOpenFolderActionMenuId(null);
     setIsFolderManagerOpen(true);
   }
 
   function beginFolderEdit(folder: Folder) {
     setIsFolderManagerOpen(true);
+    setOpenFolderActionMenuId(null);
     setEditingFolderId(folder.id);
     setFolderDraft({
       name: folder.name,
@@ -1151,6 +1154,7 @@ export default function App() {
   function closeFolderManager() {
     cancelFolderEdit();
     setDraggingFolderId(null);
+    setOpenFolderActionMenuId(null);
     setIsFolderManagerOpen(false);
   }
 
@@ -1247,6 +1251,12 @@ export default function App() {
 
   function resetDraggingFolder() {
     setDraggingFolderId(null);
+  }
+
+  function toggleFolderActionMenu(folderId: string) {
+    setOpenFolderActionMenuId((currentFolderId) =>
+      currentFolderId === folderId ? null : folderId
+    );
   }
 
   async function handleFolderReorderDrop(targetFolder: Folder) {
@@ -1768,6 +1778,7 @@ export default function App() {
 
     try {
       setErrorMessage(null);
+      setOpenFolderActionMenuId(null);
       const shouldRefreshSearch = appliedBookmarkSearch.folderId === folder.id;
       const nextSearch = shouldRefreshSearch
         ? {
@@ -2181,67 +2192,91 @@ export default function App() {
                 void handleFolderReorderDrop(folder);
               }}
             >
-              <div className="folder-tree-summary">
-                <strong>{label}</strong>
-                {folder.parentFolderId ? (
-                  <div className="folder-tree-meta">
-                    <p>하위 폴더</p>
-                    <p>상위: {getFolderName(folder.parentFolderId)}</p>
+              <div className="folder-tree-row">
+                <div className="folder-tree-summary">
+                  <strong>{label}</strong>
+                  {folder.parentFolderId ? (
+                    <div className="folder-tree-meta">
+                      <p>하위 폴더</p>
+                      <p>상위: {getFolderName(folder.parentFolderId)}</p>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="folder-tree-actions">
+                  <button
+                    type="button"
+                    className="ghost-button folder-tree-handle"
+                    draggable
+                    disabled={isReorderingFolders}
+                    aria-label={`${folder.name} 폴더 드래그 정렬`}
+                    onDragStart={() => {
+                      setOpenFolderActionMenuId(null);
+                      setDraggingFolderId(folder.id);
+                    }}
+                    onDragEnd={() => resetDraggingFolder()}
+                  >
+                    정렬
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-button folder-tree-drop-action"
+                    disabled={isReorderingFolders}
+                    aria-label={`${folder.name} 폴더 하위로 이동`}
+                    onDragOver={(event) => {
+                      event.stopPropagation();
+                      if (!draggingFolderId || draggingFolderId === folder.id) {
+                        return;
+                      }
+
+                      const descendantFolderIds = getFolderDescendantIds(folders, draggingFolderId);
+                      if (descendantFolderIds.has(folder.id)) {
+                        return;
+                      }
+
+                      event.preventDefault();
+                    }}
+                    onDrop={(event) => {
+                      event.stopPropagation();
+                      event.preventDefault();
+                      void handleFolderMoveDrop(folder);
+                    }}
+                  >
+                    하위로 이동
+                  </button>
+                  <div className="folder-action-menu-shell">
+                    <button
+                      type="button"
+                      className="ghost-button folder-action-trigger"
+                      aria-label={`${folder.name} 폴더 더보기`}
+                      aria-expanded={openFolderActionMenuId === folder.id}
+                      onClick={() => toggleFolderActionMenu(folder.id)}
+                    >
+                      더보기
+                    </button>
+                    {openFolderActionMenuId === folder.id ? (
+                      <div
+                        role="menu"
+                        aria-label={`${folder.name} 폴더 메뉴`}
+                        className="folder-action-menu"
+                      >
+                        <button
+                          type="button"
+                          className="secondary-button folder-action-menu-item"
+                          onClick={() => beginFolderEdit(folder)}
+                        >
+                          {folder.name} 폴더 수정 시작
+                        </button>
+                        <button
+                          type="button"
+                          className="danger-button folder-action-menu-item"
+                          onClick={() => void handleFolderDelete(folder)}
+                        >
+                          {folder.name} 폴더 삭제
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-              <div className="folder-tree-actions">
-                <button
-                  type="button"
-                  className="ghost-button"
-                  draggable
-                  disabled={isReorderingFolders}
-                  aria-label={`${folder.name} 폴더 드래그 정렬`}
-                  onDragStart={() => setDraggingFolderId(folder.id)}
-                  onDragEnd={() => resetDraggingFolder()}
-                >
-                  드래그 정렬
-                </button>
-                <button
-                  type="button"
-                  className="ghost-button"
-                  disabled={isReorderingFolders}
-                  aria-label={`${folder.name} 폴더 하위로 이동`}
-                  onDragOver={(event) => {
-                    event.stopPropagation();
-                    if (!draggingFolderId || draggingFolderId === folder.id) {
-                      return;
-                    }
-
-                    const descendantFolderIds = getFolderDescendantIds(folders, draggingFolderId);
-                    if (descendantFolderIds.has(folder.id)) {
-                      return;
-                    }
-
-                    event.preventDefault();
-                  }}
-                  onDrop={(event) => {
-                    event.stopPropagation();
-                    event.preventDefault();
-                    void handleFolderMoveDrop(folder);
-                  }}
-                >
-                  하위로 이동
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => beginFolderEdit(folder)}
-                >
-                  {folder.name} 폴더 수정 시작
-                </button>
-                <button
-                  type="button"
-                  className="danger-button"
-                  onClick={() => void handleFolderDelete(folder)}
-                >
-                  {folder.name} 폴더 삭제
-                </button>
+                </div>
               </div>
             </li>
           ))}
