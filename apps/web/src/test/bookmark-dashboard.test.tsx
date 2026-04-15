@@ -132,12 +132,21 @@ describe("bookmark dashboard", () => {
     const bookmarkDetailRegion = within(mainPanel).getByRole("region", {
       name: /bookmark-detail-shell/i
     });
+    const resultPrimaryColumn = within(mainPanel).getByRole("region", {
+      name: /result-primary-column/i
+    });
+    const bookmarkReadingRail = within(mainPanel).getByRole("region", {
+      name: /bookmark-reading-rail/i
+    });
     expect(screen.getByText(/^개인 아카이브 작업 공간$/i)).toBeInTheDocument();
     expect(workspace).toContainElement(sidebar);
     expect(workspace).toContainElement(mainPanel);
+    expect(mainPanel).toContainElement(resultPrimaryColumn);
+    expect(mainPanel).toContainElement(bookmarkReadingRail);
     expect(navigationSidebar).toBeInTheDocument();
     expect(bookmarkResults).toBeInTheDocument();
     expect(bookmarkDetailRegion).toBeInTheDocument();
+    expect(bookmarkReadingRail).toContainElement(bookmarkDetailRegion);
     expect(screen.queryByRole("region", { name: /folder-manager/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /tag-manager/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /bookmark-form/i })).not.toBeInTheDocument();

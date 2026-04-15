@@ -2618,6 +2618,7 @@ export default function App() {
 
           <section aria-label="dashboard-main" className="dashboard-main">
             <p className="section-eyebrow">작업 결과</p>
+            <div role="region" aria-label="result-primary-column" className="result-primary-column">
             <section aria-label="bookmark-results" className="bookmark-results-stack">
             <section aria-label="search-panel" className="surface-card panel-card search-panel-card">
               <div className="search-panel-header">
@@ -3105,120 +3106,6 @@ export default function App() {
               </div>
               </div>
             </section>
-            <section aria-label="bookmark-detail-shell" className="bookmark-detail-region">
-            {selectedBookmark ? (
-              <section aria-label="bookmark-detail" className="surface-card panel-card bookmark-detail-card">
-                <header className="bookmark-detail-header">
-                  <p className="bookmark-detail-kicker">읽기 중심</p>
-                  <div className="bookmark-detail-title-row">
-                    <div className="bookmark-detail-title-copy">
-                      <h2>북마크 상세</h2>
-                      <strong>{selectedBookmark.displayTitle || selectedBookmark.url}</strong>
-                    </div>
-                    <p className="muted-text">{selectedBookmark.url}</p>
-                  </div>
-                </header>
-                <div className="meta-pill-list">
-                  <span className="meta-pill">폴더: {getFolderName(selectedBookmark.folderId)}</span>
-                  <span className="meta-pill">
-                    태그: {getTagNames(selectedBookmark.tagIds).join(", ") || "없음"}
-                  </span>
-                </div>
-
-                <section className="detail-block">
-                  <h3>사용자 입력값</h3>
-                  {selectedBookmark.userTitle ? <p>{selectedBookmark.userTitle}</p> : null}
-                  {selectedBookmark.userContent ? <p>{selectedBookmark.userContent}</p> : null}
-                  {selectedBookmark.userSummary ? <p>{selectedBookmark.userSummary}</p> : null}
-                  {!selectedBookmark.userTitle &&
-                  !selectedBookmark.userContent &&
-                  !selectedBookmark.userSummary ? (
-                    <p>사용자 입력값이 없습니다.</p>
-                  ) : null}
-                </section>
-
-                <section className="detail-block">
-                  <h3>자동 추출값</h3>
-                  {selectedBookmark.sourceTitle ? <p>{selectedBookmark.sourceTitle}</p> : null}
-                  {selectedBookmark.sourceContent ? <p>{selectedBookmark.sourceContent}</p> : null}
-                  {selectedBookmark.sourceSummary ? <p>{selectedBookmark.sourceSummary}</p> : null}
-                  {!selectedBookmark.sourceTitle &&
-                  !selectedBookmark.sourceContent &&
-                  !selectedBookmark.sourceSummary ? (
-                    <p>자동 추출값이 없습니다.</p>
-                  ) : null}
-                </section>
-
-                {(bookmarkAssetsByBookmarkId[selectedBookmark.id]?.length ?? 0) > 0 ? (
-                  <div className="asset-grid">
-                    {bookmarkAssetsByBookmarkId[selectedBookmark.id].map((asset, index) => (
-                      <img
-                        key={asset.id}
-                        src={asset.contentUrl}
-                        alt={`업로드 이미지 ${index + 1}`}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <p>업로드된 이미지가 없습니다.</p>
-                )}
-
-                <div className="bookmark-detail-actions">
-                  <div className="bookmark-detail-action-group">
-                    <p className="bookmark-detail-action-label">핵심 액션</p>
-                    <button
-                      type="button"
-                      className="primary-button"
-                      onClick={() => void handleBookmarkOpen(selectedBookmark)}
-                    >
-                      열기 {selectedBookmark.displayTitle || selectedBookmark.url}
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => void beginBookmarkEdit(selectedBookmark)}
-                    >
-                      수정 시작
-                    </button>
-                  </div>
-                  <div className="bookmark-detail-action-group">
-                    <p className="bookmark-detail-action-label">정리 작업</p>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => void handleBookmarkReextract(selectedBookmark.id)}
-                    >
-                      자동 추출 다시 시도
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => void handleResetUserContent(selectedBookmark.id)}
-                    >
-                      사용자 입력 초기화
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      onClick={() => closeBookmarkDetail()}
-                    >
-                      닫기
-                    </button>
-                  </div>
-                  <div className="bookmark-detail-action-group bookmark-detail-danger-actions">
-                    <p className="bookmark-detail-action-label">위험 작업</p>
-                    <button
-                      type="button"
-                      className="danger-button"
-                      onClick={() => void handleBookmarkDelete(selectedBookmark)}
-                    >
-                      삭제
-                    </button>
-                  </div>
-                </div>
-              </section>
-            ) : null}
-            </section>
             <section aria-label="bookmark-list" className="surface-card panel-card">
             <header className="bookmark-list-header">
               <p className="bookmark-list-kicker">보관 목록</p>
@@ -3339,6 +3226,132 @@ export default function App() {
               ))}
             </ul>
           </section>
+          </div>
+          <aside role="region" aria-label="bookmark-reading-rail" className="bookmark-reading-rail">
+            <section aria-label="bookmark-detail-shell" className="bookmark-detail-region">
+            {selectedBookmark ? (
+              <section aria-label="bookmark-detail" className="surface-card panel-card bookmark-detail-card">
+                <header className="bookmark-detail-header">
+                  <p className="bookmark-detail-kicker">읽기 중심</p>
+                  <div className="bookmark-detail-title-row">
+                    <div className="bookmark-detail-title-copy">
+                      <h2>북마크 상세</h2>
+                      <strong>{selectedBookmark.displayTitle || selectedBookmark.url}</strong>
+                    </div>
+                    <p className="muted-text">{selectedBookmark.url}</p>
+                  </div>
+                </header>
+                <div className="meta-pill-list">
+                  <span className="meta-pill">폴더: {getFolderName(selectedBookmark.folderId)}</span>
+                  <span className="meta-pill">
+                    태그: {getTagNames(selectedBookmark.tagIds).join(", ") || "없음"}
+                  </span>
+                </div>
+
+                <section className="detail-block">
+                  <h3>사용자 입력값</h3>
+                  {selectedBookmark.userTitle ? <p>{selectedBookmark.userTitle}</p> : null}
+                  {selectedBookmark.userContent ? <p>{selectedBookmark.userContent}</p> : null}
+                  {selectedBookmark.userSummary ? <p>{selectedBookmark.userSummary}</p> : null}
+                  {!selectedBookmark.userTitle &&
+                  !selectedBookmark.userContent &&
+                  !selectedBookmark.userSummary ? (
+                    <p>사용자 입력값이 없습니다.</p>
+                  ) : null}
+                </section>
+
+                <section className="detail-block">
+                  <h3>자동 추출값</h3>
+                  {selectedBookmark.sourceTitle ? <p>{selectedBookmark.sourceTitle}</p> : null}
+                  {selectedBookmark.sourceContent ? <p>{selectedBookmark.sourceContent}</p> : null}
+                  {selectedBookmark.sourceSummary ? <p>{selectedBookmark.sourceSummary}</p> : null}
+                  {!selectedBookmark.sourceTitle &&
+                  !selectedBookmark.sourceContent &&
+                  !selectedBookmark.sourceSummary ? (
+                    <p>자동 추출값이 없습니다.</p>
+                  ) : null}
+                </section>
+
+                {(bookmarkAssetsByBookmarkId[selectedBookmark.id]?.length ?? 0) > 0 ? (
+                  <div className="asset-grid">
+                    {bookmarkAssetsByBookmarkId[selectedBookmark.id].map((asset, index) => (
+                      <img
+                        key={asset.id}
+                        src={asset.contentUrl}
+                        alt={`업로드 이미지 ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p>업로드된 이미지가 없습니다.</p>
+                )}
+
+                <div className="bookmark-detail-actions">
+                  <div className="bookmark-detail-action-group">
+                    <p className="bookmark-detail-action-label">핵심 액션</p>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => void handleBookmarkOpen(selectedBookmark)}
+                    >
+                      열기 {selectedBookmark.displayTitle || selectedBookmark.url}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void beginBookmarkEdit(selectedBookmark)}
+                    >
+                      수정 시작
+                    </button>
+                  </div>
+                  <div className="bookmark-detail-action-group">
+                    <p className="bookmark-detail-action-label">정리 작업</p>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void handleBookmarkReextract(selectedBookmark.id)}
+                    >
+                      자동 추출 다시 시도
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void handleResetUserContent(selectedBookmark.id)}
+                    >
+                      사용자 입력 초기화
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() => closeBookmarkDetail()}
+                    >
+                      닫기
+                    </button>
+                  </div>
+                  <div className="bookmark-detail-action-group bookmark-detail-danger-actions">
+                    <p className="bookmark-detail-action-label">위험 작업</p>
+                    <button
+                      type="button"
+                      className="danger-button"
+                      onClick={() => void handleBookmarkDelete(selectedBookmark)}
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <section className="surface-card panel-card bookmark-detail-placeholder">
+                <p className="bookmark-detail-kicker">읽기 중심</p>
+                <h2>상세 북마크를 선택하세요</h2>
+                <p className="muted-text">
+                  목록이나 추천 링크에서 상세 보기를 누르면 제목, 자동 추출값, 사용자 입력값,
+                  업로드 이미지와 빠른 조작이 이 영역에 정리됩니다.
+                </p>
+              </section>
+            )}
+            </section>
+          </aside>
           </section>
           {shouldRenderDesktopBookmarkComposer ? (
             <div className="overlay-backdrop">
