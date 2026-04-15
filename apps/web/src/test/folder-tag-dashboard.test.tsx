@@ -485,7 +485,7 @@ describe("folder and tag dashboard", () => {
     const folderItems = within(folderManager).getAllByRole("listitem");
 
     expect(within(folderItems[0]).getByText(/^Reading$/i)).toBeInTheDocument();
-    expect(within(folderItems[1]).getByText(/^Papers$/i)).toBeInTheDocument();
+    expect(within(folderItems[1]).getByText(/Papers$/i)).toBeInTheDocument();
     expect(within(folderItems[1]).getByText(/상위: Reading/i)).toBeInTheDocument();
     expect(within(folderItems[1]).getByText(/하위 폴더/i)).toBeInTheDocument();
 
@@ -497,9 +497,9 @@ describe("folder and tag dashboard", () => {
       "-- Papers"
     ]);
 
-    const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
-    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /고급 필터/i }));
-    const searchFolderOptions = within(bookmarkListRegion)
+    const searchPanel = screen.getByRole("region", { name: /search-panel/i });
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터/i }));
+    const searchFolderOptions = within(searchPanel)
       .getAllByRole("option")
       .filter((option) => option.textContent === "전체 폴더" || option.textContent === "Reading" || option.textContent === "-- Papers");
     expect(searchFolderOptions.map((option) => option.textContent)).toEqual([
@@ -847,7 +847,7 @@ describe("folder and tag dashboard", () => {
     await waitFor(() => {
       const folderItems = within(folderManager).getAllByRole("listitem");
       expect(within(folderItems[0]).getByText(/^Reading$/i)).toBeInTheDocument();
-      expect(within(folderItems[1]).getByText(/^Articles$/i)).toBeInTheDocument();
+      expect(within(folderItems[1]).getByText(/Articles$/i)).toBeInTheDocument();
       expect(within(folderItems[1]).getByText(/상위: Reading/i)).toBeInTheDocument();
     });
 

@@ -118,13 +118,24 @@ describe("bookmark dashboard", () => {
     });
 
     render(<App />);
-    const bookmarkFormRegion = await screen.findByRole("region", { name: /bookmark-form/i });
+    const sidebar = await screen.findByRole("complementary", {
+      name: /dashboard-sidebar/i
+    });
+    const mainPanel = await screen.findByRole("region", { name: /dashboard-main/i });
+    const bookmarkFormRegion = within(sidebar).getByRole("region", {
+      name: /bookmark-form/i
+    });
+    expect(within(sidebar).getByRole("region", { name: /folder-manager/i })).toBeInTheDocument();
+    expect(within(sidebar).getByRole("region", { name: /tag-manager/i })).toBeInTheDocument();
+    const searchPanel = within(mainPanel).getByRole("region", { name: /search-panel/i });
 
     expect(
       await within(bookmarkFormRegion).findByLabelText(/^URL$/i)
     ).toBeInTheDocument();
+    expect(within(searchPanel).getByText(/^기본 검색$/i)).toBeInTheDocument();
+    expect(within(searchPanel).getByRole("button", { name: /검색 실행/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /북마크 저장/i })).toBeInTheDocument();
-    const bookmarkListRegion = await screen.findByRole("region", {
+    const bookmarkListRegion = within(mainPanel).getByRole("region", {
       name: /bookmark-list/i
     });
     expect(await within(bookmarkListRegion).findByText(/^Manual title$/i)).toBeInTheDocument();
@@ -344,7 +355,8 @@ describe("bookmark dashboard", () => {
     );
     expect(uploadCall).toBeDefined();
     expect(within(bookmarkListRegion).getByRole("img", { name: /업로드 이미지 1/i })).toBeInTheDocument();
-    expect(within(bookmarkListRegion).getByText(/research,\s*later/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/^research$/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/^later$/i)).toBeInTheDocument();
   });
 
   it("loads bookmark preview metadata and submits extracted source fields", async () => {
@@ -791,27 +803,28 @@ describe("bookmark dashboard", () => {
     const bookmarkListRegion = await screen.findByRole("region", {
       name: /bookmark-list/i
     });
+    const searchPanel = screen.getByRole("region", { name: /search-panel/i });
 
-    fireEvent.change(await within(bookmarkListRegion).findByLabelText(/검색어/i), {
+    fireEvent.change(await within(searchPanel).findByLabelText(/검색어/i), {
       target: {
         value: "paper"
       }
     });
-    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /고급 필터/i }));
-    fireEvent.click(within(bookmarkListRegion).getByLabelText(/즐겨찾기만/i));
-    fireEvent.change(within(bookmarkListRegion).getByLabelText(/필터 폴더/i), {
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터/i }));
+    fireEvent.click(within(searchPanel).getByLabelText(/즐겨찾기만/i));
+    fireEvent.change(within(searchPanel).getByLabelText(/필터 폴더/i), {
       target: {
         value: "folder-1"
       }
     });
-    fireEvent.change(within(bookmarkListRegion).getByLabelText(/태그 조건/i), {
+    fireEvent.change(within(searchPanel).getByLabelText(/태그 조건/i), {
       target: {
         value: "or"
       }
     });
-    fireEvent.click(within(bookmarkListRegion).getByRole("checkbox", { name: /^research$/i }));
-    fireEvent.click(within(bookmarkListRegion).getByRole("checkbox", { name: /^video$/i }));
-    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /검색 실행/i }));
+    fireEvent.click(within(searchPanel).getByRole("checkbox", { name: /^research$/i }));
+    fireEvent.click(within(searchPanel).getByRole("checkbox", { name: /^video$/i }));
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /검색 실행/i }));
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^Filtered paper$/i)).toBeInTheDocument();
     });
@@ -823,7 +836,7 @@ describe("bookmark dashboard", () => {
       })
     );
 
-    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /검색 초기화/i }));
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /검색 초기화/i }));
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -835,16 +848,12 @@ describe("bookmark dashboard", () => {
     });
 
     await waitFor(() => {
-      expect(within(bookmarkListRegion).getByLabelText(/검색어/i)).toHaveValue("");
-      expect(within(bookmarkListRegion).getByLabelText(/즐겨찾기만/i)).not.toBeChecked();
-      expect(within(bookmarkListRegion).getByLabelText(/필터 폴더/i)).toHaveValue("");
-      expect(within(bookmarkListRegion).getByLabelText(/태그 조건/i)).toHaveValue("and");
-      expect(
-        within(bookmarkListRegion).getByRole("checkbox", { name: /^research$/i })
-      ).not.toBeChecked();
-      expect(
-        within(bookmarkListRegion).getByRole("checkbox", { name: /^video$/i })
-      ).not.toBeChecked();
+      expect(within(searchPanel).getByLabelText(/검색어/i)).toHaveValue("");
+      expect(within(searchPanel).getByLabelText(/즐겨찾기만/i)).not.toBeChecked();
+      expect(within(searchPanel).getByLabelText(/필터 폴더/i)).toHaveValue("");
+      expect(within(searchPanel).getByLabelText(/태그 조건/i)).toHaveValue("and");
+      expect(within(searchPanel).getByRole("checkbox", { name: /^research$/i })).not.toBeChecked();
+      expect(within(searchPanel).getByRole("checkbox", { name: /^video$/i })).not.toBeChecked();
     });
   });
 
@@ -991,22 +1000,23 @@ describe("bookmark dashboard", () => {
     const bookmarkListRegion = await screen.findByRole("region", {
       name: /bookmark-list/i
     });
+    const searchPanel = screen.getByRole("region", { name: /search-panel/i });
 
-    fireEvent.change(await within(bookmarkListRegion).findByLabelText(/검색어/i), {
+    fireEvent.change(await within(searchPanel).findByLabelText(/검색어/i), {
       target: {
         value: "paper"
       }
     });
-    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /고급 필터/i }));
-    fireEvent.click(within(bookmarkListRegion).getByLabelText(/즐겨찾기만/i));
-    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /검색 실행/i }));
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터/i }));
+    fireEvent.click(within(searchPanel).getByLabelText(/즐겨찾기만/i));
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /검색 실행/i }));
 
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^Filtered favorite$/i)).toBeInTheDocument();
     });
 
     fireEvent.click(
-      within(bookmarkListRegion).getByRole("button", {
+      within(searchPanel).getByRole("button", {
         name: /검색 조건 제거: 즐겨찾기만/i
       })
     );
@@ -1028,7 +1038,7 @@ describe("bookmark dashboard", () => {
       })
     );
     expect(
-      within(bookmarkListRegion).queryByRole("button", {
+      within(searchPanel).queryByRole("button", {
         name: /검색 조건 제거: 즐겨찾기만/i
       })
     ).not.toBeInTheDocument();
@@ -1171,15 +1181,16 @@ describe("bookmark dashboard", () => {
     const bookmarkListRegion = await screen.findByRole("region", {
       name: /bookmark-list/i
     });
+    const searchPanel = screen.getByRole("region", { name: /search-panel/i });
 
-    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /고급 필터/i }));
-    fireEvent.change(within(bookmarkListRegion).getByLabelText(/필터 폴더/i), {
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터/i }));
+    fireEvent.change(within(searchPanel).getByLabelText(/필터 폴더/i), {
       target: {
         value: "folder-1"
       }
     });
-    fireEvent.click(within(bookmarkListRegion).getByLabelText(/하위 폴더 포함/i));
-    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /검색 실행/i }));
+    fireEvent.click(within(searchPanel).getByLabelText(/하위 폴더 포함/i));
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /검색 실행/i }));
 
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^Child folder result$/i)).toBeInTheDocument();
@@ -1263,16 +1274,14 @@ describe("bookmark dashboard", () => {
 
     render(<App />);
 
-    const bookmarkListRegion = await screen.findByRole("region", {
-      name: /bookmark-list/i
-    });
+    const searchPanel = await screen.findByRole("region", { name: /search-panel/i });
 
-    expect(within(bookmarkListRegion).queryByLabelText(/즐겨찾기만/i)).not.toBeInTheDocument();
+    expect(within(searchPanel).queryByLabelText(/즐겨찾기만/i)).not.toBeInTheDocument();
 
-    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /고급 필터/i }));
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터/i }));
 
-    expect(within(bookmarkListRegion).getByLabelText(/즐겨찾기만/i)).toBeInTheDocument();
-    expect(within(bookmarkListRegion).getByLabelText(/태그 조건/i)).toBeInTheDocument();
+    expect(within(searchPanel).getByLabelText(/즐겨찾기만/i)).toBeInTheDocument();
+    expect(within(searchPanel).getByLabelText(/태그 조건/i)).toBeInTheDocument();
   });
 
   it("submits bookmark search with color and summary filters and resets them", async () => {
@@ -1667,19 +1676,20 @@ describe("bookmark dashboard", () => {
     const bookmarkListRegion = await screen.findByRole("region", {
       name: /bookmark-list/i
     });
+    const searchPanel = screen.getByRole("region", { name: /search-panel/i });
 
-    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /고급 필터/i }));
-    fireEvent.change(await within(bookmarkListRegion).findByLabelText(/최근 추가/i), {
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터/i }));
+    fireEvent.change(await within(searchPanel).findByLabelText(/최근 추가/i), {
       target: {
         value: "7d"
       }
     });
-    fireEvent.change(within(bookmarkListRegion).getByLabelText(/최근 열람/i), {
+    fireEvent.change(within(searchPanel).getByLabelText(/최근 열람/i), {
       target: {
         value: "30d"
       }
     });
-    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /검색 실행/i }));
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /검색 실행/i }));
 
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^Period filtered$/i)).toBeInTheDocument();
@@ -1692,11 +1702,11 @@ describe("bookmark dashboard", () => {
       })
     );
 
-    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /검색 초기화/i }));
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /검색 초기화/i }));
 
     await waitFor(() => {
-      expect(within(bookmarkListRegion).getByLabelText(/최근 추가/i)).toHaveValue("all");
-      expect(within(bookmarkListRegion).getByLabelText(/최근 열람/i)).toHaveValue("all");
+      expect(within(searchPanel).getByLabelText(/최근 추가/i)).toHaveValue("all");
+      expect(within(searchPanel).getByLabelText(/최근 열람/i)).toHaveValue("all");
     });
   });
 

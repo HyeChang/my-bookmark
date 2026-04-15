@@ -1,4 +1,5 @@
 import { startTransition, useEffect, useState, type FormEvent } from "react";
+import "./App.css";
 
 import type {
   AuthenticatedUser,
@@ -1593,27 +1594,37 @@ export default function App() {
   const visibleFolderOptions = getHierarchicalFolderOptions(folders);
 
   return (
-    <main>
-      <h1>Bookmark</h1>
-      <p>Save, search, and organize links from anywhere.</p>
-      {sessionState.status === "loading" ? <p>세션을 확인하는 중입니다.</p> : null}
-      {sessionState.status === "anonymous" ? (
-        <button type="button" onClick={() => void handleGoogleLogin()}>
-          Google로 로그인
-        </button>
-      ) : null}
-      {sessionState.status === "authenticated" ? (
-        <>
-          <section>
-            <p>{sessionState.user.email}</p>
-            <button type="button" onClick={() => void handleLogout()}>
-              로그아웃
+    <main className="app-shell">
+      <header className="app-hero">
+        <div className="hero-copy">
+          <p className="hero-eyebrow">Personal Bookmark Workspace</p>
+          <h1>Bookmark</h1>
+          <p>Save, search, and organize links from anywhere.</p>
+        </div>
+        <div className="hero-actions">
+          {sessionState.status === "loading" ? <p>세션을 확인하는 중입니다.</p> : null}
+          {sessionState.status === "anonymous" ? (
+            <button type="button" className="primary-button" onClick={() => void handleGoogleLogin()}>
+              Google로 로그인
             </button>
-          </section>
-
-          <section aria-label="bookmark-form">
+          ) : null}
+          {sessionState.status === "authenticated" ? (
+            <section className="session-card">
+              <p className="session-label">로그인 계정</p>
+              <strong>{sessionState.user.email}</strong>
+              <button type="button" className="secondary-button" onClick={() => void handleLogout()}>
+                로그아웃
+              </button>
+            </section>
+          ) : null}
+        </div>
+      </header>
+      {sessionState.status === "authenticated" ? (
+        <div className="dashboard-layout">
+          <aside aria-label="dashboard-sidebar" className="dashboard-sidebar">
+          <section aria-label="bookmark-form" className="surface-card panel-card">
             <h2>{editingBookmarkId ? "북마크 수정" : "북마크 저장"}</h2>
-            <form onSubmit={(event) => void handleBookmarkSubmit(event)}>
+            <form className="stack-form" onSubmit={(event) => void handleBookmarkSubmit(event)}>
               <label>
                 URL
                 <input
@@ -1710,7 +1721,7 @@ export default function App() {
                 />
               </label>
               {pendingAssetFiles.length > 0 ? (
-                <ul>
+                <ul className="inline-file-list">
                   {pendingAssetFiles.map((file) => (
                     <li key={`${file.name}-${file.size}`}>{file.name}</li>
                   ))}
@@ -1718,12 +1729,13 @@ export default function App() {
               ) : null}
               {editingBookmarkId &&
               (bookmarkAssetsByBookmarkId[editingBookmarkId]?.length ?? 0) > 0 ? (
-                <div>
+                <div className="asset-grid">
                   {bookmarkAssetsByBookmarkId[editingBookmarkId].map((asset, index) => (
-                    <div key={asset.id}>
+                    <div key={asset.id} className="asset-item">
                       <img src={asset.contentUrl} alt={`업로드 이미지 ${index + 1}`} />
                       <button
                         type="button"
+                        className="ghost-button"
                         onClick={() =>
                           void handleBookmarkAssetDelete(editingBookmarkId, asset.id)
                         }
@@ -1734,21 +1746,23 @@ export default function App() {
                   ))}
                 </div>
               ) : null}
-              <fieldset>
+              <fieldset className="tag-fieldset">
                 <legend>태그 선택</legend>
                 {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
-                {tags.map((tag) => (
-                  <label key={tag.id}>
-                    <input
-                      type="checkbox"
-                      name="tagIds"
-                      value={tag.id}
-                      checked={bookmarkDraft.tagIds.includes(tag.id)}
-                      onChange={(event) => toggleBookmarkTag(tag.id, event.target.checked)}
-                    />
-                    {tag.name}
-                  </label>
-                ))}
+                <div className="pill-list">
+                  {tags.map((tag) => (
+                    <label key={tag.id} className="pill-option">
+                      <input
+                        type="checkbox"
+                        name="tagIds"
+                        value={tag.id}
+                        checked={bookmarkDraft.tagIds.includes(tag.id)}
+                        onChange={(event) => toggleBookmarkTag(tag.id, event.target.checked)}
+                      />
+                      {tag.name}
+                    </label>
+                  ))}
+                </div>
               </fieldset>
               <label>
                 즐겨찾기
@@ -1759,26 +1773,28 @@ export default function App() {
                   onChange={(event) => updateBookmarkDraft({ isFavorite: event.target.checked })}
                 />
               </label>
-              <button type="submit" disabled={isSavingBookmark}>
-                {isSavingBookmark
-                  ? editingBookmarkId
-                    ? "수정 중..."
-                    : "저장 중..."
-                  : editingBookmarkId
-                    ? "북마크 수정"
-                    : "북마크 저장"}
-              </button>
-              {editingBookmarkId ? (
-                <button type="button" onClick={() => cancelBookmarkEdit()}>
-                  수정 취소
+              <div className="action-row">
+                <button type="submit" className="primary-button" disabled={isSavingBookmark}>
+                  {isSavingBookmark
+                    ? editingBookmarkId
+                      ? "수정 중..."
+                      : "저장 중..."
+                    : editingBookmarkId
+                      ? "북마크 수정"
+                      : "북마크 저장"}
                 </button>
-              ) : null}
+                {editingBookmarkId ? (
+                  <button type="button" className="secondary-button" onClick={() => cancelBookmarkEdit()}>
+                    수정 취소
+                  </button>
+                ) : null}
+              </div>
             </form>
           </section>
 
-          <section aria-label="folder-manager">
+          <section aria-label="folder-manager" className="surface-card panel-card">
             <h2>폴더 관리</h2>
-            <form onSubmit={(event) => void handleFolderSubmit(event)}>
+            <form className="stack-form" onSubmit={(event) => void handleFolderSubmit(event)}>
               <label>
                 폴더 이름
                 <input
@@ -1821,23 +1837,26 @@ export default function App() {
                   ))}
                 </select>
               </label>
-              <button type="submit" disabled={isSavingFolder}>
-                {isSavingFolder
-                  ? editingFolderId
-                    ? "수정 중..."
-                    : "추가 중..."
-                  : editingFolderId
-                    ? "폴더 수정"
-                    : "폴더 추가"}
-              </button>
-              {editingFolderId ? (
-                <button type="button" onClick={() => cancelFolderEdit()}>
-                  수정 취소
+              <div className="action-row">
+                <button type="submit" className="primary-button" disabled={isSavingFolder}>
+                  {isSavingFolder
+                    ? editingFolderId
+                      ? "수정 중..."
+                      : "추가 중..."
+                    : editingFolderId
+                      ? "폴더 수정"
+                      : "폴더 추가"}
                 </button>
-              ) : null}
+                {editingFolderId ? (
+                  <button type="button" className="secondary-button" onClick={() => cancelFolderEdit()}>
+                    수정 취소
+                  </button>
+                ) : null}
+              </div>
             </form>
             <button
               type="button"
+              className="dropzone-button"
               disabled={isReorderingFolders}
               aria-label="최상위로 이동"
               onDragOver={(event) => {
@@ -1857,10 +1876,11 @@ export default function App() {
             >
               최상위로 이동
             </button>
-            <ul>
+            <ul className="folder-tree">
               {visibleFolderOptions.map(({ folder, label }) => (
                 <li
                   key={folder.id}
+                  className={`folder-tree-item${folder.parentFolderId ? " folder-tree-item-child" : ""}`}
                   onDragOver={(event) => {
                     if (
                       !draggingFolderId ||
@@ -1878,65 +1898,71 @@ export default function App() {
                     void handleFolderReorderDrop(folder);
                   }}
                 >
-                  <div>
-                    <span>{folder.name}</span>
+                  <div className="folder-tree-summary">
+                    <strong>{label}</strong>
                     {folder.parentFolderId ? (
-                      <>
+                      <div className="folder-tree-meta">
                         <p>하위 폴더</p>
                         <p>상위: {getFolderName(folder.parentFolderId)}</p>
-                      </>
+                      </div>
                     ) : null}
                   </div>
-                  <button
-                    type="button"
-                    draggable
-                    disabled={isReorderingFolders}
-                    aria-label={`${folder.name} 폴더 드래그 정렬`}
-                    onDragStart={() => setDraggingFolderId(folder.id)}
-                    onDragEnd={() => resetDraggingFolder()}
-                  >
-                    드래그 정렬
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isReorderingFolders}
-                    aria-label={`${folder.name} 폴더 하위로 이동`}
-                    onDragOver={(event) => {
-                      if (!draggingFolderId || draggingFolderId === folder.id) {
-                        return;
-                      }
+                  <div className="folder-tree-actions">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      draggable
+                      disabled={isReorderingFolders}
+                      aria-label={`${folder.name} 폴더 드래그 정렬`}
+                      onDragStart={() => setDraggingFolderId(folder.id)}
+                      onDragEnd={() => resetDraggingFolder()}
+                    >
+                      드래그 정렬
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      disabled={isReorderingFolders}
+                      aria-label={`${folder.name} 폴더 하위로 이동`}
+                      onDragOver={(event) => {
+                        event.stopPropagation();
+                        if (!draggingFolderId || draggingFolderId === folder.id) {
+                          return;
+                        }
 
-                      const descendantFolderIds = getFolderDescendantIds(
-                        folders,
-                        draggingFolderId
-                      );
-                      if (descendantFolderIds.has(folder.id)) {
-                        return;
-                      }
+                        const descendantFolderIds = getFolderDescendantIds(
+                          folders,
+                          draggingFolderId
+                        );
+                        if (descendantFolderIds.has(folder.id)) {
+                          return;
+                        }
 
-                      event.preventDefault();
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      void handleFolderMoveDrop(folder);
-                    }}
-                  >
-                    하위로 이동
-                  </button>
-                  <button type="button" onClick={() => beginFolderEdit(folder)}>
-                    {folder.name} 폴더 수정 시작
-                  </button>
-                  <button type="button" onClick={() => void handleFolderDelete(folder)}>
-                    {folder.name} 폴더 삭제
-                  </button>
+                        event.preventDefault();
+                      }}
+                      onDrop={(event) => {
+                        event.stopPropagation();
+                        event.preventDefault();
+                        void handleFolderMoveDrop(folder);
+                      }}
+                    >
+                      하위로 이동
+                    </button>
+                    <button type="button" className="secondary-button" onClick={() => beginFolderEdit(folder)}>
+                      {folder.name} 폴더 수정 시작
+                    </button>
+                    <button type="button" className="danger-button" onClick={() => void handleFolderDelete(folder)}>
+                      {folder.name} 폴더 삭제
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           </section>
 
-          <section aria-label="tag-manager">
+          <section aria-label="tag-manager" className="surface-card panel-card">
             <h2>태그 관리</h2>
-            <form onSubmit={(event) => void handleTagSubmit(event)}>
+            <form className="stack-form" onSubmit={(event) => void handleTagSubmit(event)}>
               <label>
                 태그 이름
                 <input
@@ -1954,48 +1980,301 @@ export default function App() {
                   onChange={(event) => updateTagDraft({ color: event.target.value })}
                 />
               </label>
-              <button type="submit" disabled={isSavingTag}>
-                {isSavingTag
-                  ? editingTagId
-                    ? "수정 중..."
-                    : "추가 중..."
-                  : editingTagId
-                    ? "태그 수정"
-                    : "태그 추가"}
-              </button>
-              {editingTagId ? (
-                <button type="button" onClick={() => cancelTagEdit()}>
-                  수정 취소
+              <div className="action-row">
+                <button type="submit" className="primary-button" disabled={isSavingTag}>
+                  {isSavingTag
+                    ? editingTagId
+                      ? "수정 중..."
+                      : "추가 중..."
+                    : editingTagId
+                      ? "태그 수정"
+                      : "태그 추가"}
                 </button>
-              ) : null}
+                {editingTagId ? (
+                  <button type="button" className="secondary-button" onClick={() => cancelTagEdit()}>
+                    수정 취소
+                  </button>
+                ) : null}
+              </div>
             </form>
-            <ul>
+            <ul className="tag-list">
               {tags.map((tag) => (
-                <li key={tag.id}>
+                <li key={tag.id} className="tag-list-item">
                   <span>{tag.name}</span>
-                  <button type="button" onClick={() => beginTagEdit(tag)}>
-                    {tag.name} 태그 수정 시작
-                  </button>
-                  <button type="button" onClick={() => void handleTagDelete(tag)}>
-                    {tag.name} 태그 삭제
-                  </button>
+                  <div className="inline-actions">
+                    <button type="button" className="secondary-button" onClick={() => beginTagEdit(tag)}>
+                      {tag.name} 태그 수정 시작
+                    </button>
+                    <button type="button" className="danger-button" onClick={() => void handleTagDelete(tag)}>
+                      {tag.name} 태그 삭제
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           </section>
+          </aside>
 
-          <section aria-label="bookmark-list">
-            <section aria-label="recommendation-list">
+          <section aria-label="dashboard-main" className="dashboard-main">
+            <section aria-label="search-panel" className="surface-card panel-card">
+              <h2>검색과 필터</h2>
+              <form className="search-form" onSubmit={(event) => void handleBookmarkSearchSubmit(event)}>
+                <fieldset className="search-grid search-grid-basic">
+                  <legend>기본 검색</legend>
+                  <label>
+                    검색어
+                    <input
+                      name="bookmarkSearchQuery"
+                      value={bookmarkSearchDraft.query}
+                      onChange={(event) =>
+                        updateBookmarkSearchDraft({ query: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    검색 모드
+                    <select
+                      name="bookmarkSearchMode"
+                      value={bookmarkSearchDraft.mode}
+                      onChange={(event) =>
+                        updateBookmarkSearchDraft({
+                          mode: event.target.value as BookmarkSearchMode
+                        })
+                      }
+                    >
+                      <option value="all">통합 검색</option>
+                      <option value="title">제목 검색</option>
+                      <option value="content">내용 검색</option>
+                      <option value="folder">폴더명 검색</option>
+                    </select>
+                  </label>
+                  <label>
+                    정렬
+                    <select
+                      name="bookmarkSearchSort"
+                      value={bookmarkSearchDraft.sort}
+                      onChange={(event) =>
+                        updateBookmarkSearchDraft({
+                          sort: event.target.value as BookmarkSortMode
+                        })
+                      }
+                    >
+                      <option value="created_desc">최근 추가순</option>
+                      <option value="opened_desc">최근 열람순</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    aria-expanded={shouldShowAdvancedBookmarkSearch}
+                    onClick={() =>
+                      setIsAdvancedBookmarkSearchOpen((currentState) => !currentState)
+                    }
+                  >
+                    고급 필터
+                  </button>
+                </fieldset>
+                {shouldShowAdvancedBookmarkSearch ? (
+                  <fieldset className="search-grid search-grid-advanced">
+                    <legend>고급 필터</legend>
+                    <label>
+                      최근 추가
+                      <select
+                        name="bookmarkSearchCreatedWithin"
+                        value={bookmarkSearchDraft.createdWithin}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({
+                            createdWithin: event.target.value as BookmarkRelativeDateRange
+                          })
+                        }
+                      >
+                        <option value="all">전체</option>
+                        <option value="7d">최근 7일</option>
+                        <option value="30d">최근 30일</option>
+                      </select>
+                    </label>
+                    <label>
+                      최근 열람
+                      <select
+                        name="bookmarkSearchOpenedWithin"
+                        value={bookmarkSearchDraft.openedWithin}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({
+                            openedWithin: event.target.value as BookmarkRelativeDateRange
+                          })
+                        }
+                      >
+                        <option value="all">전체</option>
+                        <option value="7d">최근 7일</option>
+                        <option value="30d">최근 30일</option>
+                      </select>
+                    </label>
+                    <label>
+                      즐겨찾기만
+                      <input
+                        name="bookmarkSearchFavoriteOnly"
+                        type="checkbox"
+                        checked={bookmarkSearchDraft.favoriteOnly}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({
+                            favoriteOnly: event.target.checked
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      필터 폴더
+                      <select
+                        name="bookmarkSearchFolderId"
+                        value={bookmarkSearchDraft.folderId}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({
+                            folderId: event.target.value,
+                            includeDescendantFolders: event.target.value
+                              ? bookmarkSearchDraft.includeDescendantFolders
+                              : false
+                          })
+                        }
+                      >
+                        <option value="">전체 폴더</option>
+                        {visibleFolderOptions.map(({ folder, label }) => (
+                          <option key={folder.id} value={folder.id}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      하위 폴더 포함
+                      <input
+                        name="bookmarkSearchIncludeDescendantFolders"
+                        type="checkbox"
+                        checked={bookmarkSearchDraft.includeDescendantFolders}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({
+                            includeDescendantFolders: event.target.checked
+                          })
+                        }
+                        disabled={!bookmarkSearchDraft.folderId}
+                      />
+                    </label>
+                    <label>
+                      태그 조건
+                      <select
+                        name="bookmarkSearchTagMode"
+                        value={bookmarkSearchDraft.tagMode}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({
+                            tagMode: event.target.value as BookmarkTagMode
+                          })
+                        }
+                      >
+                        <option value="and">모두 포함</option>
+                        <option value="or">하나라도 포함</option>
+                      </select>
+                    </label>
+                    <fieldset className="tag-fieldset">
+                      <legend>필터 태그</legend>
+                      {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
+                      <div className="pill-list">
+                        {tags.map((tag) => (
+                          <label key={tag.id} className="pill-option">
+                            <input
+                              type="checkbox"
+                              name="bookmarkSearchTagIds"
+                              checked={bookmarkSearchDraft.tagIds.includes(tag.id)}
+                              onChange={(event) =>
+                                toggleBookmarkSearchTag(tag.id, event.target.checked)
+                              }
+                            />
+                            {tag.name}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                    <label>
+                      북마크 색상 필터
+                      <input
+                        name="bookmarkSearchBookmarkColor"
+                        value={bookmarkSearchDraft.bookmarkColor}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({ bookmarkColor: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      URL 색상 필터
+                      <input
+                        name="bookmarkSearchUrlColor"
+                        value={bookmarkSearchDraft.urlColor}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({ urlColor: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      요약 필터
+                      <select
+                        name="bookmarkSearchSummaryState"
+                        value={bookmarkSearchDraft.summaryState}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({
+                            summaryState: event.target.value as "all" | "with" | "without"
+                          })
+                        }
+                      >
+                        <option value="all">전체 요약</option>
+                        <option value="with">요약 있음</option>
+                        <option value="without">요약 없음</option>
+                      </select>
+                    </label>
+                  </fieldset>
+                ) : null}
+                <div className="action-row">
+                  <button type="submit" className="primary-button">검색 실행</button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void handleBookmarkSearchReset()}
+                  >
+                    검색 초기화
+                  </button>
+                </div>
+              </form>
+              {hasActiveBookmarkSearch(appliedBookmarkSearch) ? (
+                <div className="filter-summary-card">
+                  <p>현재 적용된 필터</p>
+                  <ul aria-label="active-search-filters" className="active-filter-list">
+                    {activeBookmarkSearchSummaryItems.map((item) => (
+                      <li key={item.key}>
+                        <button
+                          type="button"
+                          className="chip-button"
+                          aria-label={`검색 조건 제거: ${item.label}`}
+                          onClick={() => void applyBookmarkSearch(item.nextSearch)}
+                        >
+                          {item.label} ×
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </section>
+
+            <section aria-label="recommendation-list" className="surface-card panel-card">
               <h2>추천 링크</h2>
-              <div>
+              <div className="recommendation-grid">
+              <div className="recommendation-column">
                 <h3>즐겨찾기 추천</h3>
                 {recommendations.favorites.length === 0 ? <p>추천 링크가 없습니다.</p> : null}
-                <ul>
+                <ul className="recommendation-list">
                   {recommendations.favorites.map((bookmark) => (
-                    <li key={`favorite-${bookmark.id}`}>
+                    <li key={`favorite-${bookmark.id}`} className="recommendation-item">
                       <span>{bookmark.displayTitle || bookmark.url}</span>
                       <button
                         type="button"
+                        className="ghost-button"
                         onClick={() => void handleBookmarkOpen(bookmark)}
                       >
                         열기 {bookmark.displayTitle || bookmark.url}
@@ -2004,14 +2283,15 @@ export default function App() {
                   ))}
                 </ul>
               </div>
-              <div>
+              <div className="recommendation-column">
                 <h3>최근 열람</h3>
-                <ul>
+                <ul className="recommendation-list">
                   {recommendations.recent.map((bookmark) => (
-                    <li key={`recent-${bookmark.id}`}>
+                    <li key={`recent-${bookmark.id}`} className="recommendation-item">
                       <span>{bookmark.displayTitle || bookmark.url}</span>
                       <button
                         type="button"
+                        className="ghost-button"
                         onClick={() => void handleBookmarkOpen(bookmark)}
                       >
                         열기 {bookmark.displayTitle || bookmark.url}
@@ -2020,14 +2300,15 @@ export default function App() {
                   ))}
                 </ul>
               </div>
-              <div>
+              <div className="recommendation-column">
                 <h3>자주 연 링크</h3>
-                <ul>
+                <ul className="recommendation-list">
                   {recommendations.frequent.map((bookmark) => (
-                    <li key={`frequent-${bookmark.id}`}>
+                    <li key={`frequent-${bookmark.id}`} className="recommendation-item">
                       <span>{bookmark.displayTitle || bookmark.url}</span>
                       <button
                         type="button"
+                        className="ghost-button"
                         onClick={() => void handleBookmarkOpen(bookmark)}
                       >
                         열기 {bookmark.displayTitle || bookmark.url}
@@ -2035,17 +2316,22 @@ export default function App() {
                     </li>
                   ))}
                 </ul>
+              </div>
               </div>
             </section>
             {selectedBookmark ? (
-              <section aria-label="bookmark-detail">
+              <section aria-label="bookmark-detail" className="surface-card panel-card">
                 <h2>북마크 상세</h2>
                 <strong>{selectedBookmark.displayTitle || selectedBookmark.url}</strong>
-                <p>{selectedBookmark.url}</p>
-                <p>폴더: {getFolderName(selectedBookmark.folderId)}</p>
-                <p>태그: {getTagNames(selectedBookmark.tagIds).join(", ") || "없음"}</p>
+                <p className="muted-text">{selectedBookmark.url}</p>
+                <div className="meta-pill-list">
+                  <span className="meta-pill">폴더: {getFolderName(selectedBookmark.folderId)}</span>
+                  <span className="meta-pill">
+                    태그: {getTagNames(selectedBookmark.tagIds).join(", ") || "없음"}
+                  </span>
+                </div>
 
-                <section>
+                <section className="detail-block">
                   <h3>사용자 입력값</h3>
                   {selectedBookmark.userTitle ? <p>{selectedBookmark.userTitle}</p> : null}
                   {selectedBookmark.userContent ? <p>{selectedBookmark.userContent}</p> : null}
@@ -2057,7 +2343,7 @@ export default function App() {
                   ) : null}
                 </section>
 
-                <section>
+                <section className="detail-block">
                   <h3>자동 추출값</h3>
                   {selectedBookmark.sourceTitle ? <p>{selectedBookmark.sourceTitle}</p> : null}
                   {selectedBookmark.sourceContent ? <p>{selectedBookmark.sourceContent}</p> : null}
@@ -2070,7 +2356,7 @@ export default function App() {
                 </section>
 
                 {(bookmarkAssetsByBookmarkId[selectedBookmark.id]?.length ?? 0) > 0 ? (
-                  <div>
+                  <div className="asset-grid">
                     {bookmarkAssetsByBookmarkId[selectedBookmark.id].map((asset, index) => (
                       <img
                         key={asset.id}
@@ -2083,299 +2369,77 @@ export default function App() {
                   <p>업로드된 이미지가 없습니다.</p>
                 )}
 
-                <button type="button" onClick={() => void handleBookmarkOpen(selectedBookmark)}>
-                  열기 {selectedBookmark.displayTitle || selectedBookmark.url}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleBookmarkReextract(selectedBookmark.id)}
-                >
-                  자동 추출 다시 시도
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleResetUserContent(selectedBookmark.id)}
-                >
-                  사용자 입력 초기화
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleBookmarkDelete(selectedBookmark)}
-                >
-                  삭제
-                </button>
-                <button type="button" onClick={() => void beginBookmarkEdit(selectedBookmark)}>
-                  수정 시작
-                </button>
-                <button type="button" onClick={() => closeBookmarkDetail()}>
-                  닫기
-                </button>
+                <div className="action-row">
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => void handleBookmarkOpen(selectedBookmark)}
+                  >
+                    열기 {selectedBookmark.displayTitle || selectedBookmark.url}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void handleBookmarkReextract(selectedBookmark.id)}
+                  >
+                    자동 추출 다시 시도
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void handleResetUserContent(selectedBookmark.id)}
+                  >
+                    사용자 입력 초기화
+                  </button>
+                  <button
+                    type="button"
+                    className="danger-button"
+                    onClick={() => void handleBookmarkDelete(selectedBookmark)}
+                  >
+                    삭제
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void beginBookmarkEdit(selectedBookmark)}
+                  >
+                    수정 시작
+                  </button>
+                  <button type="button" className="ghost-button" onClick={() => closeBookmarkDetail()}>
+                    닫기
+                  </button>
+                </div>
               </section>
             ) : null}
+            <section aria-label="bookmark-list" className="surface-card panel-card">
             <h2>저장된 북마크</h2>
-            <form onSubmit={(event) => void handleBookmarkSearchSubmit(event)}>
-              <fieldset>
-                <legend>기본 검색</legend>
-                <label>
-                  검색어
-                  <input
-                    name="bookmarkSearchQuery"
-                    value={bookmarkSearchDraft.query}
-                    onChange={(event) =>
-                      updateBookmarkSearchDraft({ query: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  검색 모드
-                  <select
-                    name="bookmarkSearchMode"
-                    value={bookmarkSearchDraft.mode}
-                    onChange={(event) =>
-                      updateBookmarkSearchDraft({
-                        mode: event.target.value as BookmarkSearchMode
-                      })
-                    }
-                  >
-                    <option value="all">통합 검색</option>
-                    <option value="title">제목 검색</option>
-                    <option value="content">내용 검색</option>
-                    <option value="folder">폴더명 검색</option>
-                  </select>
-                </label>
-                <label>
-                  정렬
-                  <select
-                    name="bookmarkSearchSort"
-                    value={bookmarkSearchDraft.sort}
-                    onChange={(event) =>
-                      updateBookmarkSearchDraft({
-                        sort: event.target.value as BookmarkSortMode
-                      })
-                    }
-                  >
-                    <option value="created_desc">최근 추가순</option>
-                    <option value="opened_desc">최근 열람순</option>
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  aria-expanded={shouldShowAdvancedBookmarkSearch}
-                  onClick={() =>
-                    setIsAdvancedBookmarkSearchOpen((currentState) => !currentState)
-                  }
-                >
-                  고급 필터
-                </button>
-              </fieldset>
-              {shouldShowAdvancedBookmarkSearch ? (
-                <fieldset>
-                  <legend>고급 필터</legend>
-                  <label>
-                    최근 추가
-                    <select
-                      name="bookmarkSearchCreatedWithin"
-                      value={bookmarkSearchDraft.createdWithin}
-                      onChange={(event) =>
-                        updateBookmarkSearchDraft({
-                          createdWithin: event.target.value as BookmarkRelativeDateRange
-                        })
-                      }
-                    >
-                      <option value="all">전체</option>
-                      <option value="7d">최근 7일</option>
-                      <option value="30d">최근 30일</option>
-                    </select>
-                  </label>
-                  <label>
-                    최근 열람
-                    <select
-                      name="bookmarkSearchOpenedWithin"
-                      value={bookmarkSearchDraft.openedWithin}
-                      onChange={(event) =>
-                        updateBookmarkSearchDraft({
-                          openedWithin: event.target.value as BookmarkRelativeDateRange
-                        })
-                      }
-                    >
-                      <option value="all">전체</option>
-                      <option value="7d">최근 7일</option>
-                      <option value="30d">최근 30일</option>
-                    </select>
-                  </label>
-                  <label>
-                    즐겨찾기만
-                    <input
-                      name="bookmarkSearchFavoriteOnly"
-                      type="checkbox"
-                      checked={bookmarkSearchDraft.favoriteOnly}
-                      onChange={(event) =>
-                        updateBookmarkSearchDraft({
-                          favoriteOnly: event.target.checked
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    필터 폴더
-                    <select
-                      name="bookmarkSearchFolderId"
-                      value={bookmarkSearchDraft.folderId}
-                      onChange={(event) =>
-                        updateBookmarkSearchDraft({
-                          folderId: event.target.value,
-                          includeDescendantFolders: event.target.value
-                            ? bookmarkSearchDraft.includeDescendantFolders
-                            : false
-                        })
-                      }
-                    >
-                      <option value="">전체 폴더</option>
-                      {visibleFolderOptions.map(({ folder, label }) => (
-                        <option key={folder.id} value={folder.id}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    하위 폴더 포함
-                    <input
-                      name="bookmarkSearchIncludeDescendantFolders"
-                      type="checkbox"
-                      checked={bookmarkSearchDraft.includeDescendantFolders}
-                      onChange={(event) =>
-                        updateBookmarkSearchDraft({
-                          includeDescendantFolders: event.target.checked
-                        })
-                      }
-                      disabled={!bookmarkSearchDraft.folderId}
-                    />
-                  </label>
-                  <label>
-                    태그 조건
-                    <select
-                      name="bookmarkSearchTagMode"
-                      value={bookmarkSearchDraft.tagMode}
-                      onChange={(event) =>
-                        updateBookmarkSearchDraft({
-                          tagMode: event.target.value as BookmarkTagMode
-                        })
-                      }
-                    >
-                      <option value="and">모두 포함</option>
-                      <option value="or">하나라도 포함</option>
-                    </select>
-                  </label>
-                  <fieldset>
-                    <legend>필터 태그</legend>
-                    {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
-                    {tags.map((tag) => (
-                      <label key={tag.id}>
-                        <input
-                          type="checkbox"
-                          name="bookmarkSearchTagIds"
-                          checked={bookmarkSearchDraft.tagIds.includes(tag.id)}
-                          onChange={(event) =>
-                            toggleBookmarkSearchTag(tag.id, event.target.checked)
-                          }
-                        />
-                        {tag.name}
-                      </label>
-                    ))}
-                  </fieldset>
-                  <label>
-                    북마크 색상 필터
-                    <input
-                      name="bookmarkSearchBookmarkColor"
-                      value={bookmarkSearchDraft.bookmarkColor}
-                      onChange={(event) =>
-                        updateBookmarkSearchDraft({ bookmarkColor: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    URL 색상 필터
-                    <input
-                      name="bookmarkSearchUrlColor"
-                      value={bookmarkSearchDraft.urlColor}
-                      onChange={(event) =>
-                        updateBookmarkSearchDraft({ urlColor: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    요약 필터
-                    <select
-                      name="bookmarkSearchSummaryState"
-                      value={bookmarkSearchDraft.summaryState}
-                      onChange={(event) =>
-                        updateBookmarkSearchDraft({
-                          summaryState: event.target.value as "all" | "with" | "without"
-                        })
-                      }
-                    >
-                      <option value="all">전체 요약</option>
-                      <option value="with">요약 있음</option>
-                      <option value="without">요약 없음</option>
-                    </select>
-                  </label>
-                </fieldset>
-              ) : null}
-              <button type="submit">검색 실행</button>
-              <button type="button" onClick={() => void handleBookmarkSearchReset()}>
-                검색 초기화
-              </button>
-            </form>
             {isLoadingDashboard ? <p>대시보드 데이터를 불러오는 중입니다.</p> : null}
-            {hasActiveBookmarkSearch(appliedBookmarkSearch) ? (
-              <div>
-                <p>현재 적용된 검색</p>
-                <ul
-                  aria-label="active-search-filters"
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "0.5rem",
-                    listStyle: "none",
-                    padding: 0
-                  }}
-                >
-                  {activeBookmarkSearchSummaryItems.map((item) => (
-                    <li
-                      key={item.key}
-                      style={{ border: "1px solid currentColor" }}
-                    >
-                      <button
-                        type="button"
-                        aria-label={`검색 조건 제거: ${item.label}`}
-                        onClick={() => void applyBookmarkSearch(item.nextSearch)}
-                        style={{
-                          border: "none",
-                          background: "transparent",
-                          padding: "0.2rem 0.5rem",
-                          cursor: "pointer"
-                        }}
-                      >
-                        {item.label} ×
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
             {bookmarks.length === 0 ? <p>아직 저장된 북마크가 없습니다.</p> : null}
-            <ul>
+            <ul className="bookmark-grid">
               {bookmarks.map((bookmark) => (
-                <li key={bookmark.id}>
-                  <strong>{bookmark.displayTitle || bookmark.url}</strong>
-                  <p>{bookmark.url}</p>
+                <li key={bookmark.id} className="bookmark-card">
+                  <div className="bookmark-card-header">
+                    <div>
+                      <strong>{bookmark.displayTitle || bookmark.url}</strong>
+                      <p className="muted-text">{bookmark.url}</p>
+                    </div>
+                    <div className="meta-pill-list">
+                      <span className="meta-pill">{getFolderName(bookmark.folderId)}</span>
+                      {bookmark.isFavorite ? <span className="meta-pill">즐겨찾기</span> : null}
+                    </div>
+                  </div>
                   {bookmark.displaySummary ? <p>{bookmark.displaySummary}</p> : null}
                   {bookmark.tagIds.length > 0 ? (
-                    <p>{bookmark.tagIds.map((tagId) => tags.find((tag) => tag.id === tagId)?.name ?? tagId).join(", ")}</p>
+                    <div className="meta-pill-list">
+                      {bookmark.tagIds.map((tagId) => (
+                        <span key={tagId} className="meta-pill">
+                          {tags.find((tag) => tag.id === tagId)?.name ?? tagId}
+                        </span>
+                      ))}
+                    </div>
                   ) : null}
                   {(bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0) > 0 ? (
-                    <div>
+                    <div className="asset-grid">
                       {bookmarkAssetsByBookmarkId[bookmark.id].map((asset, index) => (
                         <img
                           key={asset.id}
@@ -2385,25 +2449,28 @@ export default function App() {
                       ))}
                     </div>
                   ) : null}
-                  <button type="button" onClick={() => void handleBookmarkOpen(bookmark)}>
-                    열기 {bookmark.displayTitle || bookmark.url}
-                  </button>
-                  <button type="button" onClick={() => void openBookmarkDetail(bookmark.id)}>
-                    상세 보기
-                  </button>
-                  <button type="button" onClick={() => void handleBookmarkDelete(bookmark)}>
-                    삭제
-                  </button>
-                  <button type="button" onClick={() => beginBookmarkEdit(bookmark)}>
-                    수정
-                  </button>
+                  <div className="action-row">
+                    <button type="button" className="primary-button" onClick={() => void handleBookmarkOpen(bookmark)}>
+                      열기 {bookmark.displayTitle || bookmark.url}
+                    </button>
+                    <button type="button" className="secondary-button" onClick={() => void openBookmarkDetail(bookmark.id)}>
+                      상세 보기
+                    </button>
+                    <button type="button" className="danger-button" onClick={() => void handleBookmarkDelete(bookmark)}>
+                      삭제
+                    </button>
+                    <button type="button" className="secondary-button" onClick={() => beginBookmarkEdit(bookmark)}>
+                      수정
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           </section>
-        </>
+          </section>
+        </div>
       ) : null}
-      {errorMessage ? <p>{errorMessage}</p> : null}
+      {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
     </main>
   );
 }
