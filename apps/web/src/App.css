@@ -125,6 +125,54 @@ img {
   overflow: hidden;
 }
 
+.sidebar-segmented-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.sidebar-segment-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.sidebar-segment-tab {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 0.9rem 0.8rem;
+  border: 1px solid rgba(20, 33, 61, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.74);
+  color: #4f5f7c;
+}
+
+.sidebar-segment-tab-active {
+  background: #14213d;
+  color: #fffdf8;
+  box-shadow: 0 12px 22px rgba(20, 33, 61, 0.16);
+}
+
+.sidebar-segment-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sidebar-segment-copy strong {
+  font-size: 0.95rem;
+  letter-spacing: -0.02em;
+}
+
+.sidebar-segment-copy span {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: inherit;
+  opacity: 0.85;
+}
+
 .sidebar-panel-toggle-button {
   width: 100%;
   display: flex;
@@ -177,6 +225,10 @@ img {
 
 .sidebar-panel-body {
   padding: 0 1.1rem 1.1rem;
+}
+
+.sidebar-panel-body-panel {
+  padding: 0;
 }
 
 .search-panel-header {
@@ -735,10 +787,6 @@ img {
 
   .dashboard-sidebar {
     gap: 0.8rem;
-  }
-
-  .sidebar-panel-toggle-button {
-    padding: 0.95rem 1rem;
   }
 
   .sidebar-panel-body {

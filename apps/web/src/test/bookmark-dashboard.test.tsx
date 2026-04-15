@@ -1519,34 +1519,162 @@ describe("bookmark dashboard", () => {
       name: /dashboard-sidebar/i
     });
 
-    const bookmarkPanelButton = within(sidebar).getByRole("button", {
-      name: /북마크 저장 패널/i
+    const tablist = within(sidebar).getByRole("tablist", { name: /mobile-sidebar-tabs/i });
+    const bookmarkPanelButton = within(tablist).getByRole("tab", {
+      name: /북마크 저장/i
     });
-    const folderPanelButton = within(sidebar).getByRole("button", {
-      name: /폴더 관리 패널/i
+    const folderPanelButton = within(tablist).getByRole("tab", {
+      name: /폴더/i
     });
-    const tagPanelButton = within(sidebar).getByRole("button", {
-      name: /태그 관리 패널/i
+    const tagPanelButton = within(tablist).getByRole("tab", {
+      name: /태그/i
     });
 
-    expect(bookmarkPanelButton).toHaveAttribute("aria-expanded", "true");
-    expect(folderPanelButton).toHaveAttribute("aria-expanded", "false");
-    expect(tagPanelButton).toHaveAttribute("aria-expanded", "false");
+    expect(bookmarkPanelButton).toHaveAttribute("aria-selected", "true");
+    expect(folderPanelButton).toHaveAttribute("aria-selected", "false");
+    expect(tagPanelButton).toHaveAttribute("aria-selected", "false");
     expect(bookmarkPanelButton).toHaveTextContent(/새 북마크/i);
     expect(folderPanelButton).toHaveTextContent(/폴더 1개/i);
     expect(tagPanelButton).toHaveTextContent(/태그 1개/i);
 
-    expect(within(sidebar).getByRole("region", { name: /bookmark-form/i })).toBeInTheDocument();
-    expect(within(sidebar).queryByRole("region", { name: /folder-manager/i })).not.toBeInTheDocument();
-    expect(within(sidebar).queryByRole("region", { name: /tag-manager/i })).not.toBeInTheDocument();
+    expect(within(sidebar).getByRole("tabpanel", { name: /북마크 저장/i })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole("tabpanel", { name: /폴더/i })).not.toBeInTheDocument();
+    expect(within(sidebar).queryByRole("tabpanel", { name: /태그/i })).not.toBeInTheDocument();
 
     fireEvent.click(folderPanelButton);
 
     expect(
-      await within(sidebar).findByRole("region", { name: /folder-manager/i })
+      await within(sidebar).findByRole("tabpanel", { name: /폴더/i })
     ).toBeInTheDocument();
-    expect(within(sidebar).queryByRole("region", { name: /bookmark-form/i })).not.toBeInTheDocument();
+    expect(within(sidebar).queryByRole("tabpanel", { name: /북마크 저장/i })).not.toBeInTheDocument();
     expect(await within(sidebar).findByLabelText(/폴더 이름/i)).toBeInTheDocument();
+  });
+
+  it("renders mobile sidebar tabs and switches the visible panel", async () => {
+    vi.stubGlobal("innerWidth", 640);
+    window.dispatchEvent(new Event("resize"));
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            tags: [
+              {
+                id: "tag-1",
+                name: "research",
+                color: "#2563eb",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const sidebar = await screen.findByRole("complementary", {
+      name: /dashboard-sidebar/i
+    });
+    const tablist = within(sidebar).getByRole("tablist", { name: /mobile-sidebar-tabs/i });
+    const bookmarkTab = within(tablist).getByRole("tab", { name: /북마크/i });
+    const folderTab = within(tablist).getByRole("tab", { name: /폴더/i });
+    const tagTab = within(tablist).getByRole("tab", { name: /태그/i });
+
+    expect(bookmarkTab).toHaveAttribute("aria-selected", "true");
+    expect(folderTab).toHaveAttribute("aria-selected", "false");
+    expect(tagTab).toHaveAttribute("aria-selected", "false");
+    expect(bookmarkTab).toHaveTextContent(/새 북마크/i);
+    expect(folderTab).toHaveTextContent(/1개/i);
+    expect(tagTab).toHaveTextContent(/1개/i);
+    expect(within(sidebar).getByRole("tabpanel", { name: /북마크 저장/i })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole("tabpanel", { name: /폴더/i })).not.toBeInTheDocument();
+
+    fireEvent.click(folderTab);
+
+    expect(folderTab).toHaveAttribute("aria-selected", "true");
+    expect(bookmarkTab).toHaveAttribute("aria-selected", "false");
+    expect(await within(sidebar).findByRole("tabpanel", { name: /폴더/i })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole("tabpanel", { name: /북마크 저장/i })).not.toBeInTheDocument();
   });
 
   it("renders compact bookmark cards on mobile", async () => {
