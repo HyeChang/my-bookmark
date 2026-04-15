@@ -1837,6 +1837,7 @@ export default function App() {
       {sessionState.status === "authenticated" ? (
         <div className="dashboard-layout">
           <aside aria-label="dashboard-sidebar" className="dashboard-sidebar">
+            <p className="section-eyebrow">작업 패널</p>
             {shouldUseMobileSidebarPanels ? (
               <div className="sidebar-segmented-panels">
                 <div role="tablist" aria-label="mobile-sidebar-tabs" className="sidebar-segment-tabs">
@@ -2677,6 +2678,7 @@ export default function App() {
           </aside>
 
           <section aria-label="dashboard-main" className="dashboard-main">
+            <p className="section-eyebrow">작업 결과</p>
             <section aria-label="search-panel" className="surface-card panel-card search-panel-card">
               <div className="search-panel-header">
                 <div className="search-panel-heading">

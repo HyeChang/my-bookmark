@@ -68,6 +68,15 @@ img {
   color: #ad6531;
 }
 
+.section-eyebrow {
+  margin: 0 0 0.2rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #61708e;
+}
+
 .hero-actions {
   min-width: 16rem;
 }

@@ -128,6 +128,8 @@ describe("bookmark dashboard", () => {
     expect(within(sidebar).getByRole("region", { name: /folder-manager/i })).toBeInTheDocument();
     expect(within(sidebar).getByRole("region", { name: /tag-manager/i })).toBeInTheDocument();
     const searchPanel = within(mainPanel).getByRole("region", { name: /search-panel/i });
+    expect(within(sidebar).getByText(/^작업 패널$/i)).toBeInTheDocument();
+    expect(within(mainPanel).getByText(/^작업 결과$/i)).toBeInTheDocument();
 
     expect(
       await within(bookmarkFormRegion).findByLabelText(/^URL$/i)
