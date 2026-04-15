@@ -34,16 +34,16 @@ img {
   min-height: 100vh;
   max-width: 1600px;
   margin: 0 auto;
-  padding: 1.15rem 1.15rem 2.5rem;
+  padding: 1rem 1.05rem 2.35rem;
 }
 
 .app-hero {
   display: flex;
   justify-content: space-between;
-  gap: 1.25rem;
+  gap: 1rem;
   align-items: stretch;
-  padding: 0.9rem 0 0.95rem;
-  margin-bottom: 0.8rem;
+  padding: 0.72rem 0 0.82rem;
+  margin-bottom: 0.72rem;
   border-bottom: 1px solid rgba(31, 37, 51, 0.08);
 }
 
@@ -55,24 +55,24 @@ img {
 
 .hero-copy h1 {
   margin: 0;
-  font-size: clamp(2.35rem, 3.5vw, 3.9rem);
-  line-height: 0.95;
-  letter-spacing: -0.085em;
+  font-size: clamp(2.05rem, 3vw, 3.35rem);
+  line-height: 0.98;
+  letter-spacing: -0.07em;
   color: #161b26;
 }
 
 .hero-copy > p:last-child {
-  max-width: 42rem;
+  max-width: 36rem;
   margin: 0.2rem 0 0;
   color: #596170;
-  font-size: 0.98rem;
+  font-size: 0.93rem;
 }
 
 .hero-eyebrow {
   margin: 0;
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
   color: #b16435;
 }
@@ -80,7 +80,7 @@ img {
 .hero-support {
   margin: 0;
   color: #5e6572;
-  font-size: 0.88rem;
+  font-size: 0.84rem;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -89,7 +89,7 @@ img {
   margin: 0 0 0.4rem;
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #6b6f7a;
 }
@@ -104,9 +104,9 @@ img {
 .session-card,
 .surface-card {
   border: 1px solid rgba(31, 37, 51, 0.08);
-  border-radius: 18px;
+  border-radius: 14px;
   background: rgba(255, 252, 246, 0.94);
-  box-shadow: 0 10px 24px rgba(31, 37, 51, 0.045);
+  box-shadow: 0 8px 18px rgba(31, 37, 51, 0.04);
 }
 
 .session-card {
@@ -201,7 +201,7 @@ img {
 
 .navigation-sidebar-heading-row h2 {
   margin: 0;
-  font-size: 1.08rem;
+  font-size: 1rem;
   letter-spacing: -0.04em;
   color: #1b2230;
 }
@@ -248,7 +248,7 @@ img {
   width: min(780px, 100%);
   max-height: calc(100vh - 4rem);
   overflow: auto;
-  padding: 0.95rem;
+  padding: 0.82rem;
 }
 
 .overlay-dialog-header {
@@ -256,7 +256,7 @@ img {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.2rem 0.2rem 1rem;
+  padding: 0 0 0.82rem;
 }
 
 .overlay-dialog-title {
@@ -267,7 +267,7 @@ img {
 
 .overlay-dialog-title h2 {
   margin: 0;
-  font-size: 1.22rem;
+  font-size: 1.12rem;
   letter-spacing: -0.04em;
   color: #1b2230;
 }
@@ -285,7 +285,7 @@ img {
 }
 
 .panel-card {
-  padding: 1rem;
+  padding: 0.88rem;
 }
 
 .sidebar-panel-shell {
@@ -296,9 +296,9 @@ img {
 .workspace-panel-header {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding-bottom: 0.95rem;
-  margin-bottom: 0.95rem;
+  gap: 0.32rem;
+  padding-bottom: 0.78rem;
+  margin-bottom: 0.78rem;
   border-bottom: 1px solid rgba(31, 37, 51, 0.08);
 }
 
@@ -306,7 +306,7 @@ img {
   margin: 0;
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #b16435;
 }
@@ -320,7 +320,7 @@ img {
 
 .workspace-panel-heading-row h2 {
   margin: 0;
-  font-size: 1.18rem;
+  font-size: 1.08rem;
   letter-spacing: -0.04em;
   color: #1b2230;
 }
@@ -329,12 +329,12 @@ img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 1.8rem;
-  padding: 0.22rem 0.6rem;
-  border-radius: 999px;
+  min-height: 1.6rem;
+  padding: 0.18rem 0.52rem;
+  border-radius: 10px;
   background: rgba(177, 100, 53, 0.1);
   color: #7f4a26;
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -832,7 +832,7 @@ img {
 .search-toolbar-field input,
 .search-toolbar-field select {
   min-height: 2.55rem;
-  border-radius: 999px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: inset 0 0 0 1px rgba(20, 33, 61, 0.06);
 }
@@ -949,9 +949,9 @@ img {
 .danger-button,
 .dropzone-button,
 .chip-button {
-  min-height: 2.45rem;
-  border-radius: 12px;
-  padding: 0.58rem 0.82rem;
+  min-height: 2.28rem;
+  border-radius: 10px;
+  padding: 0.5rem 0.76rem;
   border: 1px solid transparent;
   transition: transform 120ms ease, box-shadow 120ms ease;
   font-weight: 650;
@@ -969,7 +969,7 @@ img {
 .primary-button {
   background: #14213d;
   color: #fffdf8;
-  box-shadow: 0 8px 18px rgba(20, 33, 61, 0.12);
+  box-shadow: 0 6px 14px rgba(20, 33, 61, 0.1);
 }
 
 .secondary-button {
