@@ -123,12 +123,24 @@ describe("bookmark dashboard", () => {
       name: /dashboard-sidebar/i
     });
     const mainPanel = await screen.findByRole("region", { name: /dashboard-main/i });
+    const navigationSidebar = within(sidebar).getByRole("region", {
+      name: /navigation-sidebar/i
+    });
+    const bookmarkResults = within(mainPanel).getByRole("region", {
+      name: /bookmark-results/i
+    });
+    const bookmarkDetailRegion = within(mainPanel).getByRole("region", {
+      name: /bookmark-detail-shell/i
+    });
     const bookmarkFormRegion = within(sidebar).getByRole("region", {
       name: /bookmark-form/i
     });
     expect(screen.getByText(/^개인 아카이브 작업 공간$/i)).toBeInTheDocument();
     expect(workspace).toContainElement(sidebar);
     expect(workspace).toContainElement(mainPanel);
+    expect(navigationSidebar).toBeInTheDocument();
+    expect(bookmarkResults).toBeInTheDocument();
+    expect(bookmarkDetailRegion).toBeInTheDocument();
     const folderManagerRegion = within(sidebar).getByRole("region", { name: /folder-manager/i });
     const tagManagerRegion = within(sidebar).getByRole("region", { name: /tag-manager/i });
     expect(folderManagerRegion).toBeInTheDocument();
@@ -146,6 +158,9 @@ describe("bookmark dashboard", () => {
     ).toBeInTheDocument();
     expect(within(searchPanel).getByText(/^기본 검색$/i)).toBeInTheDocument();
     expect(within(searchPanel).getByRole("button", { name: /검색 실행/i })).toBeInTheDocument();
+    expect(within(navigationSidebar).getByRole("button", { name: /^새 북마크$/i })).toBeInTheDocument();
+    expect(within(navigationSidebar).getByRole("button", { name: /^새 폴더$/i })).toBeInTheDocument();
+    expect(within(navigationSidebar).getByRole("button", { name: /^태그 관리$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /북마크 저장/i })).toBeInTheDocument();
     const bookmarkListRegion = within(mainPanel).getByRole("region", {
       name: /bookmark-list/i
@@ -3237,7 +3252,7 @@ describe("bookmark dashboard", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /상세 보기/i }));
 
-    const detailRegion = await screen.findByRole("region", { name: /bookmark-detail/i });
+    const detailRegion = await screen.findByRole("region", { name: /^bookmark-detail$/i });
     expect(within(detailRegion).getByText(/^읽기 중심$/i)).toBeInTheDocument();
     expect(
       within(detailRegion).getByText(/^Detail title$/i, { selector: "strong" })
@@ -3491,7 +3506,7 @@ describe("bookmark dashboard", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /상세 보기/i }));
 
-    const detailRegion = await screen.findByRole("region", { name: /bookmark-detail/i });
+    const detailRegion = await screen.findByRole("region", { name: /^bookmark-detail$/i });
     fireEvent.click(
       within(detailRegion).getByRole("button", { name: /자동 추출 다시 시도/i })
     );
@@ -3516,7 +3531,7 @@ describe("bookmark dashboard", () => {
     fireEvent.click(within(detailRegion).getByRole("button", { name: /^닫기$/i }));
 
     await waitFor(() => {
-      expect(screen.queryByRole("region", { name: /bookmark-detail/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: /^bookmark-detail$/i })).not.toBeInTheDocument();
     });
 
     const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });
@@ -3706,11 +3721,11 @@ describe("bookmark dashboard", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /상세 보기/i }));
 
-    const detailRegion = await screen.findByRole("region", { name: /bookmark-detail/i });
+    const detailRegion = await screen.findByRole("region", { name: /^bookmark-detail$/i });
     fireEvent.click(within(detailRegion).getByRole("button", { name: /삭제/i }));
 
     await waitFor(() => {
-      expect(screen.queryByRole("region", { name: /bookmark-detail/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: /^bookmark-detail$/i })).not.toBeInTheDocument();
     });
 
     const bookmarkListRegion = screen.getByRole("region", { name: /bookmark-list/i });

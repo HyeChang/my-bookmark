@@ -146,6 +146,40 @@ img {
   gap: 1rem;
 }
 
+.navigation-sidebar-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.navigation-sidebar-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+}
+
+.navigation-sidebar-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.navigation-sidebar-heading-row h2 {
+  margin: 0;
+  font-size: 1.18rem;
+  letter-spacing: -0.04em;
+  color: #1b2230;
+}
+
+.navigation-sidebar-actions,
+.bookmark-results-stack,
+.bookmark-detail-region {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
 .panel-card {
   padding: 1.18rem;
 }

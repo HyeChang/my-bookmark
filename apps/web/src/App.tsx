@@ -2055,6 +2055,28 @@ export default function App() {
           <div className="dashboard-layout">
             <aside aria-label="dashboard-sidebar" className="dashboard-sidebar">
               <p className="section-eyebrow">작업 패널</p>
+              {!shouldUseMobileSidebarPanels ? (
+                <section aria-label="navigation-sidebar" className="surface-card panel-card navigation-sidebar-card">
+                  <div className="navigation-sidebar-header">
+                    <p className="workspace-panel-kicker">빠른 진입</p>
+                    <div className="navigation-sidebar-heading-row">
+                      <h2>작업 시작</h2>
+                      <span className="workspace-panel-summary">데스크톱 중심</span>
+                    </div>
+                  </div>
+                  <div className="navigation-sidebar-actions">
+                    <button type="button" className="primary-button">
+                      새 북마크
+                    </button>
+                    <button type="button" className="secondary-button">
+                      새 폴더
+                    </button>
+                    <button type="button" className="ghost-button">
+                      태그 관리
+                    </button>
+                  </div>
+                </section>
+              ) : null}
               {shouldUseMobileSidebarPanels ? (
                 <div className="sidebar-segmented-panels">
                   <div role="tablist" aria-label="mobile-sidebar-tabs" className="sidebar-segment-tabs">
@@ -2893,6 +2915,7 @@ export default function App() {
 
           <section aria-label="dashboard-main" className="dashboard-main">
             <p className="section-eyebrow">작업 결과</p>
+            <section aria-label="bookmark-results" className="bookmark-results-stack">
             <section aria-label="search-panel" className="surface-card panel-card search-panel-card">
               <div className="search-panel-header">
                 <div className="search-panel-heading">
@@ -3196,6 +3219,7 @@ export default function App() {
                 </div>
               ) : null}
             </section>
+            </section>
 
             <section aria-label="recommendation-list" className="surface-card panel-card recommendation-panel-card">
               <header className="recommendation-panel-header">
@@ -3301,11 +3325,9 @@ export default function App() {
               </div>
               </div>
             </section>
+            <section aria-label="bookmark-detail-shell" className="bookmark-detail-region">
             {selectedBookmark ? (
-              <section
-                aria-label="bookmark-detail"
-                className="surface-card panel-card bookmark-detail-card"
-              >
+              <section aria-label="bookmark-detail" className="surface-card panel-card bookmark-detail-card">
                 <header className="bookmark-detail-header">
                   <p className="bookmark-detail-kicker">읽기 중심</p>
                   <div className="bookmark-detail-title-row">
@@ -3416,6 +3438,7 @@ export default function App() {
                 </div>
               </section>
             ) : null}
+            </section>
             <section aria-label="bookmark-list" className="surface-card panel-card">
             <header className="bookmark-list-header">
               <p className="bookmark-list-kicker">보관 목록</p>
