@@ -147,9 +147,11 @@ describe("bookmark dashboard", () => {
     const searchPanel = within(mainPanel).getByRole("region", { name: /search-panel/i });
     expect(within(sidebar).getByText(/^작업 패널$/i)).toBeInTheDocument();
     expect(within(mainPanel).getByText(/^작업 결과$/i)).toBeInTheDocument();
-    expect(within(searchPanel).getByText(/^탐색 기준$/i)).toBeInTheDocument();
-    expect(within(searchPanel).getByText(/^기본 검색$/i)).toBeInTheDocument();
+    expect(within(searchPanel).getByRole("region", { name: /desktop-search-toolbar/i })).toBeInTheDocument();
+    expect(within(searchPanel).queryByText(/^탐색 기준$/i)).not.toBeInTheDocument();
+    expect(within(searchPanel).queryByText(/^기본 검색$/i)).not.toBeInTheDocument();
     expect(within(searchPanel).getByRole("button", { name: /검색 실행/i })).toBeInTheDocument();
+    expect(within(searchPanel).getByRole("button", { name: /고급 필터 열기/i })).toBeInTheDocument();
     expect(within(navigationSidebar).getByRole("button", { name: /^새 북마크$/i })).toBeInTheDocument();
     expect(within(navigationSidebar).getByRole("button", { name: /^새 폴더$/i })).toBeInTheDocument();
     expect(within(navigationSidebar).getByRole("button", { name: /^태그 관리$/i })).toBeInTheDocument();
@@ -1632,8 +1634,10 @@ describe("bookmark dashboard", () => {
     render(<App />);
 
     const searchPanel = await screen.findByRole("region", { name: /search-panel/i });
+    expect(within(searchPanel).getByRole("region", { name: /desktop-search-toolbar/i })).toBeInTheDocument();
 
     expect(within(searchPanel).queryByLabelText(/즐겨찾기만/i)).not.toBeInTheDocument();
+    expect(within(searchPanel).queryByText(/^기간$/i)).not.toBeInTheDocument();
 
     expect(
       within(searchPanel).getByRole("button", { name: /고급 필터 열기/i })

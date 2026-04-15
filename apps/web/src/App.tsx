@@ -2622,7 +2622,9 @@ export default function App() {
             <section aria-label="search-panel" className="surface-card panel-card search-panel-card">
               <div className="search-panel-header">
                 <div className="search-panel-heading">
-                  <p className="search-panel-kicker">탐색 기준</p>
+                  {isMobileSearchViewport ? (
+                    <p className="search-panel-kicker">탐색 기준</p>
+                  ) : null}
                   <div className="search-panel-title-row">
                     <h2>검색과 필터</h2>
                     {shouldShowMobileSearchSummary ? (
@@ -2632,7 +2634,9 @@ export default function App() {
                     ) : null}
                   </div>
                   <p className="search-panel-helper">
-                    검색 입력부터 고급 조건 초안까지 한 번에 조정합니다.
+                    {isMobileSearchViewport
+                      ? "검색 입력부터 고급 조건 초안까지 한 번에 조정합니다."
+                      : "검색어, 정렬, 고급 조건을 빠르게 조합해 현재 보관 목록을 좁혀봅니다."}
                   </p>
                   {shouldShowMobileSearchSummary ? (
                     <p className="search-panel-helper search-panel-helper-mobile">
@@ -2655,61 +2659,132 @@ export default function App() {
               </div>
               {shouldShowSearchPanelBody ? (
               <form className="search-form" onSubmit={(event) => void handleBookmarkSearchSubmit(event)}>
-                <fieldset className="search-grid search-grid-basic search-grid-surface">
-                  <legend>기본 검색</legend>
-                  <label>
-                    검색어
-                    <input
-                      name="bookmarkSearchQuery"
-                      value={bookmarkSearchDraft.query}
-                      onChange={(event) =>
-                        updateBookmarkSearchDraft({ query: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    검색 모드
-                    <select
-                      name="bookmarkSearchMode"
-                      value={bookmarkSearchDraft.mode}
-                      onChange={(event) =>
-                        updateBookmarkSearchDraft({
-                          mode: event.target.value as BookmarkSearchMode
-                        })
+                {isMobileSearchViewport ? (
+                  <fieldset className="search-grid search-grid-basic search-grid-surface">
+                    <legend>기본 검색</legend>
+                    <label>
+                      검색어
+                      <input
+                        name="bookmarkSearchQuery"
+                        value={bookmarkSearchDraft.query}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({ query: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      검색 모드
+                      <select
+                        name="bookmarkSearchMode"
+                        value={bookmarkSearchDraft.mode}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({
+                            mode: event.target.value as BookmarkSearchMode
+                          })
+                        }
+                      >
+                        <option value="all">통합 검색</option>
+                        <option value="title">제목 검색</option>
+                        <option value="content">내용 검색</option>
+                        <option value="folder">폴더명 검색</option>
+                      </select>
+                    </label>
+                    <label>
+                      정렬
+                      <select
+                        name="bookmarkSearchSort"
+                        value={bookmarkSearchDraft.sort}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({
+                            sort: event.target.value as BookmarkSortMode
+                          })
+                        }
+                      >
+                        <option value="created_desc">최근 추가순</option>
+                        <option value="opened_desc">최근 열람순</option>
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      aria-expanded={shouldShowAdvancedBookmarkSearch}
+                      onClick={() =>
+                        setIsAdvancedBookmarkSearchOpen((currentState) => !currentState)
                       }
                     >
-                      <option value="all">통합 검색</option>
-                      <option value="title">제목 검색</option>
-                      <option value="content">내용 검색</option>
-                      <option value="folder">폴더명 검색</option>
-                    </select>
-                  </label>
-                  <label>
-                    정렬
-                    <select
-                      name="bookmarkSearchSort"
-                      value={bookmarkSearchDraft.sort}
-                      onChange={(event) =>
-                        updateBookmarkSearchDraft({
-                          sort: event.target.value as BookmarkSortMode
-                        })
-                      }
-                    >
-                      <option value="created_desc">최근 추가순</option>
-                      <option value="opened_desc">최근 열람순</option>
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    aria-expanded={shouldShowAdvancedBookmarkSearch}
-                    onClick={() =>
-                      setIsAdvancedBookmarkSearchOpen((currentState) => !currentState)
-                    }
+                      {shouldShowAdvancedBookmarkSearch ? "고급 필터 접기" : "고급 필터 열기"}
+                    </button>
+                  </fieldset>
+                ) : (
+                  <div
+                    role="region"
+                    aria-label="desktop-search-toolbar"
+                    className="search-toolbar search-grid-surface"
                   >
-                    {shouldShowAdvancedBookmarkSearch ? "고급 필터 접기" : "고급 필터 열기"}
-                  </button>
-                </fieldset>
+                    <label className="search-toolbar-field search-toolbar-field-query">
+                      <span>검색어</span>
+                      <input
+                        name="bookmarkSearchQuery"
+                        value={bookmarkSearchDraft.query}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({ query: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label className="search-toolbar-field">
+                      <span>검색 모드</span>
+                      <select
+                        name="bookmarkSearchMode"
+                        value={bookmarkSearchDraft.mode}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({
+                            mode: event.target.value as BookmarkSearchMode
+                          })
+                        }
+                      >
+                        <option value="all">통합 검색</option>
+                        <option value="title">제목 검색</option>
+                        <option value="content">내용 검색</option>
+                        <option value="folder">폴더명 검색</option>
+                      </select>
+                    </label>
+                    <label className="search-toolbar-field">
+                      <span>정렬</span>
+                      <select
+                        name="bookmarkSearchSort"
+                        value={bookmarkSearchDraft.sort}
+                        onChange={(event) =>
+                          updateBookmarkSearchDraft({
+                            sort: event.target.value as BookmarkSortMode
+                          })
+                        }
+                      >
+                        <option value="created_desc">최근 추가순</option>
+                        <option value="opened_desc">최근 열람순</option>
+                      </select>
+                    </label>
+                    <div className="search-toolbar-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        aria-expanded={shouldShowAdvancedBookmarkSearch}
+                        onClick={() =>
+                          setIsAdvancedBookmarkSearchOpen((currentState) => !currentState)
+                        }
+                      >
+                        {shouldShowAdvancedBookmarkSearch ? "고급 필터 접기" : "고급 필터 열기"}
+                      </button>
+                      <button type="submit" className="primary-button">검색 실행</button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => void handleBookmarkSearchReset()}
+                      >
+                        검색 초기화
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {shouldShowAdvancedBookmarkSearch ? (
                   <fieldset className="search-grid search-grid-advanced search-grid-surface">
                     <legend>고급 필터</legend>
@@ -2881,16 +2956,18 @@ export default function App() {
                     </div>
                   </fieldset>
                 ) : null}
-                <div className="action-row search-action-row">
-                  <button type="submit" className="primary-button">검색 실행</button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => void handleBookmarkSearchReset()}
-                  >
-                    검색 초기화
-                  </button>
-                </div>
+                {isMobileSearchViewport ? (
+                  <div className="action-row search-action-row">
+                    <button type="submit" className="primary-button">검색 실행</button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void handleBookmarkSearchReset()}
+                    >
+                      검색 초기화
+                    </button>
+                  </div>
+                ) : null}
               </form>
               ) : null}
               {hasActiveBookmarkSearch(appliedBookmarkSearch) && shouldShowSearchPanelBody ? (
