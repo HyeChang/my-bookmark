@@ -815,7 +815,7 @@ describe("bookmark dashboard", () => {
         value: "paper"
       }
     });
-    fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터/i }));
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터 열기/i }));
     fireEvent.click(within(searchPanel).getByLabelText(/즐겨찾기만/i));
     fireEvent.change(within(searchPanel).getByLabelText(/필터 폴더/i), {
       target: {
@@ -833,6 +833,7 @@ describe("bookmark dashboard", () => {
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^Filtered paper$/i)).toBeInTheDocument();
     });
+    expect(within(searchPanel).getByText(/선택된 필터 6개/i)).toBeInTheDocument();
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/bookmarks?mode=all&tagMode=or&query=paper&favorite=1&folderId=folder-1&tagId=tag-1&tagId=tag-2",
@@ -1283,10 +1284,21 @@ describe("bookmark dashboard", () => {
 
     expect(within(searchPanel).queryByLabelText(/즐겨찾기만/i)).not.toBeInTheDocument();
 
-    fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터/i }));
+    expect(
+      within(searchPanel).getByRole("button", { name: /고급 필터 열기/i })
+    ).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터 열기/i }));
 
     expect(within(searchPanel).getByLabelText(/즐겨찾기만/i)).toBeInTheDocument();
     expect(within(searchPanel).getByLabelText(/태그 조건/i)).toBeInTheDocument();
+    expect(within(searchPanel).getByRole("button", { name: /고급 필터 접기/i })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(within(searchPanel).getByText(/^기간$/i)).toBeInTheDocument();
+    expect(within(searchPanel).getByText(/^분류$/i)).toBeInTheDocument();
+    expect(within(searchPanel).getByText(/^상태$/i)).toBeInTheDocument();
   });
 
   it("submits bookmark search with color and summary filters and resets them", async () => {
