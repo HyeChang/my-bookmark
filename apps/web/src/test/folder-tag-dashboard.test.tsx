@@ -120,6 +120,8 @@ describe("folder and tag dashboard", () => {
       ).length
     ).toBeGreaterThan(0);
     expect(screen.getByLabelText(/폴더 이름/i)).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: /폴더 색상/i })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: /폴더 아이콘/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/태그 이름/i)).toBeInTheDocument();
   });
 
@@ -221,16 +223,8 @@ describe("folder and tag dashboard", () => {
         value: "Articles"
       }
     });
-    fireEvent.change(screen.getByLabelText(/폴더 색상/i), {
-      target: {
-        value: "#0f766e"
-      }
-    });
-    fireEvent.change(screen.getByLabelText(/폴더 아이콘/i), {
-      target: {
-        value: "newspaper"
-      }
-    });
+    fireEvent.click(screen.getByRole("button", { name: /폴더 색상 청록 선택/i }));
+    fireEvent.click(screen.getByRole("button", { name: /폴더 아이콘 신문 선택/i }));
     fireEvent.click(screen.getByRole("button", { name: /폴더 추가/i }));
 
     await waitFor(() => {
@@ -1185,12 +1179,8 @@ describe("folder and tag dashboard", () => {
     fireEvent.change(screen.getByLabelText(/폴더 이름/i), {
       target: { value: "Articles" }
     });
-    fireEvent.change(screen.getByLabelText(/폴더 색상/i), {
-      target: { value: "#0f766e" }
-    });
-    fireEvent.change(screen.getByLabelText(/폴더 아이콘/i), {
-      target: { value: "newspaper" }
-    });
+    fireEvent.click(screen.getByRole("button", { name: /폴더 색상 청록 선택/i }));
+    fireEvent.click(screen.getByRole("button", { name: /폴더 아이콘 신문 선택/i }));
     fireEvent.click(
       within(screen.getByRole("region", { name: /folder-manager/i })).getByRole("button", {
         name: /^폴더 수정$/i

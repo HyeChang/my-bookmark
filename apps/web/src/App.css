@@ -458,11 +458,50 @@ img {
   margin: 0;
 }
 
+.picker-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
 .tag-fieldset legend,
+.picker-fieldset legend,
 .search-grid legend {
   margin-bottom: 0.7rem;
   font-weight: 700;
   color: #1f2533;
+}
+
+.picker-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.picker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid rgba(20, 33, 61, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #273044;
+}
+
+.picker-chip-active {
+  border-color: rgba(177, 100, 53, 0.38);
+  background: rgba(177, 100, 53, 0.12);
+  color: #7f4a26;
+}
+
+.picker-color-swatch {
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 999px;
+  border: 1px solid rgba(31, 37, 51, 0.12);
+  flex-shrink: 0;
 }
 
 .search-form {

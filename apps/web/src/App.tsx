@@ -38,6 +38,7 @@ import {
   reorderFolders,
   updateFolder
 } from "./lib/folders";
+import { folderColorPresets, folderIconPresets } from "./lib/folder-presets";
 import { loadRecommendations, recordBookmarkOpen } from "./lib/recommendations";
 import { exchangeIdTokenForSession, loadSession, logoutSession } from "./lib/session";
 import { createTag, deleteTag, loadTags, updateTag } from "./lib/tags";
@@ -529,6 +530,79 @@ function reorderSiblingFolders(
 
   remainingFolders.splice(insertionIndex, 0, draggedFolder);
   return remainingFolders;
+}
+
+function renderFolderColorPicker(
+  selectedColor: string,
+  onSelect: (value: string) => void
+) {
+  return (
+    <fieldset className="picker-fieldset">
+      <legend>폴더 색상</legend>
+      <div className="picker-grid">
+        <button
+          type="button"
+          className={`picker-chip${selectedColor ? "" : " picker-chip-active"}`}
+          aria-label="폴더 색상 선택 안 함"
+          aria-pressed={!selectedColor}
+          onClick={() => onSelect("")}
+        >
+          선택 안 함
+        </button>
+        {folderColorPresets.map((preset) => (
+          <button
+            key={preset.value}
+            type="button"
+            className={`picker-chip${selectedColor === preset.value ? " picker-chip-active" : ""}`}
+            aria-label={`폴더 색상 ${preset.label} 선택`}
+            aria-pressed={selectedColor === preset.value}
+            onClick={() => onSelect(preset.value)}
+          >
+            <span
+              className="picker-color-swatch"
+              style={{ backgroundColor: preset.value }}
+              aria-hidden="true"
+            />
+            {preset.label}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+function renderFolderIconPicker(
+  selectedIcon: string,
+  onSelect: (value: string) => void
+) {
+  return (
+    <fieldset className="picker-fieldset">
+      <legend>폴더 아이콘</legend>
+      <div className="picker-grid">
+        <button
+          type="button"
+          className={`picker-chip${selectedIcon ? "" : " picker-chip-active"}`}
+          aria-label="폴더 아이콘 선택 안 함"
+          aria-pressed={!selectedIcon}
+          onClick={() => onSelect("")}
+        >
+          선택 안 함
+        </button>
+        {folderIconPresets.map((preset) => (
+          <button
+            key={preset.value}
+            type="button"
+            className={`picker-chip${selectedIcon === preset.value ? " picker-chip-active" : ""}`}
+            aria-label={`폴더 아이콘 ${preset.label} 선택`}
+            aria-pressed={selectedIcon === preset.value}
+            onClick={() => onSelect(preset.value)}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
 }
 
 export default function App() {
@@ -2086,22 +2160,12 @@ export default function App() {
                             required
                           />
                         </label>
-                        <label>
-                          폴더 색상
-                          <input
-                            name="folderColor"
-                            value={folderDraft.color}
-                            onChange={(event) => updateFolderDraft({ color: event.target.value })}
-                          />
-                        </label>
-                        <label>
-                          폴더 아이콘
-                          <input
-                            name="folderIcon"
-                            value={folderDraft.icon}
-                            onChange={(event) => updateFolderDraft({ icon: event.target.value })}
-                          />
-                        </label>
+                        {renderFolderColorPicker(folderDraft.color, (value) =>
+                          updateFolderDraft({ color: value })
+                        )}
+                        {renderFolderIconPicker(folderDraft.icon, (value) =>
+                          updateFolderDraft({ icon: value })
+                        )}
                         <label>
                           부모 폴더
                           <select
@@ -2502,22 +2566,12 @@ export default function App() {
                         required
                       />
                     </label>
-                    <label>
-                      폴더 색상
-                      <input
-                        name="folderColor"
-                        value={folderDraft.color}
-                        onChange={(event) => updateFolderDraft({ color: event.target.value })}
-                      />
-                    </label>
-                    <label>
-                      폴더 아이콘
-                      <input
-                        name="folderIcon"
-                        value={folderDraft.icon}
-                        onChange={(event) => updateFolderDraft({ icon: event.target.value })}
-                      />
-                    </label>
+                    {renderFolderColorPicker(folderDraft.color, (value) =>
+                      updateFolderDraft({ color: value })
+                    )}
+                    {renderFolderIconPicker(folderDraft.icon, (value) =>
+                      updateFolderDraft({ icon: value })
+                    )}
                     <label>
                       부모 폴더
                       <select
