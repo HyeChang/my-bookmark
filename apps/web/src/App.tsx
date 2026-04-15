@@ -636,14 +636,17 @@ export default function App() {
   );
   const [mobileSidebarPanel, setMobileSidebarPanel] = useState<MobileSidebarPanelId>("bookmark");
   const [folderDraft, setFolderDraft] = useState<FolderDraft>(emptyFolderDraft);
+  const [quickFolderDraft, setQuickFolderDraft] = useState<FolderDraft>(emptyFolderDraft);
   const [tagDraft, setTagDraft] = useState<TagDraft>(emptyTagDraft);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
+  const [isQuickFolderOpen, setIsQuickFolderOpen] = useState(false);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [isSavingBookmark, setIsSavingBookmark] = useState(false);
   const [isLoadingBookmarkPreview, setIsLoadingBookmarkPreview] = useState(false);
   const [isSavingFolder, setIsSavingFolder] = useState(false);
+  const [isSavingQuickFolder, setIsSavingQuickFolder] = useState(false);
   const [isSavingTag, setIsSavingTag] = useState(false);
   const [isReorderingFolders, setIsReorderingFolders] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -798,7 +801,9 @@ export default function App() {
       setBookmarkSearchDraft(emptyBookmarkSearchDraft);
       setAppliedBookmarkSearch(emptyBookmarkSearchDraft);
       setFolderDraft(emptyFolderDraft);
+      setQuickFolderDraft(emptyFolderDraft);
       setTagDraft(emptyTagDraft);
+      setIsQuickFolderOpen(false);
     });
   }
 
@@ -1088,6 +1093,13 @@ export default function App() {
     }));
   }
 
+  function updateQuickFolderDraft(nextValues: Partial<FolderDraft>) {
+    setQuickFolderDraft((currentDraft) => ({
+      ...currentDraft,
+      ...nextValues
+    }));
+  }
+
   function updateTagDraft(nextValues: Partial<TagDraft>) {
     setTagDraft((currentDraft) => ({
       ...currentDraft,
@@ -1108,6 +1120,45 @@ export default function App() {
   function cancelFolderEdit() {
     setEditingFolderId(null);
     setFolderDraft(emptyFolderDraft);
+  }
+
+  async function handleQuickFolderCreate() {
+    if (!quickFolderDraft.name.trim()) {
+      setErrorMessage("폴더 이름을 입력해주세요.");
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      setIsSavingQuickFolder(true);
+      const createdFolder = await createFolder({
+        name: quickFolderDraft.name,
+        color: quickFolderDraft.color || null,
+        icon: quickFolderDraft.icon || null,
+        parentFolderId:
+          visibleFolderOptions.length > 0
+            ? quickFolderDraft.parentFolderId || null
+            : null
+      });
+
+      startTransition(() => {
+        setFolders((currentFolders) => [...currentFolders, createdFolder]);
+        setBookmarkDraft((currentDraft) => ({
+          ...currentDraft,
+          folderId: createdFolder.id
+        }));
+        setQuickFolderDraft(emptyFolderDraft);
+        setIsQuickFolderOpen(false);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "빠른 폴더 생성을 완료하지 못했습니다."
+        );
+      });
+    } finally {
+      setIsSavingQuickFolder(false);
+    }
   }
 
   function replaceFolderState(nextFolder: Folder) {
@@ -1765,6 +1816,7 @@ export default function App() {
     : new Set<string>();
   const parentFolderOptions = getHierarchicalFolderOptions(folders, disallowedParentFolderIds);
   const visibleFolderOptions = getHierarchicalFolderOptions(folders);
+  const quickFolderParentOptions = getHierarchicalFolderOptions(folders);
   const bookmarkPanelTitle = editingBookmarkId ? "북마크 수정" : "북마크 저장";
   const hasActiveBookmarkDraft =
     Boolean(
@@ -1792,6 +1844,66 @@ export default function App() {
   const bookmarkPanelKicker = "작성 흐름";
   const folderPanelKicker = "구조 정리";
   const tagPanelKicker = "분류 체계";
+  const quickFolderCreateSection = (
+    <div className="inline-folder-create">
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => setIsQuickFolderOpen((currentValue) => !currentValue)}
+      >
+        {isQuickFolderOpen ? "새 폴더 바로 추가 닫기" : "새 폴더 바로 추가"}
+      </button>
+      {isQuickFolderOpen ? (
+        <section aria-label="quick-folder-create" className="inline-folder-create-panel">
+          <label>
+            폴더 이름
+            <input
+              name="quickFolderName"
+              value={quickFolderDraft.name}
+              onChange={(event) => updateQuickFolderDraft({ name: event.target.value })}
+            />
+          </label>
+          {renderFolderColorPicker(quickFolderDraft.color, (value) =>
+            updateQuickFolderDraft({ color: value })
+          )}
+          {renderFolderIconPicker(quickFolderDraft.icon, (value) =>
+            updateQuickFolderDraft({ icon: value })
+          )}
+          <label>
+            부모 폴더
+            <select
+              name="quickFolderParentFolderId"
+              value={quickFolderDraft.parentFolderId}
+              disabled={quickFolderParentOptions.length === 0}
+              onChange={(event) =>
+                updateQuickFolderDraft({ parentFolderId: event.target.value })
+              }
+            >
+              <option value="">상위 없음</option>
+              {quickFolderParentOptions.map(({ folder, label }) => (
+                <option key={folder.id} value={folder.id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {quickFolderParentOptions.length === 0 ? (
+            <p className="field-note">폴더가 없어 최상위 폴더로 생성됩니다.</p>
+          ) : null}
+          <div className="action-row">
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => void handleQuickFolderCreate()}
+              disabled={isSavingQuickFolder}
+            >
+              {isSavingQuickFolder ? "저장 중..." : "빠른 폴더 저장"}
+            </button>
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
 
   function renderWorkspacePanelHeader(options: {
     heading: string;
@@ -2014,6 +2126,7 @@ export default function App() {
                           ))}
                         </select>
                       </label>
+                      {quickFolderCreateSection}
                       <label>
                         제목
                         <input
@@ -2419,6 +2532,7 @@ export default function App() {
                       ))}
                     </select>
                   </label>
+                  {quickFolderCreateSection}
                   <label>
                     제목
                     <input

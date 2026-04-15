@@ -379,6 +379,199 @@ describe("bookmark dashboard", () => {
     expect(within(bookmarkListRegion).getByText(/^이미지 1장$/i)).toBeInTheDocument();
   });
 
+  it("creates a folder inline from the bookmark form and selects it for the next bookmark", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            folder: {
+              id: "folder-inline-1",
+              name: "Articles",
+              color: "#0f766e",
+              icon: "newspaper",
+              parentFolderId: null,
+              sortOrder: 0,
+              createdAt: "2026-04-13T08:00:00.000Z",
+              updatedAt: "2026-04-13T08:00:00.000Z"
+            }
+          }),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            bookmark: {
+              id: "bookmark-inline-1",
+              folderId: "folder-inline-1",
+              url: "https://example.com/inline-folder",
+              isFavorite: false,
+              bookmarkColor: null,
+              urlColor: null,
+              sourceTitle: null,
+              sourceContent: null,
+              sourceSummary: null,
+              userTitle: "Inline folder bookmark",
+              userContent: null,
+              userSummary: null,
+              displayTitle: "Inline folder bookmark",
+              displayContent: "",
+              displaySummary: "",
+              tagIds: [],
+              createdAt: "2026-04-13T08:00:00.000Z",
+              updatedAt: "2026-04-13T08:00:00.000Z"
+            }
+          }),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const bookmarkFormRegion = await screen.findByRole("region", { name: /bookmark-form/i });
+    fireEvent.click(
+      within(bookmarkFormRegion).getByRole("button", { name: /새 폴더 바로 추가/i })
+    );
+
+    const quickFolderRegion = within(bookmarkFormRegion).getByRole("region", {
+      name: /quick-folder-create/i
+    });
+    const quickParentSelect = within(quickFolderRegion).getByRole("combobox", {
+      name: /부모 폴더/i
+    });
+
+    expect(quickParentSelect).toBeDisabled();
+
+    fireEvent.change(within(quickFolderRegion).getByLabelText(/폴더 이름/i), {
+      target: { value: "Articles" }
+    });
+    fireEvent.click(
+      within(quickFolderRegion).getByRole("button", { name: /폴더 색상 청록 선택/i })
+    );
+    fireEvent.click(
+      within(quickFolderRegion).getByRole("button", { name: /폴더 아이콘 신문 선택/i })
+    );
+    fireEvent.click(
+      within(quickFolderRegion).getByRole("button", { name: /빠른 폴더 저장/i })
+    );
+
+    await waitFor(() => {
+      expect(
+        (within(bookmarkFormRegion).getByLabelText(/저장 폴더/i) as HTMLSelectElement).value
+      ).toBe("folder-inline-1");
+    });
+
+    fireEvent.change(within(bookmarkFormRegion).getByLabelText(/^URL$/i), {
+      target: { value: "https://example.com/inline-folder" }
+    });
+    fireEvent.change(within(bookmarkFormRegion).getByLabelText(/제목/i), {
+      target: { value: "Inline folder bookmark" }
+    });
+    fireEvent.click(within(bookmarkFormRegion).getByRole("button", { name: /북마크 저장/i }));
+
+    const createFolderCall = fetchSpy.mock.calls.find(
+      ([input, init]) =>
+        (typeof input === "string" ? input : input.url) === "/api/folders" &&
+        init?.method === "POST"
+    );
+    expect(createFolderCall).toBeDefined();
+    expect(JSON.parse(String(createFolderCall?.[1]?.body))).toMatchObject({
+      name: "Articles",
+      color: "#0f766e",
+      icon: "newspaper",
+      parentFolderId: null
+    });
+
+    const createBookmarkCall = fetchSpy.mock.calls.find(
+      ([input, init]) =>
+        (typeof input === "string" ? input : input.url) === "/api/bookmarks" &&
+        init?.method === "POST"
+    );
+    expect(createBookmarkCall).toBeDefined();
+    expect(JSON.parse(String(createBookmarkCall?.[1]?.body))).toMatchObject({
+      url: "https://example.com/inline-folder",
+      folderId: "folder-inline-1",
+      userTitle: "Inline folder bookmark"
+    });
+  });
+
   it("loads bookmark preview metadata and submits extracted source fields", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;

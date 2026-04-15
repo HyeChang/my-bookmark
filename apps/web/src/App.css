@@ -504,6 +504,28 @@ img {
   flex-shrink: 0;
 }
 
+.inline-folder-create {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.inline-folder-create-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.95rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(31, 37, 51, 0.08);
+}
+
+.field-note {
+  margin: 0;
+  color: #5e6572;
+  font-size: 0.86rem;
+}
+
 .search-form {
   display: flex;
   flex-direction: column;
