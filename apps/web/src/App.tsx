@@ -2831,19 +2831,20 @@ export default function App() {
                     aria-label="desktop-search-toolbar"
                     className="search-toolbar search-grid-surface"
                   >
-                    <label className="search-toolbar-field search-toolbar-field-query">
-                      <span>검색어</span>
+                    <div className="search-toolbar-field search-toolbar-field-query">
                       <input
+                        aria-label="검색어"
                         name="bookmarkSearchQuery"
+                        placeholder="링크, 제목, 내용 검색"
                         value={bookmarkSearchDraft.query}
                         onChange={(event) =>
                           updateBookmarkSearchDraft({ query: event.target.value })
                         }
                       />
-                    </label>
-                    <label className="search-toolbar-field">
-                      <span>검색 모드</span>
+                    </div>
+                    <div className="search-toolbar-field">
                       <select
+                        aria-label="검색 모드"
                         name="bookmarkSearchMode"
                         value={bookmarkSearchDraft.mode}
                         onChange={(event) =>
@@ -2857,10 +2858,10 @@ export default function App() {
                         <option value="content">내용 검색</option>
                         <option value="folder">폴더명 검색</option>
                       </select>
-                    </label>
-                    <label className="search-toolbar-field">
-                      <span>정렬</span>
+                    </div>
+                    <div className="search-toolbar-field">
                       <select
+                        aria-label="정렬"
                         name="bookmarkSearchSort"
                         value={bookmarkSearchDraft.sort}
                         onChange={(event) =>
@@ -2872,7 +2873,7 @@ export default function App() {
                         <option value="created_desc">최근 추가순</option>
                         <option value="opened_desc">최근 열람순</option>
                       </select>
-                    </label>
+                    </div>
                     <div className="search-toolbar-actions">
                       <button
                         type="button"

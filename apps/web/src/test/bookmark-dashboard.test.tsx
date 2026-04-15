@@ -175,6 +175,10 @@ describe("bookmark dashboard", () => {
     expect(within(searchPanel).getByRole("region", { name: /desktop-search-toolbar/i })).toBeInTheDocument();
     expect(within(searchPanel).queryByText(/^탐색 기준$/i)).not.toBeInTheDocument();
     expect(within(searchPanel).queryByText(/^기본 검색$/i)).not.toBeInTheDocument();
+    expect(within(searchPanel).queryByText(/^검색어$/i)).not.toBeInTheDocument();
+    expect(within(searchPanel).queryByText(/^검색 모드$/i)).not.toBeInTheDocument();
+    expect(within(searchPanel).queryByText(/^정렬$/i)).not.toBeInTheDocument();
+    expect(within(searchPanel).getByPlaceholderText(/링크, 제목, 내용 검색/i)).toBeInTheDocument();
     expect(within(searchPanel).getByRole("button", { name: /검색 실행/i })).toBeInTheDocument();
     expect(within(searchPanel).getByRole("button", { name: /고급 필터 열기/i })).toBeInTheDocument();
     expect(within(navigationSidebar).getByRole("button", { name: /^새 북마크$/i })).toBeInTheDocument();

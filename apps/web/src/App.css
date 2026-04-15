@@ -795,27 +795,14 @@ img {
 
 .search-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) repeat(2, minmax(10rem, 0.72fr)) auto;
+  grid-template-columns: minmax(0, 1.9fr) repeat(2, minmax(8.6rem, 0.72fr)) auto;
   gap: 0.65rem;
-  align-items: end;
+  align-items: center;
   padding: 0.82rem 0.9rem;
 }
 
 .search-toolbar-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.32rem;
   min-width: 0;
-  color: #273044;
-  font-size: 0.83rem;
-  font-weight: 700;
-}
-
-.search-toolbar-field span {
-  color: #6a7281;
-  font-size: 0.74rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .search-toolbar-field-query {
@@ -825,6 +812,13 @@ img {
 .search-toolbar-field input,
 .search-toolbar-field select {
   min-height: 2.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(20, 33, 61, 0.06);
+}
+
+.search-toolbar-field input::placeholder {
+  color: #7a8190;
 }
 
 .search-toolbar-actions {
@@ -832,11 +826,12 @@ img {
   justify-content: flex-end;
   align-items: center;
   gap: 0.55rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .search-toolbar-actions > button {
-  min-height: 2.8rem;
+  min-height: 2.55rem;
+  white-space: nowrap;
 }
 
 .search-grid {
