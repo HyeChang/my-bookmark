@@ -1673,6 +1673,7 @@ export default function App() {
     isAdvancedBookmarkSearchOpen ||
     hasActiveBookmarkAdvancedFilters(bookmarkSearchDraft) ||
     hasActiveBookmarkAdvancedFilters(appliedBookmarkSearch);
+  const shouldUseCompactMobileCards = isMobileSearchViewport;
   const shouldShowMobileSearchSummary = isMobileSearchViewport && hasActiveBookmarkSearch(appliedBookmarkSearch);
   const shouldShowSearchPanelBody = !isMobileSearchViewport || isMobileSearchPanelOpen;
   const activeBookmarkSearchSummaryItems = getBookmarkSearchSummaryItems(
@@ -2625,9 +2626,17 @@ export default function App() {
                         이미지 {bookmarkAssetsByBookmarkId[bookmark.id].length}장
                       </span>
                     ) : null}
+                    {shouldUseCompactMobileCards &&
+                    (bookmark.bookmarkColor || bookmark.urlColor) ? (
+                      <span className="meta-pill">색상 설정됨</span>
+                    ) : null}
                   </div>
-                  {bookmark.displaySummary ? <p>{bookmark.displaySummary}</p> : null}
-                  {bookmark.tagIds.length > 0 ? (
+                  {bookmark.displaySummary ? (
+                    <p className={shouldUseCompactMobileCards ? "bookmark-card-summary" : undefined}>
+                      {bookmark.displaySummary}
+                    </p>
+                  ) : null}
+                  {!shouldUseCompactMobileCards && bookmark.tagIds.length > 0 ? (
                     <div className="meta-pill-list">
                       {bookmark.tagIds.map((tagId) => (
                         <span key={tagId} className="meta-pill">
@@ -2636,6 +2645,7 @@ export default function App() {
                       ))}
                     </div>
                   ) : null}
+                  {!shouldUseCompactMobileCards ? (
                   <div className="meta-pill-list">
                     {bookmark.bookmarkColor ? (
                       <span className="meta-pill color-pill">
@@ -2658,7 +2668,9 @@ export default function App() {
                       </span>
                     ) : null}
                   </div>
-                  {(bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0) > 0 ? (
+                  ) : null}
+                  {!shouldUseCompactMobileCards &&
+                  (bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0) > 0 ? (
                     <div className="asset-grid">
                       {bookmarkAssetsByBookmarkId[bookmark.id].map((asset, index) => (
                         <img
@@ -2669,18 +2681,18 @@ export default function App() {
                       ))}
                     </div>
                   ) : null}
-                  <div className="action-row">
+                  <div className="action-row bookmark-card-actions">
                     <button type="button" className="primary-button" onClick={() => void handleBookmarkOpen(bookmark)}>
                       열기 {bookmark.displayTitle || bookmark.url}
                     </button>
                     <button type="button" className="secondary-button" onClick={() => void openBookmarkDetail(bookmark.id)}>
                       상세 보기
                     </button>
-                    <button type="button" className="danger-button" onClick={() => void handleBookmarkDelete(bookmark)}>
-                      삭제
-                    </button>
                     <button type="button" className="secondary-button" onClick={() => beginBookmarkEdit(bookmark)}>
                       수정
+                    </button>
+                    <button type="button" className="danger-button" onClick={() => void handleBookmarkDelete(bookmark)}>
+                      삭제
                     </button>
                   </div>
                 </li>

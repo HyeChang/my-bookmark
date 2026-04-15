@@ -1413,6 +1413,136 @@ describe("bookmark dashboard", () => {
     window.dispatchEvent(new Event("resize"));
   });
 
+  it("renders compact bookmark cards on mobile", async () => {
+    vi.stubGlobal("innerWidth", 640);
+    window.dispatchEvent(new Event("resize"));
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com",
+              name: "Bookmark Tester"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-mobile-1",
+                folderId: null,
+                url: "https://example.com/post",
+                isFavorite: true,
+                bookmarkColor: "#f59e0b",
+                urlColor: "#0f172a",
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Manual title",
+                userContent: "Manual content",
+                userSummary: "Manual summary",
+                displayTitle: "Manual title",
+                displayContent: "Manual content",
+                displaySummary: "Manual summary",
+                tagIds: ["tag-1"],
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            tags: [
+              {
+                id: "tag-1",
+                name: "research",
+                color: "#2563eb",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const bookmarkListRegion = await screen.findByRole("region", {
+      name: /bookmark-list/i
+    });
+    const firstCard = within(bookmarkListRegion).getAllByRole("listitem")[0];
+
+    expect(within(firstCard).getByText(/^태그 1개$/i)).toBeInTheDocument();
+    expect(within(firstCard).getByText(/^색상 설정됨$/i)).toBeInTheDocument();
+    expect(within(firstCard).queryByText(/^research$/i)).not.toBeInTheDocument();
+    expect(within(firstCard).queryByText(/북마크 색상 #f59e0b/i)).not.toBeInTheDocument();
+    expect(within(firstCard).queryByText(/url 색상 #0f172a/i)).not.toBeInTheDocument();
+    expect(
+      within(firstCard)
+        .getAllByRole("button")
+        .map((button) => button.textContent?.trim())
+    ).toEqual(["열기 Manual title", "상세 보기", "수정", "삭제"]);
+  });
+
   it("submits bookmark search with color and summary filters and resets them", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
