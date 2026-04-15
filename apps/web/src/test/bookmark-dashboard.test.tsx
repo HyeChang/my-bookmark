@@ -150,8 +150,11 @@ describe("bookmark dashboard", () => {
     const bookmarkListRegion = within(mainPanel).getByRole("region", {
       name: /bookmark-list/i
     });
+    expect(within(bookmarkListRegion).getByText(/^보관 목록$/i)).toBeInTheDocument();
     expect(await within(bookmarkListRegion).findByText(/^Manual title$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^https:\/\/example\.com\/post$/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/^상태 배지$/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/^빠른 조작$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getAllByText(/^research$/i).length).toBeGreaterThan(0);
     expect(within(bookmarkListRegion).getByText(/^수동 요약$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^태그 1개$/i)).toBeInTheDocument();
@@ -1814,8 +1817,11 @@ describe("bookmark dashboard", () => {
     });
     const firstCard = within(bookmarkListRegion).getAllByRole("listitem")[0];
 
+    expect(within(bookmarkListRegion).getByText(/^보관 목록$/i)).toBeInTheDocument();
     expect(within(firstCard).getByText(/^태그 1개$/i)).toBeInTheDocument();
     expect(within(firstCard).getByText(/^색상 설정됨$/i)).toBeInTheDocument();
+    expect(within(firstCard).queryByText(/^상태 배지$/i)).not.toBeInTheDocument();
+    expect(within(firstCard).queryByText(/^빠른 조작$/i)).not.toBeInTheDocument();
     expect(within(firstCard).queryByText(/^research$/i)).not.toBeInTheDocument();
     expect(within(firstCard).queryByText(/북마크 색상 #f59e0b/i)).not.toBeInTheDocument();
     expect(within(firstCard).queryByText(/url 색상 #0f172a/i)).not.toBeInTheDocument();

@@ -3249,22 +3249,33 @@ export default function App() {
               </section>
             ) : null}
             <section aria-label="bookmark-list" className="surface-card panel-card">
-            <h2>저장된 북마크</h2>
+            <header className="bookmark-list-header">
+              <p className="bookmark-list-kicker">보관 목록</p>
+              <div className="bookmark-list-title-row">
+                <h2>저장된 북마크</h2>
+                <p className="bookmark-list-helper">
+                  정리된 링크와 상태 배지를 한 번에 훑어보고 바로 동작합니다.
+                </p>
+              </div>
+            </header>
             {isLoadingDashboard ? <p>대시보드 데이터를 불러오는 중입니다.</p> : null}
             {bookmarks.length === 0 ? <p>아직 저장된 북마크가 없습니다.</p> : null}
             <ul className="bookmark-grid">
               {bookmarks.map((bookmark) => (
                 <li key={bookmark.id} className="bookmark-card">
                   <div className="bookmark-card-header">
-                    <div>
+                    <div className="bookmark-card-title-block">
                       <strong>{bookmark.displayTitle || bookmark.url}</strong>
                       <p className="muted-text">{bookmark.url}</p>
                     </div>
-                    <div className="meta-pill-list">
+                    <div className="meta-pill-list bookmark-card-primary-meta">
                       <span className="meta-pill">{getFolderName(bookmark.folderId)}</span>
                       {bookmark.isFavorite ? <span className="meta-pill">즐겨찾기</span> : null}
                     </div>
                   </div>
+                  {!shouldUseCompactMobileCards ? (
+                    <p className="bookmark-card-section-label">상태 배지</p>
+                  ) : null}
                   <div className="meta-pill-list">
                     <span className="meta-pill">{getBookmarkSummaryStateLabel(bookmark)}</span>
                     <span className="meta-pill">태그 {bookmark.tagIds.length}개</span>
@@ -3284,6 +3295,8 @@ export default function App() {
                     </p>
                   ) : null}
                   {!shouldUseCompactMobileCards && bookmark.tagIds.length > 0 ? (
+                    <>
+                    <p className="bookmark-card-section-label">분류</p>
                     <div className="meta-pill-list">
                       {bookmark.tagIds.map((tagId) => (
                         <span key={tagId} className="meta-pill">
@@ -3291,8 +3304,13 @@ export default function App() {
                         </span>
                       ))}
                     </div>
+                    </>
                   ) : null}
                   {!shouldUseCompactMobileCards ? (
+                  <>
+                  {(bookmark.bookmarkColor || bookmark.urlColor) ? (
+                    <p className="bookmark-card-section-label">표시 설정</p>
+                  ) : null}
                   <div className="meta-pill-list">
                     {bookmark.bookmarkColor ? (
                       <span className="meta-pill color-pill">
@@ -3315,6 +3333,7 @@ export default function App() {
                       </span>
                     ) : null}
                   </div>
+                  </>
                   ) : null}
                   {!shouldUseCompactMobileCards &&
                   (bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0) > 0 ? (
@@ -3327,6 +3346,9 @@ export default function App() {
                         />
                       ))}
                     </div>
+                  ) : null}
+                  {!shouldUseCompactMobileCards ? (
+                    <p className="bookmark-card-section-label">빠른 조작</p>
                   ) : null}
                   <div className="action-row bookmark-card-actions">
                     <button type="button" className="primary-button" onClick={() => void handleBookmarkOpen(bookmark)}>
