@@ -2910,20 +2910,24 @@ export default function App() {
                       <button
                         type="button"
                         className="secondary-button"
+                        aria-label={shouldShowAdvancedBookmarkSearch ? "고급 필터 접기" : "고급 필터 열기"}
                         aria-expanded={shouldShowAdvancedBookmarkSearch}
                         onClick={() =>
                           setIsAdvancedBookmarkSearchOpen((currentState) => !currentState)
                         }
                       >
-                        {shouldShowAdvancedBookmarkSearch ? "고급 필터 접기" : "고급 필터 열기"}
+                        필터
                       </button>
-                      <button type="submit" className="primary-button">검색 실행</button>
+                      <button type="submit" className="primary-button" aria-label="검색 실행">
+                        검색
+                      </button>
                       <button
                         type="button"
                         className="secondary-button"
+                        aria-label="검색 초기화"
                         onClick={() => void handleBookmarkSearchReset()}
                       >
-                        검색 초기화
+                        초기화
                       </button>
                     </div>
                   </div>

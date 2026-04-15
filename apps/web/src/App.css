@@ -845,13 +845,18 @@ img {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.45rem;
   flex-wrap: nowrap;
 }
 
 .search-toolbar-actions > button {
   min-height: 2.55rem;
   white-space: nowrap;
+}
+
+.search-toolbar-actions > .secondary-button {
+  min-height: 2.35rem;
+  padding: 0.46rem 0.72rem;
 }
 
 .search-grid {
