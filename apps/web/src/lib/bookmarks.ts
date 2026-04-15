@@ -9,6 +9,7 @@ import type {
   CreateBookmarkRequest,
   UpdateBookmarkRequest
 } from "@bookmark/shared";
+import { requestJson, requestVoid } from "./api";
 
 type LoadBookmarksOptions = {
   query?: string;
@@ -25,6 +26,25 @@ type LoadBookmarksOptions = {
   urlColor?: string;
   summaryState?: "all" | "with" | "without";
 };
+
+function mapBookmarkErrorCode(errorCode: string) {
+  switch (errorCode) {
+    case "missing_url":
+      return "URL을 입력해주세요.";
+    case "invalid_url":
+      return "올바른 URL 형식이 아닙니다.";
+    case "invalid_tag_ids":
+      return "선택한 태그를 다시 확인해주세요.";
+    case "bookmark_not_found":
+      return "북마크를 찾지 못했습니다.";
+    case "bookmark_extract_failed":
+      return "URL 메타 미리보기를 불러오지 못했습니다.";
+    case "bookmark_reextract_failed":
+      return "자동 추출을 다시 수행하지 못했습니다.";
+    default:
+      return null;
+  }
+}
 
 export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
   const searchParams = new URLSearchParams();
@@ -77,88 +97,96 @@ export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
   }
 
   const url = searchParams.size > 0 ? `/api/bookmarks?${searchParams.toString()}` : "/api/bookmarks";
-  const res = await fetch(url, {
-    credentials: "include"
-  });
-
-  if (!res.ok) {
-    throw new Error("Failed to load bookmarks");
-  }
-
-  const data = (await res.json()) as Partial<BookmarkListResponse>;
+  const data = await requestJson<Partial<BookmarkListResponse>>(
+    url,
+    {
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "북마크를 불러오지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
   return Array.isArray(data.bookmarks) ? (data.bookmarks as Bookmark[]) : [];
 }
 
 export async function loadBookmark(bookmarkId: string) {
-  const res = await fetch(`/api/bookmarks/${bookmarkId}`, {
-    credentials: "include"
-  });
-
-  if (!res.ok) {
-    throw new Error("Failed to load bookmark detail");
-  }
-
-  const data = (await res.json()) as BookmarkResponse;
+  const data = await requestJson<BookmarkResponse>(
+    `/api/bookmarks/${bookmarkId}`,
+    {
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "북마크 상세 정보를 불러오지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
   return data.bookmark;
 }
 
 export async function reextractBookmark(bookmarkId: string) {
-  const res = await fetch(`/api/bookmarks/${bookmarkId}/reextract`, {
-    method: "POST",
-    credentials: "include"
-  });
-
-  if (!res.ok) {
-    throw new Error("Failed to reextract bookmark");
-  }
-
-  const data = (await res.json()) as BookmarkResponse;
+  const data = await requestJson<BookmarkResponse>(
+    `/api/bookmarks/${bookmarkId}/reextract`,
+    {
+      method: "POST",
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "자동 추출을 다시 수행하지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
   return data.bookmark;
 }
 
 export async function deleteBookmark(bookmarkId: string) {
-  const res = await fetch(`/api/bookmarks/${bookmarkId}`, {
-    method: "DELETE",
-    credentials: "include"
-  });
-
-  if (!res.ok) {
-    throw new Error("Failed to delete bookmark");
-  }
+  await requestVoid(
+    `/api/bookmarks/${bookmarkId}`,
+    {
+      method: "DELETE",
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "북마크를 삭제하지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
 }
 
 export async function createBookmark(input: CreateBookmarkRequest) {
-  const res = await fetch("/api/bookmarks", {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "content-type": "application/json"
+  const data = await requestJson<BookmarkResponse>(
+    "/api/bookmarks",
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(input)
     },
-    body: JSON.stringify(input)
-  });
-
-  if (!res.ok) {
-    throw new Error("Failed to create bookmark");
-  }
-
-  const data = (await res.json()) as BookmarkResponse;
+    {
+      fallbackMessage: "북마크를 저장하지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
   return data.bookmark;
 }
 
 export async function updateBookmark(bookmarkId: string, input: UpdateBookmarkRequest) {
-  const res = await fetch(`/api/bookmarks/${bookmarkId}`, {
-    method: "PATCH",
-    credentials: "include",
-    headers: {
-      "content-type": "application/json"
+  const data = await requestJson<BookmarkResponse>(
+    `/api/bookmarks/${bookmarkId}`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(input)
     },
-    body: JSON.stringify(input)
-  });
-
-  if (!res.ok) {
-    throw new Error("Failed to update bookmark");
-  }
-
-  const data = (await res.json()) as BookmarkResponse;
+    {
+      fallbackMessage: "북마크를 수정하지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
   return data.bookmark;
 }
