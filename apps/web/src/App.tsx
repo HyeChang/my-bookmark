@@ -93,6 +93,8 @@ type BookmarkRecommendationsState = {
   frequent: Bookmark[];
 };
 
+type RecommendationKind = keyof BookmarkRecommendationsState;
+
 type BookmarkSearchSummaryItem = {
   key: string;
   label: string;
@@ -218,6 +220,35 @@ function getBookmarkRelativeDateRangeLabel(
       return `${prefix}: 최근 30일`;
     default:
       return null;
+  }
+}
+
+function hasTextContent(value: string | null | undefined) {
+  return Boolean(value && value.trim().length > 0);
+}
+
+function getBookmarkSummaryStateLabel(bookmark: Bookmark) {
+  if (hasTextContent(bookmark.userSummary)) {
+    return "수동 요약";
+  }
+
+  if (hasTextContent(bookmark.sourceSummary)) {
+    return "자동 요약";
+  }
+
+  return "요약 없음";
+}
+
+function getRecommendationReasonLabel(kind: RecommendationKind) {
+  switch (kind) {
+    case "favorites":
+      return "즐겨찾기 기반";
+    case "recent":
+      return "최근 열람 기반";
+    case "frequent":
+      return "반복 열람 기반";
+    default:
+      return "추천";
   }
 }
 
@@ -2271,7 +2302,20 @@ export default function App() {
                 <ul className="recommendation-list">
                   {recommendations.favorites.map((bookmark) => (
                     <li key={`favorite-${bookmark.id}`} className="recommendation-item">
-                      <span>{bookmark.displayTitle || bookmark.url}</span>
+                      <div className="recommendation-copy">
+                        <div className="meta-pill-list">
+                          <span className="meta-pill meta-pill-accent">
+                            {getRecommendationReasonLabel("favorites")}
+                          </span>
+                          <span className="meta-pill">{getFolderName(bookmark.folderId)}</span>
+                        </div>
+                        <strong>{bookmark.displayTitle || bookmark.url}</strong>
+                        <p className="muted-text">
+                          {hasTextContent(bookmark.displaySummary)
+                            ? bookmark.displaySummary
+                            : "요약 없음"}
+                        </p>
+                      </div>
                       <button
                         type="button"
                         className="ghost-button"
@@ -2288,7 +2332,20 @@ export default function App() {
                 <ul className="recommendation-list">
                   {recommendations.recent.map((bookmark) => (
                     <li key={`recent-${bookmark.id}`} className="recommendation-item">
-                      <span>{bookmark.displayTitle || bookmark.url}</span>
+                      <div className="recommendation-copy">
+                        <div className="meta-pill-list">
+                          <span className="meta-pill meta-pill-accent">
+                            {getRecommendationReasonLabel("recent")}
+                          </span>
+                          <span className="meta-pill">{getFolderName(bookmark.folderId)}</span>
+                        </div>
+                        <strong>{bookmark.displayTitle || bookmark.url}</strong>
+                        <p className="muted-text">
+                          {hasTextContent(bookmark.displaySummary)
+                            ? bookmark.displaySummary
+                            : "요약 없음"}
+                        </p>
+                      </div>
                       <button
                         type="button"
                         className="ghost-button"
@@ -2305,7 +2362,20 @@ export default function App() {
                 <ul className="recommendation-list">
                   {recommendations.frequent.map((bookmark) => (
                     <li key={`frequent-${bookmark.id}`} className="recommendation-item">
-                      <span>{bookmark.displayTitle || bookmark.url}</span>
+                      <div className="recommendation-copy">
+                        <div className="meta-pill-list">
+                          <span className="meta-pill meta-pill-accent">
+                            {getRecommendationReasonLabel("frequent")}
+                          </span>
+                          <span className="meta-pill">{getFolderName(bookmark.folderId)}</span>
+                        </div>
+                        <strong>{bookmark.displayTitle || bookmark.url}</strong>
+                        <p className="muted-text">
+                          {hasTextContent(bookmark.displaySummary)
+                            ? bookmark.displaySummary
+                            : "요약 없음"}
+                        </p>
+                      </div>
                       <button
                         type="button"
                         className="ghost-button"
@@ -2428,6 +2498,15 @@ export default function App() {
                       {bookmark.isFavorite ? <span className="meta-pill">즐겨찾기</span> : null}
                     </div>
                   </div>
+                  <div className="meta-pill-list">
+                    <span className="meta-pill">{getBookmarkSummaryStateLabel(bookmark)}</span>
+                    <span className="meta-pill">태그 {bookmark.tagIds.length}개</span>
+                    {(bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0) > 0 ? (
+                      <span className="meta-pill">
+                        이미지 {bookmarkAssetsByBookmarkId[bookmark.id].length}장
+                      </span>
+                    ) : null}
+                  </div>
                   {bookmark.displaySummary ? <p>{bookmark.displaySummary}</p> : null}
                   {bookmark.tagIds.length > 0 ? (
                     <div className="meta-pill-list">
@@ -2438,6 +2517,28 @@ export default function App() {
                       ))}
                     </div>
                   ) : null}
+                  <div className="meta-pill-list">
+                    {bookmark.bookmarkColor ? (
+                      <span className="meta-pill color-pill">
+                        <span
+                          aria-hidden="true"
+                          className="color-swatch"
+                          style={{ backgroundColor: bookmark.bookmarkColor }}
+                        />
+                        북마크 색상 {bookmark.bookmarkColor}
+                      </span>
+                    ) : null}
+                    {bookmark.urlColor ? (
+                      <span className="meta-pill color-pill">
+                        <span
+                          aria-hidden="true"
+                          className="color-swatch"
+                          style={{ backgroundColor: bookmark.urlColor }}
+                        />
+                        URL 색상 {bookmark.urlColor}
+                      </span>
+                    ) : null}
+                  </div>
                   {(bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0) > 0 ? (
                     <div className="asset-grid">
                       {bookmarkAssetsByBookmarkId[bookmark.id].map((asset, index) => (

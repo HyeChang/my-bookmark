@@ -141,6 +141,10 @@ describe("bookmark dashboard", () => {
     expect(await within(bookmarkListRegion).findByText(/^Manual title$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^https:\/\/example\.com\/post$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getAllByText(/^research$/i).length).toBeGreaterThan(0);
+    expect(within(bookmarkListRegion).getByText(/^수동 요약$/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/^태그 1개$/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/북마크 색상 #f59e0b/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/url 색상 #0f172a/i)).toBeInTheDocument();
   });
 
   it("creates a bookmark with selected tags and appends it to the list", async () => {
@@ -357,6 +361,7 @@ describe("bookmark dashboard", () => {
     expect(within(bookmarkListRegion).getByRole("img", { name: /업로드 이미지 1/i })).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^research$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^later$/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/^이미지 1장$/i)).toBeInTheDocument();
   });
 
   it("loads bookmark preview metadata and submits extracted source fields", async () => {
@@ -2285,6 +2290,9 @@ describe("bookmark dashboard", () => {
     ).toBeInTheDocument();
     expect(within(recommendationRegion).getByText(/^Recent recommendation$/i)).toBeInTheDocument();
     expect(within(recommendationRegion).getByText(/^Frequent recommendation$/i)).toBeInTheDocument();
+    expect(within(recommendationRegion).getByText(/^즐겨찾기 기반$/i)).toBeInTheDocument();
+    expect(within(recommendationRegion).getByText(/^최근 열람 기반$/i)).toBeInTheDocument();
+    expect(within(recommendationRegion).getByText(/^반복 열람 기반$/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /열기 favorite recommendation/i }));
 
