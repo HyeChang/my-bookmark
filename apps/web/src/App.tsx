@@ -2234,17 +2234,17 @@ export default function App() {
         </section>
         <section className="manager-surface manager-list-surface">
           <div className="manager-section-header">
-            <p className="manager-section-kicker">현재 폴더</p>
+            <p className="manager-section-kicker">폴더 트리</p>
             <div>
               <h3>트리와 이동</h3>
-              <p>정렬, 하위 이동, 루트 이동을 같은 구조 안에서 관리합니다.</p>
+              <p>{folders.length}개 폴더</p>
             </div>
           </div>
           <button
             type="button"
             className="dropzone-button manager-dropzone"
             disabled={isReorderingFolders}
-            aria-label="최상위로 이동"
+            aria-label="루트 이동"
             onDragOver={(event) => {
               const draggedFolder = draggingFolderId
                 ? folders.find((folder) => folder.id === draggingFolderId)
@@ -2260,7 +2260,7 @@ export default function App() {
               void handleFolderMoveToRootDrop();
             }}
           >
-            최상위로 이동
+            루트 이동
           </button>
           <ul className="folder-tree">
             {visibleFolderOptions.map(({ folder, label }) => (
@@ -2289,8 +2289,8 @@ export default function App() {
                     <strong>{label}</strong>
                     {folder.parentFolderId ? (
                       <div className="folder-tree-meta">
-                        <p>하위 폴더</p>
-                        <p>상위: {getFolderName(folder.parentFolderId)}</p>
+                        <p>하위</p>
+                        <p>상위 {getFolderName(folder.parentFolderId)}</p>
                       </div>
                     ) : null}
                   </div>

@@ -175,7 +175,7 @@ describe("folder and tag dashboard", () => {
     expect(within(tagManagerRegion).getByText(/^현재 태그$/i)).toBeInTheDocument();
     const folderManagerRegion = await openFolderManagerOverlay();
     expect(within(folderManagerRegion).getByText(/^입력 설정$/i)).toBeInTheDocument();
-    expect(within(folderManagerRegion).getByText(/^현재 폴더$/i)).toBeInTheDocument();
+    expect(within(folderManagerRegion).getByText(/^폴더 트리$/i)).toBeInTheDocument();
     expect(within(folderManagerRegion).getByLabelText(/폴더 이름/i)).toBeInTheDocument();
     expect(within(folderManagerRegion).getByRole("group", { name: /폴더 색상/i })).toBeInTheDocument();
     expect(within(folderManagerRegion).getByRole("group", { name: /폴더 아이콘/i })).toBeInTheDocument();
@@ -650,8 +650,8 @@ describe("folder and tag dashboard", () => {
 
     expect(within(folderItems[0]).getByText(/^Reading$/i)).toBeInTheDocument();
     expect(within(folderItems[1]).getByText(/Papers$/i)).toBeInTheDocument();
-    expect(within(folderItems[1]).getByText(/상위: Reading/i)).toBeInTheDocument();
-    expect(within(folderItems[1]).getByText(/하위 폴더/i)).toBeInTheDocument();
+    expect(within(folderItems[1]).getByText(/^상위 Reading$/i)).toBeInTheDocument();
+    expect(within(folderItems[1]).getByText(/^하위$/i)).toBeInTheDocument();
 
     const bookmarkFormRegion = await openDesktopBookmarkComposer();
     const bookmarkFolderOptions = within(bookmarkFormRegion).getAllByRole("option");
@@ -1012,7 +1012,7 @@ describe("folder and tag dashboard", () => {
       const folderItems = within(folderManager).getAllByRole("listitem");
       expect(within(folderItems[0]).getByText(/^Reading$/i)).toBeInTheDocument();
       expect(within(folderItems[1]).getByText(/Articles$/i)).toBeInTheDocument();
-      expect(within(folderItems[1]).getByText(/상위: Reading/i)).toBeInTheDocument();
+      expect(within(folderItems[1]).getByText(/^상위 Reading$/i)).toBeInTheDocument();
     });
 
     const bookmarkFormRegion = await openDesktopBookmarkComposer();
@@ -1170,7 +1170,7 @@ describe("folder and tag dashboard", () => {
       name: /papers 폴더 드래그 정렬/i
     });
     const rootDropZone = within(folderManager).getByRole("button", {
-      name: /최상위로 이동/i
+      name: /루트 이동/i
     });
 
     fireEvent.dragStart(dragHandle);
