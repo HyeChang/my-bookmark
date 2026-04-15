@@ -16,6 +16,14 @@ function openBookmarkActionMenu(bookmarkListRegion: HTMLElement, bookmarkName: s
   );
 }
 
+function openBookmarkDetailActionMenu(detailRegion: HTMLElement) {
+  fireEvent.click(
+    within(detailRegion).getByRole("button", {
+      name: /상세 작업 더보기/i
+    })
+  );
+}
+
 describe("bookmark dashboard", () => {
   it("shows the bookmark form and stored bookmarks for an authenticated user", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -3447,17 +3455,12 @@ describe("bookmark dashboard", () => {
       within(detailRegion)
         .getAllByRole("button")
         .map((button) => button.textContent?.trim())
-    ).toEqual([
-      "열기 Detail title",
-      "수정 시작",
-      "자동 추출 다시 시도",
-      "사용자 입력 초기화",
-      "닫기",
-      "삭제"
-    ]);
-    expect(within(detailRegion).getByText(/^핵심 액션$/i)).toBeInTheDocument();
-    expect(within(detailRegion).getByText(/^정리 작업$/i)).toBeInTheDocument();
-    expect(within(detailRegion).getByText(/^위험 작업$/i)).toBeInTheDocument();
+    ).toEqual(["열기 Detail title", "닫기", "더보기"]);
+    expect(within(detailRegion).queryByText(/^핵심 액션$/i)).not.toBeInTheDocument();
+    expect(within(detailRegion).queryByText(/^정리 작업$/i)).not.toBeInTheDocument();
+    expect(within(detailRegion).queryByText(/^위험 작업$/i)).not.toBeInTheDocument();
+
+    openBookmarkDetailActionMenu(detailRegion);
 
     fireEvent.click(within(detailRegion).getByRole("button", { name: /수정 시작/i }));
 
@@ -3681,6 +3684,7 @@ describe("bookmark dashboard", () => {
     fireEvent.click(await screen.findByRole("button", { name: /상세 보기/i }));
 
     const detailRegion = await screen.findByRole("region", { name: /^bookmark-detail$/i });
+    openBookmarkDetailActionMenu(detailRegion);
     fireEvent.click(
       within(detailRegion).getByRole("button", { name: /자동 추출 다시 시도/i })
     );
@@ -3689,6 +3693,7 @@ describe("bookmark dashboard", () => {
       expect(within(detailRegion).getByText(/Retried source title/i)).toBeInTheDocument();
     });
 
+    openBookmarkDetailActionMenu(detailRegion);
     fireEvent.click(
       within(detailRegion).getByRole("button", { name: /사용자 입력 초기화/i })
     );
@@ -3896,6 +3901,7 @@ describe("bookmark dashboard", () => {
     fireEvent.click(await screen.findByRole("button", { name: /상세 보기/i }));
 
     const detailRegion = await screen.findByRole("region", { name: /^bookmark-detail$/i });
+    openBookmarkDetailActionMenu(detailRegion);
     fireEvent.click(within(detailRegion).getByRole("button", { name: /삭제/i }));
 
     await waitFor(() => {

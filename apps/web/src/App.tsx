@@ -647,6 +647,7 @@ export default function App() {
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
   const [openBookmarkActionMenuId, setOpenBookmarkActionMenuId] = useState<string | null>(null);
+  const [isBookmarkDetailActionMenuOpen, setIsBookmarkDetailActionMenuOpen] = useState(false);
   const [openFolderActionMenuId, setOpenFolderActionMenuId] = useState<string | null>(null);
   const [openTagActionMenuId, setOpenTagActionMenuId] = useState<string | null>(null);
   const [isQuickFolderOpen, setIsQuickFolderOpen] = useState(false);
@@ -1525,6 +1526,7 @@ export default function App() {
 
   async function beginBookmarkEdit(bookmark: Bookmark) {
     setOpenBookmarkActionMenuId(null);
+    setIsBookmarkDetailActionMenuOpen(false);
     setIsBookmarkComposerOpen(true);
     setIsBookmarkComposerClassificationOpen(bookmark.tagIds.length > 0 || bookmark.isFavorite);
     setIsBookmarkComposerDisplayOpen(
@@ -1594,6 +1596,7 @@ export default function App() {
   function beginBookmarkCreate() {
     setErrorMessage(null);
     setOpenBookmarkActionMenuId(null);
+    setIsBookmarkDetailActionMenuOpen(false);
     setEditingBookmarkId(null);
     setIsBookmarkComposerClassificationOpen(false);
     setIsBookmarkComposerDisplayOpen(false);
@@ -1609,6 +1612,7 @@ export default function App() {
     try {
       setErrorMessage(null);
       setOpenBookmarkActionMenuId(null);
+      setIsBookmarkDetailActionMenuOpen(false);
       const [bookmark, assets] = await Promise.all([
         loadBookmark(bookmarkId),
         loadBookmarkAssets(bookmarkId)
@@ -1633,6 +1637,7 @@ export default function App() {
   }
 
   function closeBookmarkDetail() {
+    setIsBookmarkDetailActionMenuOpen(false);
     setSelectedBookmark(null);
   }
 
@@ -1736,6 +1741,7 @@ export default function App() {
     try {
       setErrorMessage(null);
       setOpenBookmarkActionMenuId(null);
+      setIsBookmarkDetailActionMenuOpen(false);
       await recordBookmarkOpen(bookmark.id);
       startTransition(() => {
         setRecommendations((currentRecommendations) => ({
@@ -1763,6 +1769,7 @@ export default function App() {
   async function handleBookmarkReextract(bookmarkId: string) {
     try {
       setErrorMessage(null);
+      setIsBookmarkDetailActionMenuOpen(false);
       const nextBookmark = await reextractBookmark(bookmarkId);
       startTransition(() => {
         replaceBookmarkState(nextBookmark);
@@ -1778,6 +1785,7 @@ export default function App() {
 
   async function handleBookmarkDelete(bookmark: Bookmark) {
     setOpenBookmarkActionMenuId(null);
+    setIsBookmarkDetailActionMenuOpen(false);
     if (!globalThis.confirm?.(`'${bookmark.displayTitle || bookmark.url}' 북마크를 삭제할까요?`)) {
       return;
     }
@@ -1838,6 +1846,10 @@ export default function App() {
     );
   }
 
+  function toggleBookmarkDetailActionMenu() {
+    setIsBookmarkDetailActionMenuOpen((currentValue) => !currentValue);
+  }
+
   async function handleTagDelete(tag: Tag) {
     if (globalThis.confirm && !globalThis.confirm(`'${tag.name}' 태그를 삭제할까요?`)) {
       return;
@@ -1874,6 +1886,7 @@ export default function App() {
   async function handleResetUserContent(bookmarkId: string) {
     try {
       setErrorMessage(null);
+      setIsBookmarkDetailActionMenuOpen(false);
       const nextBookmark = await updateBookmark(bookmarkId, {
         userTitle: null,
         userContent: null,
@@ -3421,56 +3434,66 @@ export default function App() {
                 )}
 
                 <div className="bookmark-detail-actions">
-                  <div className="bookmark-detail-action-group">
-                    <p className="bookmark-detail-action-label">핵심 액션</p>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => void handleBookmarkOpen(selectedBookmark)}
+                  >
+                    열기 {selectedBookmark.displayTitle || selectedBookmark.url}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => closeBookmarkDetail()}
+                  >
+                    닫기
+                  </button>
+                  <div className="folder-action-menu-shell bookmark-detail-menu-shell">
                     <button
                       type="button"
-                      className="primary-button"
-                      onClick={() => void handleBookmarkOpen(selectedBookmark)}
+                      className="ghost-button folder-action-trigger"
+                      aria-label="상세 작업 더보기"
+                      aria-expanded={isBookmarkDetailActionMenuOpen}
+                      onClick={() => toggleBookmarkDetailActionMenu()}
                     >
-                      열기 {selectedBookmark.displayTitle || selectedBookmark.url}
+                      더보기
                     </button>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => void beginBookmarkEdit(selectedBookmark)}
-                    >
-                      수정 시작
-                    </button>
-                  </div>
-                  <div className="bookmark-detail-action-group">
-                    <p className="bookmark-detail-action-label">정리 작업</p>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => void handleBookmarkReextract(selectedBookmark.id)}
-                    >
-                      자동 추출 다시 시도
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => void handleResetUserContent(selectedBookmark.id)}
-                    >
-                      사용자 입력 초기화
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      onClick={() => closeBookmarkDetail()}
-                    >
-                      닫기
-                    </button>
-                  </div>
-                  <div className="bookmark-detail-action-group bookmark-detail-danger-actions">
-                    <p className="bookmark-detail-action-label">위험 작업</p>
-                    <button
-                      type="button"
-                      className="danger-button"
-                      onClick={() => void handleBookmarkDelete(selectedBookmark)}
-                    >
-                      삭제
-                    </button>
+                    {isBookmarkDetailActionMenuOpen ? (
+                      <div
+                        role="menu"
+                        aria-label="상세 작업 메뉴"
+                        className="folder-action-menu"
+                      >
+                        <button
+                          type="button"
+                          className="secondary-button folder-action-menu-item"
+                          onClick={() => void beginBookmarkEdit(selectedBookmark)}
+                        >
+                          수정 시작
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button folder-action-menu-item"
+                          onClick={() => void handleBookmarkReextract(selectedBookmark.id)}
+                        >
+                          자동 추출 다시 시도
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button folder-action-menu-item"
+                          onClick={() => void handleResetUserContent(selectedBookmark.id)}
+                        >
+                          사용자 입력 초기화
+                        </button>
+                        <button
+                          type="button"
+                          className="danger-button folder-action-menu-item"
+                          onClick={() => void handleBookmarkDelete(selectedBookmark)}
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </section>
