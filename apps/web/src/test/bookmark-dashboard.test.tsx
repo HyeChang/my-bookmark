@@ -118,6 +118,7 @@ describe("bookmark dashboard", () => {
     });
 
     render(<App />);
+    const workspace = await screen.findByRole("region", { name: /dashboard-workspace/i });
     const sidebar = await screen.findByRole("complementary", {
       name: /dashboard-sidebar/i
     });
@@ -125,6 +126,9 @@ describe("bookmark dashboard", () => {
     const bookmarkFormRegion = within(sidebar).getByRole("region", {
       name: /bookmark-form/i
     });
+    expect(screen.getByText(/^개인 아카이브 작업 공간$/i)).toBeInTheDocument();
+    expect(workspace).toContainElement(sidebar);
+    expect(workspace).toContainElement(mainPanel);
     expect(within(sidebar).getByRole("region", { name: /folder-manager/i })).toBeInTheDocument();
     expect(within(sidebar).getByRole("region", { name: /tag-manager/i })).toBeInTheDocument();
     const searchPanel = within(mainPanel).getByRole("region", { name: /search-panel/i });

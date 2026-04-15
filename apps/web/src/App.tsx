@@ -1813,6 +1813,7 @@ export default function App() {
       <header className="app-hero">
         <div className="hero-copy">
           <p className="hero-eyebrow">Personal Bookmark Workspace</p>
+          <p className="hero-support">개인 아카이브 작업 공간</p>
           <h1>Bookmark</h1>
           <p>Save, search, and organize links from anywhere.</p>
         </div>
@@ -1835,33 +1836,34 @@ export default function App() {
         </div>
       </header>
       {sessionState.status === "authenticated" ? (
-        <div className="dashboard-layout">
-          <aside aria-label="dashboard-sidebar" className="dashboard-sidebar">
-            <p className="section-eyebrow">작업 패널</p>
-            {shouldUseMobileSidebarPanels ? (
-              <div className="sidebar-segmented-panels">
-                <div role="tablist" aria-label="mobile-sidebar-tabs" className="sidebar-segment-tabs">
-                  {renderMobileSidebarTabButton({
+        <section aria-label="dashboard-workspace" className="dashboard-workspace">
+          <div className="dashboard-layout">
+            <aside aria-label="dashboard-sidebar" className="dashboard-sidebar">
+              <p className="section-eyebrow">작업 패널</p>
+              {shouldUseMobileSidebarPanels ? (
+                <div className="sidebar-segmented-panels">
+                  <div role="tablist" aria-label="mobile-sidebar-tabs" className="sidebar-segment-tabs">
+                    {renderMobileSidebarTabButton({
+                      panelId: "bookmark",
+                      heading: bookmarkPanelTitle,
+                      summary: bookmarkPanelSummary
+                    })}
+                    {renderMobileSidebarTabButton({
+                      panelId: "folder",
+                      heading: "폴더",
+                      summary: folderPanelSummary
+                    })}
+                    {renderMobileSidebarTabButton({
+                      panelId: "tag",
+                      heading: "태그",
+                      summary: tagPanelSummary
+                    })}
+                  </div>
+                  {renderMobileSidebarPanelBody({
                     panelId: "bookmark",
-                    heading: bookmarkPanelTitle,
-                    summary: bookmarkPanelSummary
-                  })}
-                  {renderMobileSidebarTabButton({
-                    panelId: "folder",
-                    heading: "폴더",
-                    summary: folderPanelSummary
-                  })}
-                  {renderMobileSidebarTabButton({
-                    panelId: "tag",
-                    heading: "태그",
-                    summary: tagPanelSummary
-                  })}
-                </div>
-                {renderMobileSidebarPanelBody({
-                  panelId: "bookmark",
-                  regionLabel: "bookmark-form",
-                  children: (
-                    <form className="stack-form" onSubmit={(event) => void handleBookmarkSubmit(event)}>
+                    regionLabel: "bookmark-form",
+                    children: (
+                      <form className="stack-form" onSubmit={(event) => void handleBookmarkSubmit(event)}>
                       <label>
                         URL
                         <input
@@ -3267,7 +3269,8 @@ export default function App() {
             </ul>
           </section>
           </section>
-        </div>
+          </div>
+        </section>
       ) : null}
       {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
     </main>
