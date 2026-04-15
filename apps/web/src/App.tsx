@@ -647,6 +647,7 @@ export default function App() {
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
   const [openFolderActionMenuId, setOpenFolderActionMenuId] = useState<string | null>(null);
+  const [openTagActionMenuId, setOpenTagActionMenuId] = useState<string | null>(null);
   const [isQuickFolderOpen, setIsQuickFolderOpen] = useState(false);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [isSavingBookmark, setIsSavingBookmark] = useState(false);
@@ -1393,12 +1394,14 @@ export default function App() {
   function openTagManager() {
     setErrorMessage(null);
     setEditingTagId(null);
+    setOpenTagActionMenuId(null);
     setTagDraft(emptyTagDraft);
     setIsTagManagerOpen(true);
   }
 
   function beginTagEdit(tag: Tag) {
     setIsTagManagerOpen(true);
+    setOpenTagActionMenuId(null);
     setEditingTagId(tag.id);
     setTagDraft({
       name: tag.name,
@@ -1408,12 +1411,17 @@ export default function App() {
 
   function cancelTagEdit() {
     setEditingTagId(null);
+    setOpenTagActionMenuId(null);
     setTagDraft(emptyTagDraft);
   }
 
   function closeTagManager() {
     cancelTagEdit();
     setIsTagManagerOpen(false);
+  }
+
+  function toggleTagActionMenu(tagId: string) {
+    setOpenTagActionMenuId((currentTagId) => (currentTagId === tagId ? null : tagId));
   }
 
   function replaceTagState(nextTag: Tag) {
@@ -1424,6 +1432,7 @@ export default function App() {
 
   function removeTagState(tagId: string) {
     setTags((currentTags) => currentTags.filter((tag) => tag.id !== tagId));
+    setOpenTagActionMenuId((currentTagId) => (currentTagId === tagId ? null : currentTagId));
     setBookmarks((currentBookmarks) =>
       currentBookmarks.map((bookmark) =>
         bookmark.tagIds.includes(tagId)
@@ -2376,13 +2385,38 @@ export default function App() {
             {tags.map((tag) => (
               <li key={tag.id} className="tag-list-item">
                 <span>{tag.name}</span>
-                <div className="inline-actions">
-                  <button type="button" className="secondary-button" onClick={() => beginTagEdit(tag)}>
-                    {tag.name} 태그 수정 시작
+                <div className="folder-action-menu-shell">
+                  <button
+                    type="button"
+                    className="ghost-button folder-action-trigger"
+                    aria-label={`${tag.name} 태그 더보기`}
+                    aria-expanded={openTagActionMenuId === tag.id}
+                    onClick={() => toggleTagActionMenu(tag.id)}
+                  >
+                    더보기
                   </button>
-                  <button type="button" className="danger-button" onClick={() => void handleTagDelete(tag)}>
-                    {tag.name} 태그 삭제
-                  </button>
+                  {openTagActionMenuId === tag.id ? (
+                    <div
+                      role="menu"
+                      aria-label={`${tag.name} 태그 메뉴`}
+                      className="folder-action-menu"
+                    >
+                      <button
+                        type="button"
+                        className="secondary-button folder-action-menu-item"
+                        onClick={() => beginTagEdit(tag)}
+                      >
+                        {tag.name} 태그 수정 시작
+                      </button>
+                      <button
+                        type="button"
+                        className="danger-button folder-action-menu-item"
+                        onClick={() => void handleTagDelete(tag)}
+                      >
+                        {tag.name} 태그 삭제
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </li>
             ))}

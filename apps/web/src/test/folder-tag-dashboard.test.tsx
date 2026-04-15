@@ -54,6 +54,14 @@ async function openTagManagerOverlay() {
   return within(tagDialog).getByRole("region", { name: /tag-manager/i });
 }
 
+function openTagActionMenu(tagManager: HTMLElement, tagName: string) {
+  fireEvent.click(
+    within(tagManager).getByRole("button", {
+      name: new RegExp(`${tagName} 태그 더보기`, "i")
+    })
+  );
+}
+
 describe("folder and tag dashboard", () => {
   it("shows existing folders and tags for an authenticated user", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -1356,6 +1364,7 @@ describe("folder and tag dashboard", () => {
     });
 
     const tagManager = await openTagManagerOverlay();
+    openTagActionMenu(tagManager, "research");
     fireEvent.click(within(tagManager).getByRole("button", { name: /research 태그 수정 시작/i }));
     fireEvent.change(within(tagManager).getByLabelText(/태그 이름/i), {
       target: { value: "reference" }
@@ -1515,6 +1524,7 @@ describe("folder and tag dashboard", () => {
     });
 
     const tagManager = await openTagManagerOverlay();
+    openTagActionMenu(tagManager, "research");
     fireEvent.click(within(tagManager).getByRole("button", { name: /research 태그 삭제/i }));
 
     await waitFor(() => {

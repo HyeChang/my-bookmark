@@ -1136,6 +1136,11 @@ img {
   background: rgba(248, 250, 252, 0.9);
 }
 
+.tag-list-item > span {
+  font-weight: 600;
+  color: #1f2533;
+}
+
 .recommendation-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
