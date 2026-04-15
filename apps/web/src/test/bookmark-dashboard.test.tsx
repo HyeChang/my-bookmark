@@ -261,6 +261,10 @@ describe("bookmark dashboard", () => {
     });
     expect(within(composerDialog).getByRole("region", { name: /bookmark-form/i })).toBeInTheDocument();
     expect(within(composerDialog).getByRole("button", { name: /^닫기$/i })).toBeInTheDocument();
+    expect(within(composerDialog).getByRole("button", { name: /분류와 상태 열기/i })).toBeInTheDocument();
+    expect(within(composerDialog).getByRole("button", { name: /표시와 이미지 열기/i })).toBeInTheDocument();
+    expect(within(composerDialog).queryByLabelText(/^즐겨찾기$/i)).not.toBeInTheDocument();
+    expect(within(composerDialog).queryByLabelText(/이미지 업로드/i)).not.toBeInTheDocument();
 
     fireEvent.click(within(composerDialog).getByRole("button", { name: /^닫기$/i }));
 
@@ -452,11 +456,13 @@ describe("bookmark dashboard", () => {
         value: "Created summary"
       }
     });
+    fireEvent.click(within(bookmarkFormRegion).getByRole("button", { name: /표시와 이미지 열기/i }));
     fireEvent.change(within(bookmarkFormRegion).getByLabelText(/이미지 업로드/i), {
       target: {
         files: [new File(["fake-image-data"], "capture.png", { type: "image/png" })]
       }
     });
+    fireEvent.click(within(bookmarkFormRegion).getByRole("button", { name: /분류와 상태 열기/i }));
     fireEvent.click(within(bookmarkFormRegion).getByRole("checkbox", { name: /research/i }));
     fireEvent.click(within(bookmarkFormRegion).getByRole("checkbox", { name: /later/i }));
     fireEvent.click(within(bookmarkFormRegion).getByRole("button", { name: /북마크 저장/i }));
@@ -2788,6 +2794,14 @@ describe("bookmark dashboard", () => {
         value: "After summary"
       }
     });
+    const openDisplaySectionButton = within(bookmarkFormRegion).queryByRole("button", {
+      name: /표시와 이미지 열기/i
+    });
+
+    if (openDisplaySectionButton) {
+      fireEvent.click(openDisplaySectionButton);
+    }
+
     fireEvent.change(within(bookmarkFormRegion).getByLabelText(/북마크 색상/i), {
       target: {
         value: "#dc2626"
@@ -2798,6 +2812,14 @@ describe("bookmark dashboard", () => {
         value: "#1d4ed8"
       }
     });
+    const openClassificationSectionButton = within(bookmarkFormRegion).queryByRole("button", {
+      name: /분류와 상태 열기/i
+    });
+
+    if (openClassificationSectionButton) {
+      fireEvent.click(openClassificationSectionButton);
+    }
+
     fireEvent.click(within(bookmarkFormRegion).getByRole("checkbox", { name: /^즐겨찾기$/i }));
     fireEvent.click(within(bookmarkFormRegion).getByRole("checkbox", { name: /research/i }));
     fireEvent.click(within(bookmarkFormRegion).getByRole("checkbox", { name: /later/i }));
@@ -2968,6 +2990,13 @@ describe("bookmark dashboard", () => {
     const bookmarkFormRegion = await screen.findByRole("region", {
       name: /bookmark-form/i
     });
+    const openDisplaySectionButton = within(bookmarkFormRegion).queryByRole("button", {
+      name: /표시와 이미지 열기/i
+    });
+
+    if (openDisplaySectionButton) {
+      fireEvent.click(openDisplaySectionButton);
+    }
 
     await waitFor(() => {
       expect(

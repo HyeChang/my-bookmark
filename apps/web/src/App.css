@@ -257,6 +257,13 @@ img {
   border-color: rgba(31, 37, 51, 0.08);
 }
 
+.overlay-dialog-panel [aria-label="bookmark-form"] {
+  background: transparent;
+  box-shadow: none;
+  border: none;
+  padding: 0;
+}
+
 .panel-card {
   padding: 1rem;
 }
@@ -500,6 +507,88 @@ img {
   display: flex;
   flex-direction: column;
   gap: 0.95rem;
+}
+
+.bookmark-composer-form {
+  gap: 1rem;
+}
+
+.bookmark-composer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.bookmark-composer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(31, 37, 51, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.bookmark-composer-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.bookmark-composer-section-header h3 {
+  margin: 0;
+  font-size: 0.98rem;
+  color: #1b2230;
+}
+
+.bookmark-composer-section-header p,
+.bookmark-preview-card p {
+  margin: 0;
+  color: #677081;
+  font-size: 0.84rem;
+}
+
+.bookmark-composer-disclosure {
+  padding: 0.7rem;
+}
+
+.bookmark-composer-disclosure-trigger {
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bookmark-composer-disclosure-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding-top: 0.5rem;
+}
+
+.bookmark-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.8rem 0.85rem;
+  border: 1px solid rgba(31, 37, 51, 0.08);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.82);
+}
+
+.bookmark-preview-card h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #1f2533;
+}
+
+.bookmark-composer-footer {
+  position: sticky;
+  bottom: 0;
+  padding-top: 0.85rem;
+  margin-top: 0.1rem;
+  border-top: 1px solid rgba(31, 37, 51, 0.08);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0) 0%, rgba(255, 252, 246, 0.96) 28%);
 }
 
 .stack-form label,
@@ -1359,6 +1448,10 @@ img {
   }
 
   .search-grid-advanced {
+    grid-template-columns: 1fr;
+  }
+
+  .bookmark-composer-grid {
     grid-template-columns: 1fr;
   }
 }

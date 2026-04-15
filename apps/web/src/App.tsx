@@ -621,6 +621,8 @@ export default function App() {
   );
   const [bookmarkDraft, setBookmarkDraft] = useState<BookmarkDraft>(emptyBookmarkDraft);
   const [isBookmarkComposerOpen, setIsBookmarkComposerOpen] = useState(false);
+  const [isBookmarkComposerClassificationOpen, setIsBookmarkComposerClassificationOpen] = useState(false);
+  const [isBookmarkComposerDisplayOpen, setIsBookmarkComposerDisplayOpen] = useState(false);
   const [isFolderManagerOpen, setIsFolderManagerOpen] = useState(false);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [editingBookmarkId, setEditingBookmarkId] = useState<string | null>(null);
@@ -1513,6 +1515,14 @@ export default function App() {
 
   async function beginBookmarkEdit(bookmark: Bookmark) {
     setIsBookmarkComposerOpen(true);
+    setIsBookmarkComposerClassificationOpen(bookmark.tagIds.length > 0 || bookmark.isFavorite);
+    setIsBookmarkComposerDisplayOpen(
+      Boolean(
+        bookmark.bookmarkColor ||
+          bookmark.urlColor ||
+          (bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0) > 0
+      )
+    );
     setEditingBookmarkId(bookmark.id);
     setBookmarkDraft({
       url: bookmark.url,
@@ -1560,6 +1570,8 @@ export default function App() {
 
   function cancelBookmarkEdit() {
     setEditingBookmarkId(null);
+    setIsBookmarkComposerClassificationOpen(false);
+    setIsBookmarkComposerDisplayOpen(false);
     setBookmarkDraft(emptyBookmarkDraft);
     setBookmarkPreview(null);
     setPendingAssetFiles([]);
@@ -1571,6 +1583,8 @@ export default function App() {
   function beginBookmarkCreate() {
     setErrorMessage(null);
     setEditingBookmarkId(null);
+    setIsBookmarkComposerClassificationOpen(false);
+    setIsBookmarkComposerDisplayOpen(false);
     setBookmarkDraft(emptyBookmarkDraft);
     setBookmarkPreview(null);
     setPendingAssetFiles([]);
@@ -3378,159 +3392,224 @@ export default function App() {
                     kicker: bookmarkPanelKicker,
                     regionLabel: "bookmark-form",
                     children: (
-                      <form className="stack-form" onSubmit={(event) => void handleBookmarkSubmit(event)}>
-                        <label>
-                          URL
-                          <input
-                            name="url"
-                            type="url"
-                            value={bookmarkDraft.url}
-                            onChange={(event) => handleBookmarkUrlChange(event.target.value)}
-                            disabled={Boolean(editingBookmarkId)}
-                            required
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => void handleBookmarkPreviewLoad()}
-                          disabled={Boolean(editingBookmarkId) || isLoadingBookmarkPreview}
-                        >
-                          {isLoadingBookmarkPreview ? "불러오는 중..." : "URL 메타 불러오기"}
-                        </button>
-                        {bookmarkPreview ? (
-                          <section aria-label="bookmark-preview">
-                            <h3>자동 추출 미리보기</h3>
-                            {bookmarkPreview.sourceTitle ? <p>{bookmarkPreview.sourceTitle}</p> : null}
-                            {bookmarkPreview.sourceSummary ? <p>{bookmarkPreview.sourceSummary}</p> : null}
-                            {bookmarkPreview.sourceContent ? <p>{bookmarkPreview.sourceContent}</p> : null}
+                      <form className="stack-form bookmark-composer-form" onSubmit={(event) => void handleBookmarkSubmit(event)}>
+                        <div className="bookmark-composer-grid">
+                          <section className="bookmark-composer-section">
+                            <div className="bookmark-composer-section-header">
+                              <h3>기본 정보</h3>
+                              <p>저장 URL과 폴더, 표시 제목을 먼저 정리합니다.</p>
+                            </div>
+                            <label>
+                              URL
+                              <input
+                                name="url"
+                                type="url"
+                                value={bookmarkDraft.url}
+                                onChange={(event) => handleBookmarkUrlChange(event.target.value)}
+                                disabled={Boolean(editingBookmarkId)}
+                                required
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => void handleBookmarkPreviewLoad()}
+                              disabled={Boolean(editingBookmarkId) || isLoadingBookmarkPreview}
+                            >
+                              {isLoadingBookmarkPreview ? "불러오는 중..." : "URL 메타 불러오기"}
+                            </button>
+                            {bookmarkPreview ? (
+                              <section aria-label="bookmark-preview" className="bookmark-preview-card">
+                                <h3>자동 추출 미리보기</h3>
+                                {bookmarkPreview.sourceTitle ? <p>{bookmarkPreview.sourceTitle}</p> : null}
+                                {bookmarkPreview.sourceSummary ? <p>{bookmarkPreview.sourceSummary}</p> : null}
+                                {bookmarkPreview.sourceContent ? <p>{bookmarkPreview.sourceContent}</p> : null}
+                              </section>
+                            ) : null}
+                            <label>
+                              저장 폴더
+                              <select
+                                name="folderId"
+                                value={bookmarkDraft.folderId}
+                                onChange={(event) => updateBookmarkDraft({ folderId: event.target.value })}
+                              >
+                                <option value="">폴더 없음</option>
+                                {visibleFolderOptions.map(({ folder, label }) => (
+                                  <option key={folder.id} value={folder.id}>
+                                    {label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            {quickFolderCreateSection}
+                            <label>
+                              제목
+                              <input
+                                name="userTitle"
+                                value={bookmarkDraft.userTitle}
+                                onChange={(event) => updateBookmarkDraft({ userTitle: event.target.value })}
+                              />
+                            </label>
                           </section>
-                        ) : null}
-                        <label>
-                          저장 폴더
-                          <select
-                            name="folderId"
-                            value={bookmarkDraft.folderId}
-                            onChange={(event) => updateBookmarkDraft({ folderId: event.target.value })}
-                          >
-                            <option value="">폴더 없음</option>
-                            {visibleFolderOptions.map(({ folder, label }) => (
-                              <option key={folder.id} value={folder.id}>
-                                {label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        {quickFolderCreateSection}
-                        <label>
-                          제목
-                          <input
-                            name="userTitle"
-                            value={bookmarkDraft.userTitle}
-                            onChange={(event) => updateBookmarkDraft({ userTitle: event.target.value })}
-                          />
-                        </label>
-                        <label>
-                          내용
-                          <textarea
-                            name="userContent"
-                            value={bookmarkDraft.userContent}
-                            onChange={(event) => updateBookmarkDraft({ userContent: event.target.value })}
-                          />
-                        </label>
-                        <label>
-                          요약
-                          <textarea
-                            name="userSummary"
-                            value={bookmarkDraft.userSummary}
-                            onChange={(event) => updateBookmarkDraft({ userSummary: event.target.value })}
-                          />
-                        </label>
-                        <label>
-                          북마크 색상
-                          <input
-                            name="bookmarkColor"
-                            value={bookmarkDraft.bookmarkColor}
-                            onChange={(event) =>
-                              updateBookmarkDraft({ bookmarkColor: event.target.value })
-                            }
-                          />
-                        </label>
-                        <label>
-                          URL 색상
-                          <input
-                            name="urlColor"
-                            value={bookmarkDraft.urlColor}
-                            onChange={(event) => updateBookmarkDraft({ urlColor: event.target.value })}
-                          />
-                        </label>
-                        <label>
-                          이미지 업로드
-                          <input
-                            name="bookmarkAssetFile"
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            onChange={(event) =>
-                              setPendingAssetFiles(Array.from(event.target.files ?? []))
-                            }
-                          />
-                        </label>
-                        {pendingAssetFiles.length > 0 ? (
-                          <ul className="inline-file-list">
-                            {pendingAssetFiles.map((file) => (
-                              <li key={`${file.name}-${file.size}`}>{file.name}</li>
-                            ))}
-                          </ul>
-                        ) : null}
-                        {editingBookmarkId &&
-                        (bookmarkAssetsByBookmarkId[editingBookmarkId]?.length ?? 0) > 0 ? (
-                          <div className="asset-grid">
-                            {bookmarkAssetsByBookmarkId[editingBookmarkId].map((asset, index) => (
-                              <div key={asset.id} className="asset-item">
-                                <img src={asset.contentUrl} alt={`업로드 이미지 ${index + 1}`} />
-                                <button
-                                  type="button"
-                                  className="ghost-button"
-                                  onClick={() =>
-                                    void handleBookmarkAssetDelete(editingBookmarkId, asset.id)
-                                  }
-                                >
-                                  이미지 삭제 {index + 1}
-                                </button>
+
+                          <section className="bookmark-composer-section">
+                            <div className="bookmark-composer-section-header">
+                              <h3>내용과 요약</h3>
+                              <p>읽기 전에 보이는 핵심 설명을 정리합니다.</p>
+                            </div>
+                            <label>
+                              내용
+                              <textarea
+                                name="userContent"
+                                value={bookmarkDraft.userContent}
+                                onChange={(event) => updateBookmarkDraft({ userContent: event.target.value })}
+                              />
+                            </label>
+                            <label>
+                              요약
+                              <textarea
+                                name="userSummary"
+                                value={bookmarkDraft.userSummary}
+                                onChange={(event) => updateBookmarkDraft({ userSummary: event.target.value })}
+                              />
+                            </label>
+                          </section>
+
+                          <section className="bookmark-composer-section bookmark-composer-disclosure">
+                            <button
+                              type="button"
+                              className="ghost-button bookmark-composer-disclosure-trigger"
+                              aria-label={
+                                isBookmarkComposerClassificationOpen
+                                  ? "분류와 상태 닫기"
+                                  : "분류와 상태 열기"
+                              }
+                              aria-expanded={isBookmarkComposerClassificationOpen}
+                              onClick={() =>
+                                setIsBookmarkComposerClassificationOpen((currentValue) => !currentValue)
+                              }
+                            >
+                              <span>분류와 상태</span>
+                              <span aria-hidden="true">
+                                {isBookmarkComposerClassificationOpen ? "닫기" : "열기"}
+                              </span>
+                            </button>
+                            {isBookmarkComposerClassificationOpen ? (
+                              <div className="bookmark-composer-disclosure-body">
+                                <fieldset className="tag-fieldset">
+                                  <legend>태그 선택</legend>
+                                  {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
+                                  <div className="pill-list">
+                                    {tags.map((tag) => (
+                                      <label key={tag.id} className="pill-option">
+                                        <input
+                                          type="checkbox"
+                                          name="tagIds"
+                                          value={tag.id}
+                                          checked={bookmarkDraft.tagIds.includes(tag.id)}
+                                          onChange={(event) => toggleBookmarkTag(tag.id, event.target.checked)}
+                                        />
+                                        {tag.name}
+                                      </label>
+                                    ))}
+                                  </div>
+                                </fieldset>
+                                <label>
+                                  즐겨찾기
+                                  <input
+                                    name="isFavorite"
+                                    type="checkbox"
+                                    checked={bookmarkDraft.isFavorite}
+                                    onChange={(event) =>
+                                      updateBookmarkDraft({ isFavorite: event.target.checked })
+                                    }
+                                  />
+                                </label>
                               </div>
-                            ))}
-                          </div>
-                        ) : null}
-                        <fieldset className="tag-fieldset">
-                          <legend>태그 선택</legend>
-                          {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
-                          <div className="pill-list">
-                            {tags.map((tag) => (
-                              <label key={tag.id} className="pill-option">
-                                <input
-                                  type="checkbox"
-                                  name="tagIds"
-                                  value={tag.id}
-                                  checked={bookmarkDraft.tagIds.includes(tag.id)}
-                                  onChange={(event) => toggleBookmarkTag(tag.id, event.target.checked)}
-                                />
-                                {tag.name}
-                              </label>
-                            ))}
-                          </div>
-                        </fieldset>
-                        <label>
-                          즐겨찾기
-                          <input
-                            name="isFavorite"
-                            type="checkbox"
-                            checked={bookmarkDraft.isFavorite}
-                            onChange={(event) =>
-                              updateBookmarkDraft({ isFavorite: event.target.checked })
-                            }
-                          />
-                        </label>
-                        <div className="action-row">
+                            ) : null}
+                          </section>
+
+                          <section className="bookmark-composer-section bookmark-composer-disclosure">
+                            <button
+                              type="button"
+                              className="ghost-button bookmark-composer-disclosure-trigger"
+                              aria-label={
+                                isBookmarkComposerDisplayOpen
+                                  ? "표시와 이미지 닫기"
+                                  : "표시와 이미지 열기"
+                              }
+                              aria-expanded={isBookmarkComposerDisplayOpen}
+                              onClick={() =>
+                                setIsBookmarkComposerDisplayOpen((currentValue) => !currentValue)
+                              }
+                            >
+                              <span>표시와 이미지</span>
+                              <span aria-hidden="true">
+                                {isBookmarkComposerDisplayOpen ? "닫기" : "열기"}
+                              </span>
+                            </button>
+                            {isBookmarkComposerDisplayOpen ? (
+                              <div className="bookmark-composer-disclosure-body">
+                                <label>
+                                  북마크 색상
+                                  <input
+                                    name="bookmarkColor"
+                                    value={bookmarkDraft.bookmarkColor}
+                                    onChange={(event) =>
+                                      updateBookmarkDraft({ bookmarkColor: event.target.value })
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  URL 색상
+                                  <input
+                                    name="urlColor"
+                                    value={bookmarkDraft.urlColor}
+                                    onChange={(event) => updateBookmarkDraft({ urlColor: event.target.value })}
+                                  />
+                                </label>
+                                <label>
+                                  이미지 업로드
+                                  <input
+                                    name="bookmarkAssetFile"
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={(event) =>
+                                      setPendingAssetFiles(Array.from(event.target.files ?? []))
+                                    }
+                                  />
+                                </label>
+                                {pendingAssetFiles.length > 0 ? (
+                                  <ul className="inline-file-list">
+                                    {pendingAssetFiles.map((file) => (
+                                      <li key={`${file.name}-${file.size}`}>{file.name}</li>
+                                    ))}
+                                  </ul>
+                                ) : null}
+                                {editingBookmarkId &&
+                                (bookmarkAssetsByBookmarkId[editingBookmarkId]?.length ?? 0) > 0 ? (
+                                  <div className="asset-grid">
+                                    {bookmarkAssetsByBookmarkId[editingBookmarkId].map((asset, index) => (
+                                      <div key={asset.id} className="asset-item">
+                                        <img src={asset.contentUrl} alt={`업로드 이미지 ${index + 1}`} />
+                                        <button
+                                          type="button"
+                                          className="ghost-button"
+                                          onClick={() =>
+                                            void handleBookmarkAssetDelete(editingBookmarkId, asset.id)
+                                          }
+                                        >
+                                          이미지 삭제 {index + 1}
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </section>
+                        </div>
+                        <div className="action-row bookmark-composer-footer">
                           <button type="submit" className="primary-button" disabled={isSavingBookmark}>
                             {isSavingBookmark
                               ? editingBookmarkId
