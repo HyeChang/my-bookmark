@@ -7,6 +7,19 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+async function openDesktopBookmarkComposer() {
+  const navigationSidebar = await screen.findByRole("region", {
+    name: /navigation-sidebar/i
+  });
+  fireEvent.click(within(navigationSidebar).getByRole("button", { name: /^새 북마크$/i }));
+
+  const composerDialog = await screen.findByRole("dialog", {
+    name: /bookmark-composer-dialog/i
+  });
+
+  return within(composerDialog).getByRole("region", { name: /bookmark-form/i });
+}
+
 describe("folder and tag dashboard", () => {
   it("shows existing folders and tags for an authenticated user", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -107,7 +120,7 @@ describe("folder and tag dashboard", () => {
 
     render(<App />);
 
-    const bookmarkFormRegion = await screen.findByRole("region", { name: /bookmark-form/i });
+    const bookmarkFormRegion = await openDesktopBookmarkComposer();
     expect(await within(bookmarkFormRegion).findByLabelText(/저장 폴더/i)).toBeInTheDocument();
     expect(
       await within(bookmarkFormRegion).findByRole("option", { name: /reading/i })
@@ -483,7 +496,7 @@ describe("folder and tag dashboard", () => {
     expect(within(folderItems[1]).getByText(/상위: Reading/i)).toBeInTheDocument();
     expect(within(folderItems[1]).getByText(/하위 폴더/i)).toBeInTheDocument();
 
-    const bookmarkFormRegion = screen.getByRole("region", { name: /bookmark-form/i });
+    const bookmarkFormRegion = await openDesktopBookmarkComposer();
     const bookmarkFolderOptions = within(bookmarkFormRegion).getAllByRole("option");
     expect(bookmarkFolderOptions.map((option) => option.textContent)).toEqual([
       "폴더 없음",
@@ -674,7 +687,7 @@ describe("folder and tag dashboard", () => {
       expect(within(folderItems[1]).getByText(/^Reading$/i)).toBeInTheDocument();
     });
 
-    const bookmarkFormRegion = screen.getByRole("region", { name: /bookmark-form/i });
+    const bookmarkFormRegion = await openDesktopBookmarkComposer();
     const bookmarkFolderOptions = within(bookmarkFormRegion).getAllByRole("option");
     expect(bookmarkFolderOptions.map((option) => option.textContent)).toEqual([
       "폴더 없음",
@@ -845,7 +858,7 @@ describe("folder and tag dashboard", () => {
       expect(within(folderItems[1]).getByText(/상위: Reading/i)).toBeInTheDocument();
     });
 
-    const bookmarkFormRegion = screen.getByRole("region", { name: /bookmark-form/i });
+    const bookmarkFormRegion = await openDesktopBookmarkComposer();
     const bookmarkFolderOptions = within(bookmarkFormRegion).getAllByRole("option");
     expect(bookmarkFolderOptions.map((option) => option.textContent)).toEqual([
       "폴더 없음",
@@ -1014,7 +1027,7 @@ describe("folder and tag dashboard", () => {
       expect(within(folderItems[1]).queryByText(/상위:/i)).not.toBeInTheDocument();
     });
 
-    const bookmarkFormRegion = screen.getByRole("region", { name: /bookmark-form/i });
+    const bookmarkFormRegion = await openDesktopBookmarkComposer();
     const bookmarkFolderOptions = within(bookmarkFormRegion).getAllByRole("option");
     expect(bookmarkFolderOptions.map((option) => option.textContent)).toEqual([
       "폴더 없음",

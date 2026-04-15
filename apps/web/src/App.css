@@ -180,6 +180,57 @@ img {
   gap: 0.85rem;
 }
 
+.desktop-management-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1.2rem;
+  background: rgba(22, 27, 38, 0.42);
+  backdrop-filter: blur(8px);
+}
+
+.overlay-dialog-shell {
+  width: min(780px, 100%);
+  max-height: calc(100vh - 4rem);
+  overflow: auto;
+  padding: 1rem;
+}
+
+.overlay-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.2rem 0.2rem 1rem;
+}
+
+.overlay-dialog-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.overlay-dialog-title h2 {
+  margin: 0;
+  font-size: 1.22rem;
+  letter-spacing: -0.04em;
+  color: #1b2230;
+}
+
+.overlay-dialog-panel .sidebar-panel-shell {
+  box-shadow: none;
+  border-color: rgba(31, 37, 51, 0.08);
+}
+
 .panel-card {
   padding: 1.18rem;
 }

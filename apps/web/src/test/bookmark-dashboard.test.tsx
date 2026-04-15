@@ -132,9 +132,6 @@ describe("bookmark dashboard", () => {
     const bookmarkDetailRegion = within(mainPanel).getByRole("region", {
       name: /bookmark-detail-shell/i
     });
-    const bookmarkFormRegion = await screen.findByRole("region", {
-      name: /bookmark-form/i
-    });
     expect(screen.getByText(/^개인 아카이브 작업 공간$/i)).toBeInTheDocument();
     expect(workspace).toContainElement(sidebar);
     expect(workspace).toContainElement(mainPanel);
@@ -145,26 +142,21 @@ describe("bookmark dashboard", () => {
     const tagManagerRegion = screen.getByRole("region", { name: /tag-manager/i });
     expect(folderManagerRegion).toBeInTheDocument();
     expect(tagManagerRegion).toBeInTheDocument();
-    expect(within(sidebar).queryByRole("region", { name: /bookmark-form/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /bookmark-form/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /bookmark-composer-dialog/i })).not.toBeInTheDocument();
     expect(within(sidebar).queryByRole("region", { name: /folder-manager/i })).not.toBeInTheDocument();
     expect(within(sidebar).queryByRole("region", { name: /tag-manager/i })).not.toBeInTheDocument();
     const searchPanel = within(mainPanel).getByRole("region", { name: /search-panel/i });
     expect(within(sidebar).getByText(/^작업 패널$/i)).toBeInTheDocument();
     expect(within(mainPanel).getByText(/^작업 결과$/i)).toBeInTheDocument();
-    expect(within(bookmarkFormRegion).getByText(/^작성 흐름$/i)).toBeInTheDocument();
     expect(within(folderManagerRegion).getByText(/^구조 정리$/i)).toBeInTheDocument();
     expect(within(tagManagerRegion).getByText(/^분류 체계$/i)).toBeInTheDocument();
     expect(within(searchPanel).getByText(/^탐색 기준$/i)).toBeInTheDocument();
-
-    expect(
-      await within(bookmarkFormRegion).findByLabelText(/^URL$/i)
-    ).toBeInTheDocument();
     expect(within(searchPanel).getByText(/^기본 검색$/i)).toBeInTheDocument();
     expect(within(searchPanel).getByRole("button", { name: /검색 실행/i })).toBeInTheDocument();
     expect(within(navigationSidebar).getByRole("button", { name: /^새 북마크$/i })).toBeInTheDocument();
     expect(within(navigationSidebar).getByRole("button", { name: /^새 폴더$/i })).toBeInTheDocument();
     expect(within(navigationSidebar).getByRole("button", { name: /^태그 관리$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /북마크 저장/i })).toBeInTheDocument();
     const bookmarkListRegion = within(mainPanel).getByRole("region", {
       name: /bookmark-list/i
     });
@@ -178,6 +170,96 @@ describe("bookmark dashboard", () => {
     expect(within(bookmarkListRegion).getByText(/^태그 1개$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/북마크 색상 #f59e0b/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/url 색상 #0f172a/i)).toBeInTheDocument();
+  });
+
+  it("opens and closes the bookmark composer from desktop quick entry", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+    const navigationSidebar = await screen.findByRole("region", {
+      name: /navigation-sidebar/i
+    });
+
+    expect(screen.queryByRole("dialog", { name: /bookmark-composer-dialog/i })).not.toBeInTheDocument();
+
+    fireEvent.click(within(navigationSidebar).getByRole("button", { name: /^새 북마크$/i }));
+
+    const composerDialog = await screen.findByRole("dialog", {
+      name: /bookmark-composer-dialog/i
+    });
+    expect(within(composerDialog).getByRole("region", { name: /bookmark-form/i })).toBeInTheDocument();
+    expect(within(composerDialog).getByRole("button", { name: /^닫기$/i })).toBeInTheDocument();
+
+    fireEvent.click(within(composerDialog).getByRole("button", { name: /^닫기$/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /bookmark-composer-dialog/i })).not.toBeInTheDocument();
+    });
   });
 
   it("creates a bookmark with selected tags and appends it to the list", async () => {
@@ -327,7 +409,18 @@ describe("bookmark dashboard", () => {
     });
 
     render(<App />);
-    const bookmarkFormRegion = await screen.findByRole("region", { name: /bookmark-form/i });
+    const navigationSidebar = await screen.findByRole("region", {
+      name: /navigation-sidebar/i
+    });
+
+    fireEvent.click(within(navigationSidebar).getByRole("button", { name: /^새 북마크$/i }));
+
+    const composerDialog = await screen.findByRole("dialog", {
+      name: /bookmark-composer-dialog/i
+    });
+    const bookmarkFormRegion = within(composerDialog).getByRole("region", {
+      name: /bookmark-form/i
+    });
 
     fireEvent.change(
       await within(bookmarkFormRegion).findByLabelText(/^URL$/i),
@@ -366,6 +459,9 @@ describe("bookmark dashboard", () => {
     });
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^Created title$/i)).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /bookmark-composer-dialog/i })).not.toBeInTheDocument();
     });
 
     const createCall = fetchSpy.mock.calls.find(
@@ -522,8 +618,17 @@ describe("bookmark dashboard", () => {
     });
 
     render(<App />);
+    const navigationSidebar = await screen.findByRole("region", {
+      name: /navigation-sidebar/i
+    });
+    fireEvent.click(within(navigationSidebar).getByRole("button", { name: /^새 북마크$/i }));
 
-    const bookmarkFormRegion = await screen.findByRole("region", { name: /bookmark-form/i });
+    const composerDialog = await screen.findByRole("dialog", {
+      name: /bookmark-composer-dialog/i
+    });
+    const bookmarkFormRegion = within(composerDialog).getByRole("region", {
+      name: /bookmark-form/i
+    });
     fireEvent.click(
       within(bookmarkFormRegion).getByRole("button", { name: /새 폴더 바로 추가/i })
     );
@@ -712,19 +817,27 @@ describe("bookmark dashboard", () => {
     });
 
     render(<App />);
+    const navigationSidebar = await screen.findByRole("region", {
+      name: /navigation-sidebar/i
+    });
+    fireEvent.click(within(navigationSidebar).getByRole("button", { name: /^새 북마크$/i }));
 
-    fireEvent.change(await screen.findByLabelText(/^URL$/i), {
+    const composerDialog = await screen.findByRole("dialog", {
+      name: /bookmark-composer-dialog/i
+    });
+
+    fireEvent.change(within(composerDialog).getByLabelText(/^URL$/i), {
       target: {
         value: "https://example.com/preview"
       }
     });
-    fireEvent.click(screen.getByRole("button", { name: /url 메타 불러오기/i }));
+    fireEvent.click(within(composerDialog).getByRole("button", { name: /url 메타 불러오기/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/preview title/i)).toBeInTheDocument();
+      expect(within(composerDialog).getByText(/preview title/i)).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /북마크 저장/i }));
+    fireEvent.click(within(composerDialog).getByRole("button", { name: /북마크 저장/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/https:\/\/example.com\/preview/i)).toBeInTheDocument();
@@ -2639,7 +2752,10 @@ describe("bookmark dashboard", () => {
       await within(bookmarkListRegion).findByRole("button", { name: /^수정$/i })
     );
 
-    const bookmarkFormRegion = await screen.findByRole("region", {
+    const composerDialog = await screen.findByRole("dialog", {
+      name: /bookmark-composer-dialog/i
+    });
+    const bookmarkFormRegion = within(composerDialog).getByRole("region", {
       name: /bookmark-form/i
     });
 
@@ -2680,6 +2796,9 @@ describe("bookmark dashboard", () => {
 
     await waitFor(() => {
       expect(within(bookmarkListRegion).getByText(/^After title$/i)).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /bookmark-composer-dialog/i })).not.toBeInTheDocument();
     });
 
     const patchCall = fetchSpy.mock.calls.find(
