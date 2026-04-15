@@ -132,7 +132,7 @@ describe("bookmark dashboard", () => {
     const bookmarkDetailRegion = within(mainPanel).getByRole("region", {
       name: /bookmark-detail-shell/i
     });
-    const bookmarkFormRegion = within(sidebar).getByRole("region", {
+    const bookmarkFormRegion = await screen.findByRole("region", {
       name: /bookmark-form/i
     });
     expect(screen.getByText(/^개인 아카이브 작업 공간$/i)).toBeInTheDocument();
@@ -141,10 +141,13 @@ describe("bookmark dashboard", () => {
     expect(navigationSidebar).toBeInTheDocument();
     expect(bookmarkResults).toBeInTheDocument();
     expect(bookmarkDetailRegion).toBeInTheDocument();
-    const folderManagerRegion = within(sidebar).getByRole("region", { name: /folder-manager/i });
-    const tagManagerRegion = within(sidebar).getByRole("region", { name: /tag-manager/i });
+    const folderManagerRegion = screen.getByRole("region", { name: /folder-manager/i });
+    const tagManagerRegion = screen.getByRole("region", { name: /tag-manager/i });
     expect(folderManagerRegion).toBeInTheDocument();
     expect(tagManagerRegion).toBeInTheDocument();
+    expect(within(sidebar).queryByRole("region", { name: /bookmark-form/i })).not.toBeInTheDocument();
+    expect(within(sidebar).queryByRole("region", { name: /folder-manager/i })).not.toBeInTheDocument();
+    expect(within(sidebar).queryByRole("region", { name: /tag-manager/i })).not.toBeInTheDocument();
     const searchPanel = within(mainPanel).getByRole("region", { name: /search-panel/i });
     expect(within(sidebar).getByText(/^작업 패널$/i)).toBeInTheDocument();
     expect(within(mainPanel).getByText(/^작업 결과$/i)).toBeInTheDocument();

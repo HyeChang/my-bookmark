@@ -2505,412 +2505,6 @@ export default function App() {
                 })}
               </div>
             ) : null}
-            {!shouldUseMobileSidebarPanels ? renderDesktopSidebarPanel({
-              panelId: "bookmark",
-              heading: bookmarkPanelTitle,
-              summary: bookmarkPanelSummary,
-              kicker: bookmarkPanelKicker,
-              regionLabel: "bookmark-form",
-              children: (
-                <form className="stack-form" onSubmit={(event) => void handleBookmarkSubmit(event)}>
-                  <label>
-                    URL
-                    <input
-                      name="url"
-                      type="url"
-                      value={bookmarkDraft.url}
-                      onChange={(event) => handleBookmarkUrlChange(event.target.value)}
-                      disabled={Boolean(editingBookmarkId)}
-                      required
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => void handleBookmarkPreviewLoad()}
-                    disabled={Boolean(editingBookmarkId) || isLoadingBookmarkPreview}
-                  >
-                    {isLoadingBookmarkPreview ? "불러오는 중..." : "URL 메타 불러오기"}
-                  </button>
-                  {bookmarkPreview ? (
-                    <section aria-label="bookmark-preview">
-                      <h3>자동 추출 미리보기</h3>
-                      {bookmarkPreview.sourceTitle ? <p>{bookmarkPreview.sourceTitle}</p> : null}
-                      {bookmarkPreview.sourceSummary ? <p>{bookmarkPreview.sourceSummary}</p> : null}
-                      {bookmarkPreview.sourceContent ? <p>{bookmarkPreview.sourceContent}</p> : null}
-                    </section>
-                  ) : null}
-                  <label>
-                    저장 폴더
-                    <select
-                      name="folderId"
-                      value={bookmarkDraft.folderId}
-                      onChange={(event) => updateBookmarkDraft({ folderId: event.target.value })}
-                    >
-                      <option value="">폴더 없음</option>
-                      {visibleFolderOptions.map(({ folder, label }) => (
-                        <option key={folder.id} value={folder.id}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {quickFolderCreateSection}
-                  <label>
-                    제목
-                    <input
-                      name="userTitle"
-                      value={bookmarkDraft.userTitle}
-                      onChange={(event) => updateBookmarkDraft({ userTitle: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    내용
-                    <textarea
-                      name="userContent"
-                      value={bookmarkDraft.userContent}
-                      onChange={(event) => updateBookmarkDraft({ userContent: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    요약
-                    <textarea
-                      name="userSummary"
-                      value={bookmarkDraft.userSummary}
-                      onChange={(event) => updateBookmarkDraft({ userSummary: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    북마크 색상
-                    <input
-                      name="bookmarkColor"
-                      value={bookmarkDraft.bookmarkColor}
-                      onChange={(event) =>
-                        updateBookmarkDraft({ bookmarkColor: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    URL 색상
-                    <input
-                      name="urlColor"
-                      value={bookmarkDraft.urlColor}
-                      onChange={(event) => updateBookmarkDraft({ urlColor: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    이미지 업로드
-                    <input
-                      name="bookmarkAssetFile"
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={(event) =>
-                        setPendingAssetFiles(Array.from(event.target.files ?? []))
-                      }
-                    />
-                  </label>
-                  {pendingAssetFiles.length > 0 ? (
-                    <ul className="inline-file-list">
-                      {pendingAssetFiles.map((file) => (
-                        <li key={`${file.name}-${file.size}`}>{file.name}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  {editingBookmarkId &&
-                  (bookmarkAssetsByBookmarkId[editingBookmarkId]?.length ?? 0) > 0 ? (
-                    <div className="asset-grid">
-                      {bookmarkAssetsByBookmarkId[editingBookmarkId].map((asset, index) => (
-                        <div key={asset.id} className="asset-item">
-                          <img src={asset.contentUrl} alt={`업로드 이미지 ${index + 1}`} />
-                          <button
-                            type="button"
-                            className="ghost-button"
-                            onClick={() =>
-                              void handleBookmarkAssetDelete(editingBookmarkId, asset.id)
-                            }
-                          >
-                            이미지 삭제 {index + 1}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                  <fieldset className="tag-fieldset">
-                    <legend>태그 선택</legend>
-                    {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
-                    <div className="pill-list">
-                      {tags.map((tag) => (
-                        <label key={tag.id} className="pill-option">
-                          <input
-                            type="checkbox"
-                            name="tagIds"
-                            value={tag.id}
-                            checked={bookmarkDraft.tagIds.includes(tag.id)}
-                            onChange={(event) => toggleBookmarkTag(tag.id, event.target.checked)}
-                          />
-                          {tag.name}
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                  <label>
-                    즐겨찾기
-                    <input
-                      name="isFavorite"
-                      type="checkbox"
-                      checked={bookmarkDraft.isFavorite}
-                      onChange={(event) =>
-                        updateBookmarkDraft({ isFavorite: event.target.checked })
-                      }
-                    />
-                  </label>
-                  <div className="action-row">
-                    <button type="submit" className="primary-button" disabled={isSavingBookmark}>
-                      {isSavingBookmark
-                        ? editingBookmarkId
-                          ? "수정 중..."
-                          : "저장 중..."
-                        : editingBookmarkId
-                          ? "북마크 수정"
-                          : "북마크 저장"}
-                    </button>
-                    {editingBookmarkId ? (
-                      <button type="button" className="secondary-button" onClick={() => cancelBookmarkEdit()}>
-                        수정 취소
-                      </button>
-                    ) : null}
-                  </div>
-                </form>
-              )
-            }) : null}
-
-            {!shouldUseMobileSidebarPanels ? renderDesktopSidebarPanel({
-              panelId: "folder",
-              heading: "폴더 관리",
-              summary: folderPanelSummary,
-              kicker: folderPanelKicker,
-              regionLabel: "folder-manager",
-              children: (
-                <>
-                  <form className="stack-form" onSubmit={(event) => void handleFolderSubmit(event)}>
-                    <label>
-                      폴더 이름
-                      <input
-                        name="folderName"
-                        value={folderDraft.name}
-                        onChange={(event) => updateFolderDraft({ name: event.target.value })}
-                        required
-                      />
-                    </label>
-                    {renderFolderColorPicker(folderDraft.color, (value) =>
-                      updateFolderDraft({ color: value })
-                    )}
-                    {renderFolderIconPicker(folderDraft.icon, (value) =>
-                      updateFolderDraft({ icon: value })
-                    )}
-                    <label>
-                      부모 폴더
-                      <select
-                        name="folderParentFolderId"
-                        value={folderDraft.parentFolderId}
-                        onChange={(event) =>
-                          updateFolderDraft({ parentFolderId: event.target.value })
-                        }
-                      >
-                        <option value="">상위 없음</option>
-                        {parentFolderOptions.map(({ folder, label }) => (
-                          <option key={folder.id} value={folder.id}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <div className="action-row">
-                      <button type="submit" className="primary-button" disabled={isSavingFolder}>
-                        {isSavingFolder
-                          ? editingFolderId
-                            ? "수정 중..."
-                            : "추가 중..."
-                          : editingFolderId
-                            ? "폴더 수정"
-                            : "폴더 추가"}
-                      </button>
-                      {editingFolderId ? (
-                        <button type="button" className="secondary-button" onClick={() => cancelFolderEdit()}>
-                          수정 취소
-                        </button>
-                      ) : null}
-                    </div>
-                  </form>
-                  <button
-                    type="button"
-                    className="dropzone-button"
-                    disabled={isReorderingFolders}
-                    aria-label="최상위로 이동"
-                    onDragOver={(event) => {
-                      const draggedFolder = draggingFolderId
-                        ? folders.find((folder) => folder.id === draggingFolderId)
-                        : null;
-                      if (!draggedFolder || draggedFolder.parentFolderId === null) {
-                        return;
-                      }
-
-                      event.preventDefault();
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      void handleFolderMoveToRootDrop();
-                    }}
-                  >
-                    최상위로 이동
-                  </button>
-                  <ul className="folder-tree">
-                    {visibleFolderOptions.map(({ folder, label }) => (
-                      <li
-                        key={folder.id}
-                        className={`folder-tree-item${folder.parentFolderId ? " folder-tree-item-child" : ""}`}
-                        onDragOver={(event) => {
-                          if (
-                            !draggingFolderId ||
-                            draggingFolderId === folder.id ||
-                            folders.find((currentFolder) => currentFolder.id === draggingFolderId)
-                              ?.parentFolderId !== folder.parentFolderId
-                          ) {
-                            return;
-                          }
-
-                          event.preventDefault();
-                        }}
-                        onDrop={(event) => {
-                          event.preventDefault();
-                          void handleFolderReorderDrop(folder);
-                        }}
-                      >
-                        <div className="folder-tree-summary">
-                          <strong>{label}</strong>
-                          {folder.parentFolderId ? (
-                            <div className="folder-tree-meta">
-                              <p>하위 폴더</p>
-                              <p>상위: {getFolderName(folder.parentFolderId)}</p>
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className="folder-tree-actions">
-                          <button
-                            type="button"
-                            className="ghost-button"
-                            draggable
-                            disabled={isReorderingFolders}
-                            aria-label={`${folder.name} 폴더 드래그 정렬`}
-                            onDragStart={() => setDraggingFolderId(folder.id)}
-                            onDragEnd={() => resetDraggingFolder()}
-                          >
-                            드래그 정렬
-                          </button>
-                          <button
-                            type="button"
-                            className="ghost-button"
-                            disabled={isReorderingFolders}
-                            aria-label={`${folder.name} 폴더 하위로 이동`}
-                            onDragOver={(event) => {
-                              event.stopPropagation();
-                              if (!draggingFolderId || draggingFolderId === folder.id) {
-                                return;
-                              }
-
-                              const descendantFolderIds = getFolderDescendantIds(
-                                folders,
-                                draggingFolderId
-                              );
-                              if (descendantFolderIds.has(folder.id)) {
-                                return;
-                              }
-
-                              event.preventDefault();
-                            }}
-                            onDrop={(event) => {
-                              event.stopPropagation();
-                              event.preventDefault();
-                              void handleFolderMoveDrop(folder);
-                            }}
-                          >
-                            하위로 이동
-                          </button>
-                          <button type="button" className="secondary-button" onClick={() => beginFolderEdit(folder)}>
-                            {folder.name} 폴더 수정 시작
-                          </button>
-                          <button type="button" className="danger-button" onClick={() => void handleFolderDelete(folder)}>
-                            {folder.name} 폴더 삭제
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )
-            }) : null}
-
-            {!shouldUseMobileSidebarPanels ? renderDesktopSidebarPanel({
-              panelId: "tag",
-              heading: "태그 관리",
-              summary: tagPanelSummary,
-              kicker: tagPanelKicker,
-              regionLabel: "tag-manager",
-              children: (
-                <>
-                  <form className="stack-form" onSubmit={(event) => void handleTagSubmit(event)}>
-                    <label>
-                      태그 이름
-                      <input
-                        name="tagName"
-                        value={tagDraft.name}
-                        onChange={(event) => updateTagDraft({ name: event.target.value })}
-                        required
-                      />
-                    </label>
-                    <label>
-                      태그 색상
-                      <input
-                        name="tagColor"
-                        value={tagDraft.color}
-                        onChange={(event) => updateTagDraft({ color: event.target.value })}
-                      />
-                    </label>
-                    <div className="action-row">
-                      <button type="submit" className="primary-button" disabled={isSavingTag}>
-                        {isSavingTag
-                          ? editingTagId
-                            ? "수정 중..."
-                            : "추가 중..."
-                          : editingTagId
-                            ? "태그 수정"
-                            : "태그 추가"}
-                      </button>
-                      {editingTagId ? (
-                        <button type="button" className="secondary-button" onClick={() => cancelTagEdit()}>
-                          수정 취소
-                        </button>
-                      ) : null}
-                    </div>
-                  </form>
-                  <ul className="tag-list">
-                    {tags.map((tag) => (
-                      <li key={tag.id} className="tag-list-item">
-                        <span>{tag.name}</span>
-                        <div className="inline-actions">
-                          <button type="button" className="secondary-button" onClick={() => beginTagEdit(tag)}>
-                            {tag.name} 태그 수정 시작
-                          </button>
-                          <button type="button" className="danger-button" onClick={() => void handleTagDelete(tag)}>
-                            {tag.name} 태그 삭제
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )
-            }) : null}
           </aside>
 
           <section aria-label="dashboard-main" className="dashboard-main">
@@ -3560,6 +3154,414 @@ export default function App() {
             </ul>
           </section>
           </section>
+          {!shouldUseMobileSidebarPanels ? (
+            <section aria-label="desktop-management-panels" className="dashboard-sidebar desktop-management-panels">
+              {renderDesktopSidebarPanel({
+                panelId: "bookmark",
+                heading: bookmarkPanelTitle,
+                summary: bookmarkPanelSummary,
+                kicker: bookmarkPanelKicker,
+                regionLabel: "bookmark-form",
+                children: (
+                  <form className="stack-form" onSubmit={(event) => void handleBookmarkSubmit(event)}>
+                    <label>
+                      URL
+                      <input
+                        name="url"
+                        type="url"
+                        value={bookmarkDraft.url}
+                        onChange={(event) => handleBookmarkUrlChange(event.target.value)}
+                        disabled={Boolean(editingBookmarkId)}
+                        required
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void handleBookmarkPreviewLoad()}
+                      disabled={Boolean(editingBookmarkId) || isLoadingBookmarkPreview}
+                    >
+                      {isLoadingBookmarkPreview ? "불러오는 중..." : "URL 메타 불러오기"}
+                    </button>
+                    {bookmarkPreview ? (
+                      <section aria-label="bookmark-preview">
+                        <h3>자동 추출 미리보기</h3>
+                        {bookmarkPreview.sourceTitle ? <p>{bookmarkPreview.sourceTitle}</p> : null}
+                        {bookmarkPreview.sourceSummary ? <p>{bookmarkPreview.sourceSummary}</p> : null}
+                        {bookmarkPreview.sourceContent ? <p>{bookmarkPreview.sourceContent}</p> : null}
+                      </section>
+                    ) : null}
+                    <label>
+                      저장 폴더
+                      <select
+                        name="folderId"
+                        value={bookmarkDraft.folderId}
+                        onChange={(event) => updateBookmarkDraft({ folderId: event.target.value })}
+                      >
+                        <option value="">폴더 없음</option>
+                        {visibleFolderOptions.map(({ folder, label }) => (
+                          <option key={folder.id} value={folder.id}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {quickFolderCreateSection}
+                    <label>
+                      제목
+                      <input
+                        name="userTitle"
+                        value={bookmarkDraft.userTitle}
+                        onChange={(event) => updateBookmarkDraft({ userTitle: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      내용
+                      <textarea
+                        name="userContent"
+                        value={bookmarkDraft.userContent}
+                        onChange={(event) => updateBookmarkDraft({ userContent: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      요약
+                      <textarea
+                        name="userSummary"
+                        value={bookmarkDraft.userSummary}
+                        onChange={(event) => updateBookmarkDraft({ userSummary: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      북마크 색상
+                      <input
+                        name="bookmarkColor"
+                        value={bookmarkDraft.bookmarkColor}
+                        onChange={(event) =>
+                          updateBookmarkDraft({ bookmarkColor: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      URL 색상
+                      <input
+                        name="urlColor"
+                        value={bookmarkDraft.urlColor}
+                        onChange={(event) => updateBookmarkDraft({ urlColor: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      이미지 업로드
+                      <input
+                        name="bookmarkAssetFile"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(event) =>
+                          setPendingAssetFiles(Array.from(event.target.files ?? []))
+                        }
+                      />
+                    </label>
+                    {pendingAssetFiles.length > 0 ? (
+                      <ul className="inline-file-list">
+                        {pendingAssetFiles.map((file) => (
+                          <li key={`${file.name}-${file.size}`}>{file.name}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {editingBookmarkId &&
+                    (bookmarkAssetsByBookmarkId[editingBookmarkId]?.length ?? 0) > 0 ? (
+                      <div className="asset-grid">
+                        {bookmarkAssetsByBookmarkId[editingBookmarkId].map((asset, index) => (
+                          <div key={asset.id} className="asset-item">
+                            <img src={asset.contentUrl} alt={`업로드 이미지 ${index + 1}`} />
+                            <button
+                              type="button"
+                              className="ghost-button"
+                              onClick={() =>
+                                void handleBookmarkAssetDelete(editingBookmarkId, asset.id)
+                              }
+                            >
+                              이미지 삭제 {index + 1}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    <fieldset className="tag-fieldset">
+                      <legend>태그 선택</legend>
+                      {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
+                      <div className="pill-list">
+                        {tags.map((tag) => (
+                          <label key={tag.id} className="pill-option">
+                            <input
+                              type="checkbox"
+                              name="tagIds"
+                              value={tag.id}
+                              checked={bookmarkDraft.tagIds.includes(tag.id)}
+                              onChange={(event) => toggleBookmarkTag(tag.id, event.target.checked)}
+                            />
+                            {tag.name}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                    <label>
+                      즐겨찾기
+                      <input
+                        name="isFavorite"
+                        type="checkbox"
+                        checked={bookmarkDraft.isFavorite}
+                        onChange={(event) =>
+                          updateBookmarkDraft({ isFavorite: event.target.checked })
+                        }
+                      />
+                    </label>
+                    <div className="action-row">
+                      <button type="submit" className="primary-button" disabled={isSavingBookmark}>
+                        {isSavingBookmark
+                          ? editingBookmarkId
+                            ? "수정 중..."
+                            : "저장 중..."
+                          : editingBookmarkId
+                            ? "북마크 수정"
+                            : "북마크 저장"}
+                      </button>
+                      {editingBookmarkId ? (
+                        <button type="button" className="secondary-button" onClick={() => cancelBookmarkEdit()}>
+                          수정 취소
+                        </button>
+                      ) : null}
+                    </div>
+                  </form>
+                )
+              })}
+              {renderDesktopSidebarPanel({
+                panelId: "folder",
+                heading: "폴더 관리",
+                summary: folderPanelSummary,
+                kicker: folderPanelKicker,
+                regionLabel: "folder-manager",
+                children: (
+                  <>
+                    <form className="stack-form" onSubmit={(event) => void handleFolderSubmit(event)}>
+                      <label>
+                        폴더 이름
+                        <input
+                          name="folderName"
+                          value={folderDraft.name}
+                          onChange={(event) => updateFolderDraft({ name: event.target.value })}
+                          required
+                        />
+                      </label>
+                      {renderFolderColorPicker(folderDraft.color, (value) =>
+                        updateFolderDraft({ color: value })
+                      )}
+                      {renderFolderIconPicker(folderDraft.icon, (value) =>
+                        updateFolderDraft({ icon: value })
+                      )}
+                      <label>
+                        부모 폴더
+                        <select
+                          name="folderParentFolderId"
+                          value={folderDraft.parentFolderId}
+                          onChange={(event) =>
+                            updateFolderDraft({ parentFolderId: event.target.value })
+                          }
+                        >
+                          <option value="">상위 없음</option>
+                          {parentFolderOptions.map(({ folder, label }) => (
+                            <option key={folder.id} value={folder.id}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="action-row">
+                        <button type="submit" className="primary-button" disabled={isSavingFolder}>
+                          {isSavingFolder
+                            ? editingFolderId
+                              ? "수정 중..."
+                              : "추가 중..."
+                            : editingFolderId
+                              ? "폴더 수정"
+                              : "폴더 추가"}
+                        </button>
+                        {editingFolderId ? (
+                          <button type="button" className="secondary-button" onClick={() => cancelFolderEdit()}>
+                            수정 취소
+                          </button>
+                        ) : null}
+                      </div>
+                    </form>
+                    <button
+                      type="button"
+                      className="dropzone-button"
+                      disabled={isReorderingFolders}
+                      aria-label="최상위로 이동"
+                      onDragOver={(event) => {
+                        const draggedFolder = draggingFolderId
+                          ? folders.find((folder) => folder.id === draggingFolderId)
+                          : null;
+                        if (!draggedFolder || draggedFolder.parentFolderId === null) {
+                          return;
+                        }
+
+                        event.preventDefault();
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        void handleFolderMoveToRootDrop();
+                      }}
+                    >
+                      최상위로 이동
+                    </button>
+                    <ul className="folder-tree">
+                      {visibleFolderOptions.map(({ folder, label }) => (
+                        <li
+                          key={folder.id}
+                          className={`folder-tree-item${folder.parentFolderId ? " folder-tree-item-child" : ""}`}
+                          onDragOver={(event) => {
+                            if (
+                              !draggingFolderId ||
+                              draggingFolderId === folder.id ||
+                              folders.find((currentFolder) => currentFolder.id === draggingFolderId)
+                                ?.parentFolderId !== folder.parentFolderId
+                            ) {
+                              return;
+                            }
+
+                            event.preventDefault();
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            void handleFolderReorderDrop(folder);
+                          }}
+                        >
+                          <div className="folder-tree-summary">
+                            <strong>{label}</strong>
+                            {folder.parentFolderId ? (
+                              <div className="folder-tree-meta">
+                                <p>하위 폴더</p>
+                                <p>상위: {getFolderName(folder.parentFolderId)}</p>
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="folder-tree-actions">
+                            <button
+                              type="button"
+                              className="ghost-button"
+                              draggable
+                              disabled={isReorderingFolders}
+                              aria-label={`${folder.name} 폴더 드래그 정렬`}
+                              onDragStart={() => setDraggingFolderId(folder.id)}
+                              onDragEnd={() => resetDraggingFolder()}
+                            >
+                              드래그 정렬
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost-button"
+                              disabled={isReorderingFolders}
+                              aria-label={`${folder.name} 폴더 하위로 이동`}
+                              onDragOver={(event) => {
+                                event.stopPropagation();
+                                if (!draggingFolderId || draggingFolderId === folder.id) {
+                                  return;
+                                }
+
+                                const descendantFolderIds = getFolderDescendantIds(
+                                  folders,
+                                  draggingFolderId
+                                );
+                                if (descendantFolderIds.has(folder.id)) {
+                                  return;
+                                }
+
+                                event.preventDefault();
+                              }}
+                              onDrop={(event) => {
+                                event.stopPropagation();
+                                event.preventDefault();
+                                void handleFolderMoveDrop(folder);
+                              }}
+                            >
+                              하위로 이동
+                            </button>
+                            <button type="button" className="secondary-button" onClick={() => beginFolderEdit(folder)}>
+                              {folder.name} 폴더 수정 시작
+                            </button>
+                            <button type="button" className="danger-button" onClick={() => void handleFolderDelete(folder)}>
+                              {folder.name} 폴더 삭제
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )
+              })}
+              {renderDesktopSidebarPanel({
+                panelId: "tag",
+                heading: "태그 관리",
+                summary: tagPanelSummary,
+                kicker: tagPanelKicker,
+                regionLabel: "tag-manager",
+                children: (
+                  <>
+                    <form className="stack-form" onSubmit={(event) => void handleTagSubmit(event)}>
+                      <label>
+                        태그 이름
+                        <input
+                          name="tagName"
+                          value={tagDraft.name}
+                          onChange={(event) => updateTagDraft({ name: event.target.value })}
+                          required
+                        />
+                      </label>
+                      <label>
+                        태그 색상
+                        <input
+                          name="tagColor"
+                          value={tagDraft.color}
+                          onChange={(event) => updateTagDraft({ color: event.target.value })}
+                        />
+                      </label>
+                      <div className="action-row">
+                        <button type="submit" className="primary-button" disabled={isSavingTag}>
+                          {isSavingTag
+                            ? editingTagId
+                              ? "수정 중..."
+                              : "추가 중..."
+                            : editingTagId
+                              ? "태그 수정"
+                              : "태그 추가"}
+                        </button>
+                        {editingTagId ? (
+                          <button type="button" className="secondary-button" onClick={() => cancelTagEdit()}>
+                            수정 취소
+                          </button>
+                        ) : null}
+                      </div>
+                    </form>
+                    <ul className="tag-list">
+                      {tags.map((tag) => (
+                        <li key={tag.id} className="tag-list-item">
+                          <span>{tag.name}</span>
+                          <div className="inline-actions">
+                            <button type="button" className="secondary-button" onClick={() => beginTagEdit(tag)}>
+                              {tag.name} 태그 수정 시작
+                            </button>
+                            <button type="button" className="danger-button" onClick={() => void handleTagDelete(tag)}>
+                              {tag.name} 태그 삭제
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )
+              })}
+            </section>
+          ) : null}
           </div>
         </section>
       ) : null}
