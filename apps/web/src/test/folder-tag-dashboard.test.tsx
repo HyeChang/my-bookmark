@@ -5,6 +5,7 @@ import App from "../App";
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 async function openDesktopBookmarkComposer() {
@@ -24,6 +25,9 @@ async function openFolderManagerOverlay() {
   const navigationSidebar = await screen.findByRole("region", {
     name: /navigation-sidebar/i
   });
+  fireEvent.click(
+    within(navigationSidebar).getByRole("button", { name: /빠른 작업 더보기/i })
+  );
   fireEvent.click(within(navigationSidebar).getByRole("button", { name: /^새 폴더$/i }));
 
   const folderDialog = await screen.findByRole("dialog", {
@@ -45,6 +49,9 @@ async function openTagManagerOverlay() {
   const navigationSidebar = await screen.findByRole("region", {
     name: /navigation-sidebar/i
   });
+  fireEvent.click(
+    within(navigationSidebar).getByRole("button", { name: /빠른 작업 더보기/i })
+  );
   fireEvent.click(within(navigationSidebar).getByRole("button", { name: /^태그 관리$/i }));
 
   const tagDialog = await screen.findByRole("dialog", {
@@ -58,6 +65,19 @@ function openTagActionMenu(tagManager: HTMLElement, tagName: string) {
   fireEvent.click(
     within(tagManager).getByRole("button", {
       name: new RegExp(`${tagName} 태그 더보기`, "i")
+    })
+  );
+}
+
+function chooseColorOption(container: HTMLElement, label: string, optionLabel: string) {
+  fireEvent.click(
+    within(container).getByRole("button", {
+      name: new RegExp(`^${label}$`, "i")
+    })
+  );
+  fireEvent.click(
+    within(container).getByRole("button", {
+      name: new RegExp(`${label} ${optionLabel} 선택`, "i")
     })
   );
 }
@@ -171,15 +191,20 @@ describe("folder and tag dashboard", () => {
     ).toBeInTheDocument();
     const tagManagerRegion = await openTagManagerOverlay();
     expect((await within(tagManagerRegion).findAllByText(/research/i)).length).toBeGreaterThan(0);
-    expect(within(tagManagerRegion).getByText(/^입력 설정$/i)).toBeInTheDocument();
+    expect(within(tagManagerRegion).getByText(/^입력$/i)).toBeInTheDocument();
     expect(within(tagManagerRegion).getByText(/^현재 태그$/i)).toBeInTheDocument();
     const folderManagerRegion = await openFolderManagerOverlay();
-    expect(within(folderManagerRegion).getByText(/^입력 설정$/i)).toBeInTheDocument();
+    expect(within(folderManagerRegion).getByText(/^입력$/i)).toBeInTheDocument();
     expect(within(folderManagerRegion).getByText(/^폴더 트리$/i)).toBeInTheDocument();
+    expect(within(folderManagerRegion).getByText(/^트리$/i)).toBeInTheDocument();
     expect(within(folderManagerRegion).getByLabelText(/폴더 이름/i)).toBeInTheDocument();
     expect(within(folderManagerRegion).getByRole("group", { name: /폴더 색상/i })).toBeInTheDocument();
     expect(within(folderManagerRegion).getByRole("group", { name: /폴더 아이콘/i })).toBeInTheDocument();
+    expect(within(folderManagerRegion).getByText(/^새 폴더$/i)).toBeInTheDocument();
     expect(within(tagManagerRegion).getByLabelText(/태그 이름/i)).toBeInTheDocument();
+    expect(within(tagManagerRegion).getByRole("group", { name: /태그 색상/i })).toBeInTheDocument();
+    expect(within(tagManagerRegion).getByText(/^새 태그$/i)).toBeInTheDocument();
+    expect(within(tagManagerRegion).getByText(/^태그 목록$/i)).toBeInTheDocument();
   });
 
   it("shows folder row actions through a more menu while keeping the drag handle visible", async () => {
@@ -275,8 +300,23 @@ describe("folder and tag dashboard", () => {
       within(folderItem).getByRole("button", { name: /reading 폴더 드래그 정렬/i })
     ).toBeInTheDocument();
     expect(
+      within(folderItem).getByRole("button", { name: /reading 폴더 드래그 정렬/i })
+    ).toHaveTextContent("정렬");
+    expect(
       within(folderItem).getByRole("button", { name: /reading 폴더 더보기/i })
     ).toBeInTheDocument();
+    expect(
+      within(folderItem).getByRole("button", { name: /reading 폴더 더보기/i })
+    ).toHaveTextContent("...");
+    expect(
+      within(folderItem).getByRole("button", { name: /reading 하위 폴더 추가/i })
+    ).toBeInTheDocument();
+    expect(
+      within(folderItem).getByRole("button", { name: /reading 하위 폴더 추가/i })
+    ).toHaveTextContent("+ 하위");
+    expect(
+      within(folderItem).getByRole("button", { name: /reading 폴더 하위로 이동/i })
+    ).toHaveTextContent("이동");
     expect(
       within(folderItem).queryByRole("button", { name: /reading 폴더 수정 시작/i })
     ).not.toBeInTheDocument();
@@ -292,6 +332,327 @@ describe("folder and tag dashboard", () => {
     expect(
       within(folderItem).getByRole("button", { name: /reading 폴더 삭제/i })
     ).toBeInTheDocument();
+  });
+
+  it("starts child folder creation from the folder tree quick action", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const folderManager = await openFolderManagerOverlay();
+    fireEvent.click(
+      within(folderManager).getByRole("button", { name: /reading 하위 폴더 추가/i })
+    );
+
+    expect(within(folderManager).getByRole("button", { name: /^폴더 추가$/i })).toHaveTextContent(
+      /^추가$/i
+    );
+    expect(
+      (within(folderManager).getByLabelText(/부모 폴더/i) as HTMLSelectElement).value
+    ).toBe("folder-1");
+  });
+
+  it("closes the folder manager from the backdrop without confirmation when the child draft is unchanged", async () => {
+    const confirmSpy = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirmSpy);
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const folderManager = await openFolderManagerOverlay();
+    fireEvent.click(
+      within(folderManager).getByRole("button", { name: /reading 하위 폴더 추가/i })
+    );
+
+    const folderDialog = screen.getByRole("dialog", {
+      name: /folder-manager-dialog/i
+    });
+    fireEvent.click(folderDialog.parentElement as HTMLElement);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: /folder-manager-dialog/i })
+      ).not.toBeInTheDocument();
+    });
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it("asks before closing the folder manager from the backdrop when the draft has changes", async () => {
+    const confirmSpy = vi
+      .fn()
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    vi.stubGlobal("confirm", confirmSpy);
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const folderManager = await openFolderManagerOverlay();
+    fireEvent.change(within(folderManager).getByLabelText(/폴더 이름/i), {
+      target: {
+        value: "Draft folder"
+      }
+    });
+
+    const folderDialog = screen.getByRole("dialog", {
+      name: /folder-manager-dialog/i
+    });
+    fireEvent.click(folderDialog.parentElement as HTMLElement);
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog", { name: /folder-manager-dialog/i })).toBeInTheDocument();
+
+    fireEvent.click(folderDialog.parentElement as HTMLElement);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: /folder-manager-dialog/i })
+      ).not.toBeInTheDocument();
+    });
+    expect(confirmSpy).toHaveBeenCalledTimes(2);
   });
 
   it("creates a folder and appends it to the folder list and picker", async () => {
@@ -393,13 +754,15 @@ describe("folder and tag dashboard", () => {
         value: "Articles"
       }
     });
-    fireEvent.click(within(folderManager).getByRole("button", { name: /폴더 색상 청록 선택/i }));
+    chooseColorOption(folderManager, "폴더 색상", "청록");
     fireEvent.click(within(folderManager).getByRole("button", { name: /폴더 아이콘 신문 선택/i }));
-    fireEvent.click(within(folderManager).getByRole("button", { name: /폴더 추가/i }));
+    expect(within(folderManager).getByText(/^선택됨: 신문$/i)).toBeInTheDocument();
+    fireEvent.click(within(folderManager).getByRole("button", { name: /^폴더 추가$/i }));
 
     await waitFor(() => {
       expect(screen.getAllByText(/articles/i).length).toBeGreaterThan(0);
     });
+    expect(folderManager.querySelectorAll(".folder-icon-badge").length).toBeGreaterThan(0);
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/folders",
@@ -407,6 +770,198 @@ describe("folder and tag dashboard", () => {
         method: "POST"
       })
     );
+  });
+
+  it("creates a hidden folder when the hidden option is selected", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            folder: {
+              id: "folder-hidden-1",
+              name: "Private",
+              color: null,
+              icon: null,
+              isHidden: true,
+              parentFolderId: null,
+              sortOrder: 0,
+              createdAt: "2026-04-13T10:00:00.000Z",
+              updatedAt: "2026-04-13T10:00:00.000Z"
+            }
+          }),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+    const folderManager = await openFolderManagerOverlay();
+
+    fireEvent.change(within(folderManager).getByLabelText(/폴더 이름/i), {
+      target: {
+        value: "Private"
+      }
+    });
+    fireEvent.click(within(folderManager).getByLabelText(/숨김 폴더/i));
+    fireEvent.click(within(folderManager).getByRole("button", { name: /^폴더 추가$/i }));
+
+    const createCall = fetchSpy.mock.calls.find(
+      ([input, init]) =>
+        (typeof input === "string" ? input : input.url) === "/api/folders" &&
+        init?.method === "POST"
+    );
+
+    expect(createCall).toBeDefined();
+    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({
+      name: "Private",
+      isHidden: true
+    });
+  });
+
+  it("renders the folder hidden checkbox with the shared checkbox field layout", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+    const folderManager = await openFolderManagerOverlay();
+    const hiddenFolderCheckbox = within(folderManager).getByRole("checkbox", { name: /숨김 폴더/i });
+
+    expect(hiddenFolderCheckbox).toHaveClass("checkbox-field-input");
+    expect(hiddenFolderCheckbox.closest("label")).toHaveClass("checkbox-field");
   });
 
   it("creates a child folder with a selected parent folder", async () => {
@@ -529,7 +1084,7 @@ describe("folder and tag dashboard", () => {
         value: "folder-1"
       }
     });
-    fireEvent.click(within(folderManager).getByRole("button", { name: /폴더 추가/i }));
+    fireEvent.click(within(folderManager).getByRole("button", { name: /^폴더 추가$/i }));
 
     await waitFor(() => {
       expect(screen.getAllByText(/papers/i).length).toBeGreaterThan(0);
@@ -543,6 +1098,7 @@ describe("folder and tag dashboard", () => {
           name: "Papers",
           color: null,
           icon: null,
+          isHidden: false,
           parentFolderId: "folder-1"
         })
       })
@@ -651,7 +1207,7 @@ describe("folder and tag dashboard", () => {
     expect(within(folderItems[0]).getByText(/^Reading$/i)).toBeInTheDocument();
     expect(within(folderItems[1]).getByText(/Papers$/i)).toBeInTheDocument();
     expect(within(folderItems[1]).getByText(/^상위 Reading$/i)).toBeInTheDocument();
-    expect(within(folderItems[1]).getByText(/^하위$/i)).toBeInTheDocument();
+    expect(within(folderItems[1]).queryByText(/^하위$/i)).not.toBeInTheDocument();
 
     const bookmarkFormRegion = await openDesktopBookmarkComposer();
     const bookmarkFolderOptions = within(bookmarkFormRegion).getAllByRole("option");
@@ -1351,13 +1907,13 @@ describe("folder and tag dashboard", () => {
     fireEvent.change(within(folderManager).getByLabelText(/폴더 이름/i), {
       target: { value: "Articles" }
     });
-    fireEvent.click(within(folderManager).getByRole("button", { name: /폴더 색상 청록 선택/i }));
+    chooseColorOption(folderManager, "폴더 색상", "청록");
     fireEvent.click(within(folderManager).getByRole("button", { name: /폴더 아이콘 신문 선택/i }));
-    fireEvent.click(
-      within(folderManager).getByRole("button", {
-        name: /^폴더 수정$/i
-      })
-    );
+    const saveFolderButton = within(folderManager).getByRole("button", {
+      name: /^폴더 수정$/i
+    });
+    expect(saveFolderButton).toHaveTextContent(/^저장$/i);
+    fireEvent.click(saveFolderButton);
 
     await waitFor(() => {
       expect(screen.getAllByText(/articles/i).length).toBeGreaterThan(0);
@@ -1369,14 +1925,12 @@ describe("folder and tag dashboard", () => {
     fireEvent.change(within(tagManager).getByLabelText(/태그 이름/i), {
       target: { value: "reference" }
     });
-    fireEvent.change(within(tagManager).getByLabelText(/태그 색상/i), {
-      target: { value: "#0f766e" }
+    chooseColorOption(tagManager, "태그 색상", "청록");
+    const saveTagButton = within(tagManager).getByRole("button", {
+      name: /^태그 수정$/i
     });
-    fireEvent.click(
-      within(tagManager).getByRole("button", {
-        name: /^태그 수정$/i
-      })
-    );
+    expect(saveTagButton).toHaveTextContent(/^저장$/i);
+    fireEvent.click(saveTagButton);
 
     await waitFor(() => {
       expect(screen.getAllByText(/reference/i).length).toBeGreaterThan(0);

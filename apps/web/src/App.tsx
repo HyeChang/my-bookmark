@@ -1,4 +1,14 @@
-import { startTransition, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  startTransition,
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent as ReactClipboardEvent,
+  type DragEvent as ReactDragEvent,
+  type FormEvent,
+  type InputHTMLAttributes,
+  type ReactNode
+} from "react";
 import "./App.css";
 
 import type {
@@ -11,6 +21,7 @@ import type {
   BookmarkSortMode,
   BookmarkTagMode,
   CreateBookmarkRequest,
+  ExtensionToken,
   Folder,
   Tag
 } from "@bookmark/shared";
@@ -38,15 +49,26 @@ import {
   reorderFolders,
   updateFolder
 } from "./lib/folders";
-import { folderColorPresets, folderIconPresets } from "./lib/folder-presets";
+import { colorPresets, folderIconPresets } from "./lib/folder-presets";
 import { loadRecommendations, recordBookmarkOpen } from "./lib/recommendations";
 import { exchangeIdTokenForSession, loadSession, logoutSession } from "./lib/session";
 import { createTag, deleteTag, loadTags, updateTag } from "./lib/tags";
+import {
+  createExtensionToken,
+  loadExtensionTokens,
+  revokeExtensionToken
+} from "./lib/extension-tokens";
+import { extractImageFilesFromDataTransfer } from "./lib/clipboard-images";
 
 type SessionState =
   | { status: "loading" }
   | { status: "anonymous" }
   | { status: "authenticated"; user: AuthenticatedUser };
+
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+};
 
 type BookmarkDraft = {
   url: string;
@@ -58,12 +80,14 @@ type BookmarkDraft = {
   userContent: string;
   userSummary: string;
   isFavorite: boolean;
+  isHidden: boolean;
 };
 
 type FolderDraft = {
   name: string;
   color: string;
   icon: string;
+  isHidden: boolean;
   parentFolderId: string;
 };
 
@@ -104,6 +128,16 @@ type BookmarkSearchSummaryItem = {
   nextSearch: BookmarkSearchDraft;
 };
 
+type ColorSelectFieldProps = {
+  label: string;
+  selectedColor: string;
+  onSelect: (value: string) => void;
+  emptyLabel: string;
+  compact?: boolean;
+};
+
+const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
+
 const emptyBookmarkDraft: BookmarkDraft = {
   url: "",
   folderId: "",
@@ -113,13 +147,15 @@ const emptyBookmarkDraft: BookmarkDraft = {
   userTitle: "",
   userContent: "",
   userSummary: "",
-  isFavorite: false
+  isFavorite: false,
+  isHidden: false
 };
 
 const emptyFolderDraft: FolderDraft = {
   name: "",
   color: "",
   icon: "",
+  isHidden: false,
   parentFolderId: ""
 };
 
@@ -127,6 +163,36 @@ const emptyTagDraft: TagDraft = {
   name: "",
   color: ""
 };
+
+function areFolderDraftsEqual(left: FolderDraft, right: FolderDraft) {
+  return (
+    left.name === right.name &&
+    left.color === right.color &&
+    left.icon === right.icon &&
+    left.isHidden === right.isHidden &&
+    left.parentFolderId === right.parentFolderId
+  );
+}
+
+function areTagDraftsEqual(left: TagDraft, right: TagDraft) {
+  return left.name === right.name && left.color === right.color;
+}
+
+function areBookmarkDraftsEqual(left: BookmarkDraft, right: BookmarkDraft) {
+  return (
+    left.url === right.url &&
+    left.folderId === right.folderId &&
+    left.bookmarkColor === right.bookmarkColor &&
+    left.urlColor === right.urlColor &&
+    left.userTitle === right.userTitle &&
+    left.userContent === right.userContent &&
+    left.userSummary === right.userSummary &&
+    left.isFavorite === right.isFavorite &&
+    left.isHidden === right.isHidden &&
+    left.tagIds.length === right.tagIds.length &&
+    left.tagIds.every((tagId, index) => tagId === right.tagIds[index])
+  );
+}
 
 const emptyBookmarkSearchDraft: BookmarkSearchDraft = {
   query: "",
@@ -149,6 +215,13 @@ const emptyBookmarkRecommendations: BookmarkRecommendationsState = {
   recent: [],
   frequent: []
 };
+
+const bookmarkSearchModeOptions: Array<{ value: BookmarkSearchMode; label: string }> = [
+  { value: "all", label: "전체" },
+  { value: "title", label: "제목" },
+  { value: "content", label: "내용" },
+  { value: "folder", label: "폴더" }
+];
 
 const MOBILE_SEARCH_BREAKPOINT = 720;
 
@@ -201,17 +274,222 @@ function hasActiveBookmarkSearch(search: BookmarkSearchDraft) {
   );
 }
 
+function canResolveFolderOverviewSearchLocally(search: BookmarkSearchDraft) {
+  const normalizedSearch = normalizeBookmarkSearchDraft(search);
+  return (
+    !normalizedSearch.query &&
+    normalizedSearch.sort === "created_desc" &&
+    normalizedSearch.createdWithin === "all" &&
+    normalizedSearch.openedWithin === "all" &&
+    !normalizedSearch.favoriteOnly &&
+    normalizedSearch.tagIds.length === 0 &&
+    !normalizedSearch.bookmarkColor &&
+    !normalizedSearch.urlColor &&
+    normalizedSearch.summaryState === "all"
+  );
+}
+
+function filterBookmarksForFolderOverviewSearch(
+  bookmarks: Bookmark[],
+  folders: Folder[],
+  search: BookmarkSearchDraft
+) {
+  const normalizedSearch = normalizeBookmarkSearchDraft(search);
+  if (!normalizedSearch.folderId) {
+    return bookmarks;
+  }
+
+  if (!normalizedSearch.includeDescendantFolders) {
+    return bookmarks.filter((bookmark) => bookmark.folderId === normalizedSearch.folderId);
+  }
+
+  const descendantFolderIds = getFolderDescendantIds(folders, normalizedSearch.folderId);
+  return bookmarks.filter(
+    (bookmark) =>
+      bookmark.folderId === normalizedSearch.folderId ||
+      (bookmark.folderId ? descendantFolderIds.has(bookmark.folderId) : false)
+  );
+}
+
 function getBookmarkSearchModeLabel(mode: BookmarkSearchMode) {
   switch (mode) {
     case "title":
-      return "제목 검색";
+      return "제목";
     case "content":
-      return "내용 검색";
+      return "내용";
     case "folder":
-      return "폴더명 검색";
+      return "폴더";
     default:
-      return "통합 검색";
+      return "전체";
   }
+}
+
+function getColorPresetLabel(color: string | null | undefined) {
+  if (!color) {
+    return null;
+  }
+
+  const normalizedColor = color.toLowerCase();
+  return colorPresets.find((preset) => preset.value.toLowerCase() === normalizedColor)?.label ?? color;
+}
+
+function getFolderIconGlyph(icon: string | null | undefined) {
+  switch (icon) {
+    case "book-open":
+      return "▤";
+    case "newspaper":
+      return "▥";
+    case "file-text":
+      return "≣";
+    case "folder":
+      return "□";
+    case "link":
+      return "↗";
+    case "star":
+      return "★";
+    default:
+      return null;
+  }
+}
+
+function getColorPreset(color: string | null | undefined) {
+  if (!color) {
+    return null;
+  }
+
+  const normalizedColor = color.toLowerCase();
+  return colorPresets.find((preset) => preset.value.toLowerCase() === normalizedColor) ?? null;
+}
+
+function renderColorSwatch(color: string, className = "color-swatch") {
+  return (
+    <span
+      className={className}
+      style={{ backgroundColor: color }}
+      aria-hidden="true"
+    />
+  );
+}
+
+function ColorSelectField({
+  label,
+  selectedColor,
+  onSelect,
+  emptyLabel,
+  compact = false
+}: ColorSelectFieldProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const fieldsetRef = useRef<HTMLFieldSetElement | null>(null);
+  const selectedPreset = getColorPreset(selectedColor);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!fieldsetRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    globalThis.document.addEventListener("mousedown", handlePointerDown);
+    globalThis.document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      globalThis.document.removeEventListener("mousedown", handlePointerDown);
+      globalThis.document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  function handleColorSelect(nextColor: string) {
+    onSelect(nextColor);
+    setIsOpen(false);
+  }
+
+  return (
+    <fieldset
+      ref={fieldsetRef}
+      className={`picker-fieldset color-select-fieldset${
+        compact ? " color-select-fieldset-compact" : ""
+      }`}
+    >
+      <legend>{label}</legend>
+      <div className={`color-select${compact ? " color-select-compact" : ""}`}>
+        <button
+          type="button"
+          className={`color-select-trigger${isOpen ? " color-select-trigger-open" : ""}`}
+          aria-label={label}
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen((currentState) => !currentState)}
+        >
+          <span className="color-select-trigger-value">
+            {selectedPreset ? (
+              renderColorSwatch(selectedPreset.value, "picker-color-swatch")
+            ) : (
+              <span className="color-select-empty-swatch" aria-hidden="true" />
+            )}
+            <span>{selectedPreset?.label ?? emptyLabel}</span>
+          </span>
+          <span className="color-select-trigger-chevron" aria-hidden="true">
+            ▾
+          </span>
+        </button>
+        {isOpen ? (
+          <div role="dialog" aria-label={`${label} 선택`} className="color-select-popover">
+            <div className="color-select-options">
+              <button
+                type="button"
+                className={`color-select-option${selectedPreset ? "" : " color-select-option-active"}`}
+                aria-label={`${label} ${emptyLabel} 선택`}
+                aria-pressed={!selectedPreset}
+                onClick={() => handleColorSelect("")}
+              >
+                <span className="color-select-option-copy">
+                  <span className="color-select-empty-swatch" aria-hidden="true" />
+                  <span>{emptyLabel}</span>
+                </span>
+                {!selectedPreset ? (
+                  <span className="choice-selection-mark" aria-hidden="true">
+                    ✓
+                  </span>
+                ) : null}
+              </button>
+              {colorPresets.map((preset) => (
+                <button
+                  key={preset.value}
+                  type="button"
+                  className={`color-select-option${
+                    selectedPreset?.value === preset.value ? " color-select-option-active" : ""
+                  }`}
+                  aria-label={`${label} ${preset.label} 선택`}
+                  aria-pressed={selectedPreset?.value === preset.value}
+                  onClick={() => handleColorSelect(preset.value)}
+                >
+                  <span className="color-select-option-copy">
+                    {renderColorSwatch(preset.value, "picker-color-swatch")}
+                    <span>{preset.label}</span>
+                  </span>
+                  {selectedPreset?.value === preset.value ? (
+                    <span className="choice-selection-mark" aria-hidden="true">
+                      ✓
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </fieldset>
+  );
 }
 
 function getBookmarkSortLabel(sort: BookmarkSortMode) {
@@ -233,13 +511,41 @@ function hasTextContent(value: string | null | undefined) {
   return Boolean(value && value.trim().length > 0);
 }
 
+function getBookmarkPreviewText(bookmark: Bookmark) {
+  if (hasTextContent(bookmark.userSummary)) {
+    return bookmark.userSummary ?? "";
+  }
+
+  if (hasTextContent(bookmark.userContent)) {
+    return bookmark.userContent ?? "";
+  }
+
+  if (hasTextContent(bookmark.sourceSummary)) {
+    return bookmark.sourceSummary ?? "";
+  }
+
+  if (hasTextContent(bookmark.sourceContent)) {
+    return bookmark.sourceContent ?? "";
+  }
+
+  return "";
+}
+
 function getBookmarkSummaryStateLabel(bookmark: Bookmark) {
   if (hasTextContent(bookmark.userSummary)) {
-    return "수동 요약";
+    return "직접 요약";
+  }
+
+  if (hasTextContent(bookmark.userContent)) {
+    return "직접 정리";
   }
 
   if (hasTextContent(bookmark.sourceSummary)) {
     return "자동 요약";
+  }
+
+  if (hasTextContent(bookmark.sourceContent)) {
+    return "자동 추출";
   }
 
   return "요약 없음";
@@ -416,7 +722,7 @@ function getBookmarkSearchSummaryItems(
     push(
       `bookmarkColor:${normalizedSearch.bookmarkColor}`,
       "상태",
-      `북마크 색상 ${normalizedSearch.bookmarkColor}`,
+      `북마크 ${getColorPresetLabel(normalizedSearch.bookmarkColor)}`,
       (currentSearch) => ({
         ...currentSearch,
         bookmarkColor: ""
@@ -428,7 +734,7 @@ function getBookmarkSearchSummaryItems(
     push(
       `urlColor:${normalizedSearch.urlColor}`,
       "상태",
-      `URL 색상 ${normalizedSearch.urlColor}`,
+      `URL ${getColorPresetLabel(normalizedSearch.urlColor)}`,
       (currentSearch) => ({
         ...currentSearch,
         urlColor: ""
@@ -476,32 +782,105 @@ function getFolderDescendantIds(folders: Folder[], rootFolderId: string) {
   return descendants;
 }
 
-function getHierarchicalFolderOptions(folders: Folder[], excludedFolderIds = new Set<string>()) {
-  const foldersByParentId = new Map<string | null, Folder[]>();
-  const knownFolderIds = new Set(folders.map((folder) => folder.id));
-  const sortedFolders = [...folders].sort(
-    (leftFolder, rightFolder) =>
-      leftFolder.sortOrder - rightFolder.sortOrder || leftFolder.name.localeCompare(rightFolder.name)
-  );
+function getHiddenFolderIds(folders: Folder[]) {
+  const hiddenFolderIds = new Set<string>();
 
-  for (const folder of sortedFolders) {
-    const parentKey =
-      folder.parentFolderId && knownFolderIds.has(folder.parentFolderId)
-        ? folder.parentFolderId
-        : null;
-    const currentFolders = foldersByParentId.get(parentKey) ?? [];
-    currentFolders.push(folder);
-    foldersByParentId.set(parentKey, currentFolders);
+  for (const folder of folders) {
+    if (folder.isHidden === true) {
+      hiddenFolderIds.add(folder.id);
+      for (const descendantId of getFolderDescendantIds(folders, folder.id)) {
+        hiddenFolderIds.add(descendantId);
+      }
+    }
   }
 
+  return hiddenFolderIds;
+}
+
+function filterBookmarksByHiddenFolders(
+  bookmarks: Bookmark[],
+  hiddenFolderIds: Set<string>,
+  showHiddenFolders: boolean
+) {
+  if (showHiddenFolders || hiddenFolderIds.size === 0) {
+    return bookmarks;
+  }
+
+  return bookmarks.filter(
+    (bookmark) => !bookmark.folderId || !hiddenFolderIds.has(bookmark.folderId)
+  );
+}
+
+function filterRecommendationsByHiddenFolders(
+  nextRecommendations: BookmarkRecommendationsState,
+  hiddenFolderIds: Set<string>,
+  showHiddenFolders: boolean
+) {
+  if (showHiddenFolders || hiddenFolderIds.size === 0) {
+    return nextRecommendations;
+  }
+
+  return {
+    favorites: filterBookmarksByHiddenFolders(
+      nextRecommendations.favorites,
+      hiddenFolderIds,
+      showHiddenFolders
+    ),
+    recent: filterBookmarksByHiddenFolders(
+      nextRecommendations.recent,
+      hiddenFolderIds,
+      showHiddenFolders
+    ),
+    frequent: filterBookmarksByHiddenFolders(
+      nextRecommendations.frequent,
+      hiddenFolderIds,
+      showHiddenFolders
+    )
+  };
+}
+
+function filterBookmarksByHiddenBookmarks(bookmarks: Bookmark[], showHiddenBookmarks: boolean) {
+  if (showHiddenBookmarks) {
+    return bookmarks;
+  }
+
+  return bookmarks.filter((bookmark) => bookmark.isHidden !== true);
+}
+
+function filterRecommendationsByHiddenBookmarks(
+  nextRecommendations: BookmarkRecommendationsState,
+  showHiddenBookmarks: boolean
+) {
+  if (showHiddenBookmarks) {
+    return nextRecommendations;
+  }
+
+  return {
+    favorites: filterBookmarksByHiddenBookmarks(nextRecommendations.favorites, showHiddenBookmarks),
+    recent: filterBookmarksByHiddenBookmarks(nextRecommendations.recent, showHiddenBookmarks),
+    frequent: filterBookmarksByHiddenBookmarks(nextRecommendations.frequent, showHiddenBookmarks)
+  };
+}
+
+function isBookmarkVisibleUnderHiddenRules(
+  bookmark: Bookmark,
+  hiddenFolderIds: Set<string>,
+  showHiddenFolders: boolean,
+  showHiddenBookmarks: boolean
+) {
+  const isFolderVisible =
+    !bookmark.folderId || showHiddenFolders || !hiddenFolderIds.has(bookmark.folderId);
+  const isBookmarkVisible = bookmark.isHidden !== true || showHiddenBookmarks;
+
+  return isFolderVisible && isBookmarkVisible;
+}
+
+function getHierarchicalFolderOptions(folders: Folder[], excludedFolderIds = new Set<string>()) {
+  const foldersByParentId = getFoldersByParentId(folders, excludedFolderIds);
   const options: Array<{ folder: Folder; label: string }> = [];
 
   function visit(parentFolderId: string | null, depth: number) {
     for (const folder of foldersByParentId.get(parentFolderId) ?? []) {
-      if (excludedFolderIds.has(folder.id)) {
-        continue;
-      }
-
       options.push({
         folder,
         label: `${"-- ".repeat(depth)}${folder.name}`
@@ -512,6 +891,76 @@ function getHierarchicalFolderOptions(folders: Folder[], excludedFolderIds = new
 
   visit(null, 0);
   return options;
+}
+
+function getFoldersByParentId(folders: Folder[], excludedFolderIds = new Set<string>()) {
+  const foldersByParentId = new Map<string | null, Folder[]>();
+  const knownFolderIds = new Set(folders.map((folder) => folder.id));
+  const sortedFolders = [...folders].sort(
+    (leftFolder, rightFolder) =>
+      leftFolder.sortOrder - rightFolder.sortOrder || leftFolder.name.localeCompare(rightFolder.name)
+  );
+
+  for (const folder of sortedFolders) {
+    if (excludedFolderIds.has(folder.id)) {
+      continue;
+    }
+
+    const parentKey =
+      folder.parentFolderId && knownFolderIds.has(folder.parentFolderId)
+        ? folder.parentFolderId
+        : null;
+    const currentFolders = foldersByParentId.get(parentKey) ?? [];
+    currentFolders.push(folder);
+    foldersByParentId.set(parentKey, currentFolders);
+  }
+
+  return foldersByParentId;
+}
+
+function getFolderAncestorIds(folders: Folder[], folderId: string) {
+  const foldersById = new Map(folders.map((folder) => [folder.id, folder]));
+  const ancestors: string[] = [];
+  let currentFolder = foldersById.get(folderId) ?? null;
+
+  while (currentFolder?.parentFolderId) {
+    ancestors.push(currentFolder.parentFolderId);
+    currentFolder = foldersById.get(currentFolder.parentFolderId) ?? null;
+  }
+
+  return ancestors;
+}
+
+function getFolderVisibleIdsForQuery(folders: Folder[], query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return new Set(folders.map((folder) => folder.id));
+  }
+
+  const visibleFolderIds = new Set<string>();
+
+  for (const folder of folders) {
+    if (!folder.name.toLowerCase().includes(normalizedQuery)) {
+      continue;
+    }
+
+    visibleFolderIds.add(folder.id);
+    for (const ancestorId of getFolderAncestorIds(folders, folder.id)) {
+      visibleFolderIds.add(ancestorId);
+    }
+  }
+
+  return visibleFolderIds;
+}
+
+function countBookmarksInFolderTree(bookmarks: Bookmark[], folders: Folder[], folderId: string) {
+  const descendantFolderIds = getFolderDescendantIds(folders, folderId);
+
+  return bookmarks.filter(
+    (bookmark) =>
+      bookmark.folderId === folderId ||
+      (bookmark.folderId ? descendantFolderIds.has(bookmark.folderId) : false)
+  ).length;
 }
 
 function getSiblingFolders(folders: Folder[], parentFolderId: string | null) {
@@ -549,49 +998,65 @@ function reorderSiblingFolders(
   return remainingFolders;
 }
 
-function renderFolderColorPicker(
+function renderColorPicker(
+  legend: string,
   selectedColor: string,
   onSelect: (value: string) => void
 ) {
   return (
-    <fieldset className="picker-fieldset">
-      <legend>폴더 색상</legend>
-      <div className="picker-grid">
-        <button
-          type="button"
-          className={`picker-chip${selectedColor ? "" : " picker-chip-active"}`}
-          aria-label="폴더 색상 선택 안 함"
-          aria-pressed={!selectedColor}
-          onClick={() => onSelect("")}
-        >
-          선택 안 함
-        </button>
-        {folderColorPresets.map((preset) => (
-          <button
-            key={preset.value}
-            type="button"
-            className={`picker-chip${selectedColor === preset.value ? " picker-chip-active" : ""}`}
-            aria-label={`폴더 색상 ${preset.label} 선택`}
-            aria-pressed={selectedColor === preset.value}
-            onClick={() => onSelect(preset.value)}
-          >
-            <span
-              className="picker-color-swatch"
-              style={{ backgroundColor: preset.value }}
-              aria-hidden="true"
-            />
-            {preset.label}
-          </button>
-        ))}
-      </div>
-    </fieldset>
+    <ColorSelectField
+      label={legend}
+      selectedColor={selectedColor}
+      onSelect={onSelect}
+      emptyLabel="선택 안 함"
+    />
   );
+}
+
+function renderSearchColorSelect(
+  label: string,
+  selectedColor: string,
+  onSelect: (value: string) => void
+) {
+  return (
+    <ColorSelectField
+      label={label}
+      selectedColor={selectedColor}
+      onSelect={onSelect}
+      emptyLabel="전체 색상"
+      compact
+    />
+  );
+}
+
+type CheckboxFieldProps = {
+  label: ReactNode;
+  className?: string;
+  inputProps: Omit<InputHTMLAttributes<HTMLInputElement>, "type">;
+};
+
+function renderCheckboxField({ label, className, inputProps }: CheckboxFieldProps) {
+  const classes = ["checkbox-field", className].filter(Boolean).join(" ");
+  const inputClasses = ["checkbox-field-input", inputProps.className].filter(Boolean).join(" ");
+
+  return (
+    <label className={classes}>
+      <span className="checkbox-field-copy">{label}</span>
+      <input {...inputProps} type="checkbox" className={inputClasses} />
+    </label>
+  );
+}
+
+function renderFolderColorPicker(selectedColor: string, onSelect: (value: string) => void) {
+  return renderColorPicker("폴더 색상", selectedColor, onSelect);
 }
 
 function renderFolderIconPicker(
   selectedIcon: string,
   onSelect: (value: string) => void
 ) {
+  const selectedPreset = folderIconPresets.find((preset) => preset.value === selectedIcon) ?? null;
+
   return (
     <fieldset className="picker-fieldset">
       <legend>폴더 아이콘</legend>
@@ -603,7 +1068,14 @@ function renderFolderIconPicker(
           aria-pressed={!selectedIcon}
           onClick={() => onSelect("")}
         >
-          선택 안 함
+          <span className="picker-chip-copy">
+            <span>선택 안 함</span>
+          </span>
+          {!selectedIcon ? (
+            <span className="choice-selection-mark" aria-hidden="true">
+              ✓
+            </span>
+          ) : null}
         </button>
         {folderIconPresets.map((preset) => (
           <button
@@ -614,11 +1086,50 @@ function renderFolderIconPicker(
             aria-pressed={selectedIcon === preset.value}
             onClick={() => onSelect(preset.value)}
           >
-            {preset.label}
+            <span className="picker-chip-copy">
+              {(() => {
+                const folderIconGlyph = getFolderIconGlyph(preset.value);
+                return folderIconGlyph ? (
+                  <span className="folder-icon-badge picker-chip-icon-badge" aria-hidden="true">
+                    {folderIconGlyph}
+                  </span>
+                ) : null;
+              })()}
+              <span>{preset.label}</span>
+            </span>
+            {selectedIcon === preset.value ? (
+              <span className="choice-selection-mark" aria-hidden="true">
+                ✓
+              </span>
+            ) : null}
           </button>
         ))}
       </div>
+      <p className="picker-selection-summary" aria-live="polite">
+        {`선택됨: ${selectedPreset?.label ?? "없음"}`}
+      </p>
     </fieldset>
+  );
+}
+
+function renderSearchModeSegmentedControl(
+  selectedMode: BookmarkSearchMode,
+  onSelect: (value: BookmarkSearchMode) => void
+) {
+  return (
+    <div className="search-mode-segmented" role="radiogroup" aria-label="검색 모드">
+      {bookmarkSearchModeOptions.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          className={`search-mode-button${selectedMode === option.value ? " search-mode-button-active" : ""}`}
+          aria-pressed={selectedMode === option.value}
+          onClick={() => onSelect(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -627,6 +1138,7 @@ export default function App() {
     status: "loading"
   });
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [bookmarkInventory, setBookmarkInventory] = useState<Bookmark[]>([]);
   const [selectedBookmark, setSelectedBookmark] = useState<Bookmark | null>(null);
   const [bookmarkAssetsByBookmarkId, setBookmarkAssetsByBookmarkId] = useState<
     Record<string, BookmarkAsset[]>
@@ -637,6 +1149,7 @@ export default function App() {
     emptyBookmarkRecommendations
   );
   const [bookmarkDraft, setBookmarkDraft] = useState<BookmarkDraft>(emptyBookmarkDraft);
+  const [initialBookmarkDraft, setInitialBookmarkDraft] = useState<BookmarkDraft>(emptyBookmarkDraft);
   const [isBookmarkComposerOpen, setIsBookmarkComposerOpen] = useState(false);
   const [isBookmarkComposerClassificationOpen, setIsBookmarkComposerClassificationOpen] = useState(false);
   const [isBookmarkComposerDisplayOpen, setIsBookmarkComposerDisplayOpen] = useState(false);
@@ -644,6 +1157,11 @@ export default function App() {
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [editingBookmarkId, setEditingBookmarkId] = useState<string | null>(null);
   const [pendingAssetFiles, setPendingAssetFiles] = useState<File[]>([]);
+  const [extensionTokens, setExtensionTokens] = useState<ExtensionToken[]>([]);
+  const [isExtensionTokenDialogOpen, setIsExtensionTokenDialogOpen] = useState(false);
+  const [isExtensionDownloadDialogOpen, setIsExtensionDownloadDialogOpen] = useState(false);
+  const [extensionTokenLabelDraft, setExtensionTokenLabelDraft] = useState("");
+  const [latestIssuedExtensionToken, setLatestIssuedExtensionToken] = useState<string | null>(null);
   const [bookmarkPreview, setBookmarkPreview] = useState<BookmarkExtractPreview | null>(null);
   const [bookmarkSearchDraft, setBookmarkSearchDraft] = useState<BookmarkSearchDraft>(
     emptyBookmarkSearchDraft
@@ -657,9 +1175,14 @@ export default function App() {
     () => !getIsMobileSearchViewport()
   );
   const [mobileSidebarPanel, setMobileSidebarPanel] = useState<MobileSidebarPanelId>("bookmark");
+  const [deferredInstallPrompt, setDeferredInstallPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
   const [folderDraft, setFolderDraft] = useState<FolderDraft>(emptyFolderDraft);
+  const [initialFolderDraft, setInitialFolderDraft] = useState<FolderDraft>(emptyFolderDraft);
   const [quickFolderDraft, setQuickFolderDraft] = useState<FolderDraft>(emptyFolderDraft);
   const [tagDraft, setTagDraft] = useState<TagDraft>(emptyTagDraft);
+  const [initialTagDraft, setInitialTagDraft] = useState<TagDraft>(emptyTagDraft);
+  const [quickTagDraft, setQuickTagDraft] = useState<TagDraft>(emptyTagDraft);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
@@ -667,8 +1190,16 @@ export default function App() {
   const [isBookmarkDetailActionMenuOpen, setIsBookmarkDetailActionMenuOpen] = useState(false);
   const [openFolderActionMenuId, setOpenFolderActionMenuId] = useState<string | null>(null);
   const [openTagActionMenuId, setOpenTagActionMenuId] = useState<string | null>(null);
+  const [expandedFolderOverviewIds, setExpandedFolderOverviewIds] = useState<string[]>([]);
+  const [folderOverviewQuery, setFolderOverviewQuery] = useState("");
+  const [showHiddenFolders, setShowHiddenFolders] = useState(false);
+  const [showHiddenBookmarks, setShowHiddenBookmarks] = useState(false);
+  const [isQuickActionsMenuOpen, setIsQuickActionsMenuOpen] = useState(false);
   const [isQuickFolderOpen, setIsQuickFolderOpen] = useState(false);
+  const [isQuickTagOpen, setIsQuickTagOpen] = useState(false);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
+  const [isLoadingSelectedBookmark, setIsLoadingSelectedBookmark] = useState(false);
+  const [isLoadingSelectedBookmarkAssets, setIsLoadingSelectedBookmarkAssets] = useState(false);
   const [isSavingBookmark, setIsSavingBookmark] = useState(false);
   const [isLoadingBookmarkPreview, setIsLoadingBookmarkPreview] = useState(false);
   const [isSavingFolder, setIsSavingFolder] = useState(false);
@@ -676,13 +1207,89 @@ export default function App() {
   const [isSavingTag, setIsSavingTag] = useState(false);
   const [isReorderingFolders, setIsReorderingFolders] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const bookmarkDetailRequestIdRef = useRef(0);
+
+  async function loadBookmarkAssetsByBookmark(bookmarksToLoad: Bookmark[]) {
+    const assetEntries = await Promise.all(
+      bookmarksToLoad.map(async (bookmark) => {
+        try {
+          const assets = await loadBookmarkAssets(bookmark.id);
+          return [bookmark.id, assets] as const;
+        } catch {
+          return [bookmark.id, [] as BookmarkAsset[]] as const;
+        }
+      })
+    );
+
+    return Object.fromEntries(assetEntries) as Record<string, BookmarkAsset[]>;
+  }
+
+  async function preloadBookmarkAssets(
+    bookmarksToLoad: Bookmark[],
+    currentAssetsByBookmarkId: Record<string, BookmarkAsset[]>
+  ) {
+    const bookmarksMissingAssets = bookmarksToLoad.filter(
+      (bookmark) => currentAssetsByBookmarkId[bookmark.id] === undefined
+    );
+    if (bookmarksMissingAssets.length === 0) {
+      return;
+    }
+
+    const nextBookmarkAssetsByBookmarkId = await loadBookmarkAssetsByBookmark(bookmarksMissingAssets);
+
+    startTransition(() => {
+      setBookmarkAssetsByBookmarkId((latestAssetsByBookmarkId) => {
+        const missingAssetEntries = Object.entries(nextBookmarkAssetsByBookmarkId).filter(
+          ([bookmarkId]) => latestAssetsByBookmarkId[bookmarkId] === undefined
+        );
+        if (missingAssetEntries.length === 0) {
+          return latestAssetsByBookmarkId;
+        }
+
+        return {
+          ...latestAssetsByBookmarkId,
+          ...Object.fromEntries(missingAssetEntries)
+        };
+      });
+    });
+  }
+
+  async function loadBookmarkCollections(search: BookmarkSearchDraft) {
+    const normalizedSearch = normalizeBookmarkSearchDraft(search);
+
+    if (hasActiveBookmarkSearch(normalizedSearch)) {
+      const [visibleBookmarks, inventoryBookmarks] = await Promise.all([
+        loadBookmarks(normalizedSearch),
+        loadBookmarks(emptyBookmarkSearchDraft)
+      ]);
+
+      return {
+        normalizedSearch,
+        visibleBookmarks,
+        inventoryBookmarks
+      };
+    }
+
+    const visibleBookmarks = await loadBookmarks(normalizedSearch);
+
+    return {
+      normalizedSearch,
+      visibleBookmarks,
+      inventoryBookmarks: visibleBookmarks
+    };
+  }
 
   async function refreshDashboardData(search = appliedBookmarkSearch) {
     setIsLoadingDashboard(true);
 
     try {
-      const [nextBookmarks, nextFolders, nextTags, nextRecommendations] = await Promise.all([
-        loadBookmarks(search),
+      const [
+        { visibleBookmarks: nextBookmarks, inventoryBookmarks: nextBookmarkInventory },
+        nextFolders,
+        nextTags,
+        nextRecommendations
+      ] = await Promise.all([
+        loadBookmarkCollections(search),
         loadFolders(),
         loadTags(),
         loadRecommendations()
@@ -690,6 +1297,7 @@ export default function App() {
 
       startTransition(() => {
         setBookmarks(nextBookmarks);
+        setBookmarkInventory(nextBookmarkInventory);
         setSelectedBookmark((currentSelectedBookmark) => {
           if (!currentSelectedBookmark) {
             return null;
@@ -704,13 +1312,18 @@ export default function App() {
         setTags(nextTags);
         setRecommendations(nextRecommendations);
       });
+
+      void preloadBookmarkAssets(nextBookmarks, bookmarkAssetsByBookmarkId);
     } catch {
       startTransition(() => {
         setBookmarks([]);
+        setBookmarkInventory([]);
+        setBookmarkAssetsByBookmarkId({});
         setSelectedBookmark(null);
         setFolders([]);
         setTags([]);
         setRecommendations(emptyBookmarkRecommendations);
+        setExtensionTokens([]);
         setErrorMessage("대시보드 데이터를 불러오지 못했습니다.");
       });
     } finally {
@@ -775,13 +1388,62 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    function handleBeforeInstallPrompt(event: Event) {
+      event.preventDefault();
+      setDeferredInstallPrompt(event as BeforeInstallPromptEvent);
+    }
+
+    function handleAppInstalled() {
+      setDeferredInstallPrompt(null);
+    }
+
+    globalThis.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    globalThis.addEventListener("appinstalled", handleAppInstalled);
+
+    return () => {
+      globalThis.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      globalThis.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
+
+  useEffect(() => {
+    setExpandedFolderOverviewIds((currentIds) => {
+      const visibleFolderIds = new Set(folders.map((folder) => folder.id));
+      const nextIds = currentIds.filter((folderId) => visibleFolderIds.has(folderId));
+      const nextIdSet = new Set(nextIds);
+
+      if (appliedBookmarkSearch.folderId) {
+        nextIdSet.add(appliedBookmarkSearch.folderId);
+        for (const ancestorId of getFolderAncestorIds(folders, appliedBookmarkSearch.folderId)) {
+          nextIdSet.add(ancestorId);
+        }
+      }
+
+      const normalizedNextIds = Array.from(nextIdSet);
+      return normalizedNextIds.length === currentIds.length &&
+        normalizedNextIds.every((folderId) => currentIds.includes(folderId))
+        ? currentIds
+        : normalizedNextIds;
+    });
+  }, [folders, appliedBookmarkSearch.folderId]);
+
   async function handleGoogleLogin() {
     try {
       setErrorMessage(null);
       const idToken = await signInWithGoogle();
       const user = await exchangeIdTokenForSession(idToken);
-      const [nextBookmarks, nextFolders, nextTags, nextRecommendations] = await Promise.all([
-        loadBookmarks(appliedBookmarkSearch).catch(() => []),
+      const [
+        { visibleBookmarks: nextBookmarks, inventoryBookmarks: nextBookmarkInventory },
+        nextFolders,
+        nextTags,
+        nextRecommendations
+      ] = await Promise.all([
+        loadBookmarkCollections(appliedBookmarkSearch).catch(() => ({
+          normalizedSearch: normalizeBookmarkSearchDraft(appliedBookmarkSearch),
+          visibleBookmarks: [] as Bookmark[],
+          inventoryBookmarks: [] as Bookmark[]
+        })),
         loadFolders().catch(() => []),
         loadTags().catch(() => []),
         loadRecommendations().catch(() => emptyBookmarkRecommendations)
@@ -793,11 +1455,18 @@ export default function App() {
           user
         });
         setBookmarks(nextBookmarks);
+        setBookmarkInventory(nextBookmarkInventory);
         setSelectedBookmark(null);
         setFolders(nextFolders);
         setTags(nextTags);
         setRecommendations(nextRecommendations);
+        setExtensionTokens([]);
+        setExtensionTokenLabelDraft("");
+        setLatestIssuedExtensionToken(null);
+        setIsExtensionTokenDialogOpen(false);
       });
+
+      void preloadBookmarkAssets(nextBookmarks, bookmarkAssetsByBookmarkId);
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
@@ -816,12 +1485,18 @@ export default function App() {
     startTransition(() => {
       setSessionState({ status: "anonymous" });
       setBookmarks([]);
+      setBookmarkInventory([]);
       setSelectedBookmark(null);
       setBookmarkAssetsByBookmarkId({});
       setFolders([]);
       setTags([]);
       setRecommendations(emptyBookmarkRecommendations);
+      setExtensionTokens([]);
+      setExtensionTokenLabelDraft("");
+      setLatestIssuedExtensionToken(null);
+      setIsExtensionTokenDialogOpen(false);
       setBookmarkDraft(emptyBookmarkDraft);
+      setInitialBookmarkDraft(emptyBookmarkDraft);
       setBookmarkPreview(null);
       setPendingAssetFiles([]);
       setBookmarkSearchDraft(emptyBookmarkSearchDraft);
@@ -829,8 +1504,26 @@ export default function App() {
       setFolderDraft(emptyFolderDraft);
       setQuickFolderDraft(emptyFolderDraft);
       setTagDraft(emptyTagDraft);
+      setShowHiddenFolders(false);
       setIsQuickFolderOpen(false);
+      setIsQuickTagOpen(false);
+      setQuickTagDraft(emptyTagDraft);
     });
+  }
+
+  async function handlePwaInstall() {
+    if (!deferredInstallPrompt) {
+      return;
+    }
+
+    try {
+      await deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice.catch(() => undefined);
+    } finally {
+      startTransition(() => {
+        setDeferredInstallPrompt(null);
+      });
+    }
   }
 
   async function handleBookmarkSubmit(event: FormEvent<HTMLFormElement>) {
@@ -848,22 +1541,40 @@ export default function App() {
           userContent: bookmarkDraft.userContent || null,
           userSummary: bookmarkDraft.userSummary || null,
           isFavorite: bookmarkDraft.isFavorite,
+          isHidden: bookmarkDraft.isHidden,
           bookmarkColor: bookmarkDraft.bookmarkColor || null,
           urlColor: bookmarkDraft.urlColor || null
         });
         const uploadedAssets = await uploadPendingAssets(editingBookmarkId);
+        const isUpdatedBookmarkVisible = isBookmarkVisibleUnderHiddenRules(
+          updatedBookmark,
+          hiddenFolderIds,
+          showHiddenFolders,
+          showHiddenBookmarks
+        );
 
         if (hasActiveBookmarkSearch(appliedBookmarkSearch)) {
-          const nextBookmarks = await loadBookmarks(appliedBookmarkSearch);
+          const {
+            visibleBookmarks: nextBookmarks,
+            inventoryBookmarks: nextBookmarkInventory
+          } = await loadBookmarkCollections(appliedBookmarkSearch);
 
           startTransition(() => {
             setBookmarks(nextBookmarks);
+            setBookmarkInventory(nextBookmarkInventory);
             setSelectedBookmark((currentSelectedBookmark) =>
               currentSelectedBookmark?.id === updatedBookmark.id
-                ? updatedBookmark
+                ? isUpdatedBookmarkVisible
+                  ? updatedBookmark
+                  : null
                 : currentSelectedBookmark
             );
+            if (!isUpdatedBookmarkVisible) {
+              setOpenBookmarkActionMenuId(null);
+              setIsBookmarkDetailActionMenuOpen(false);
+            }
             setBookmarkDraft(emptyBookmarkDraft);
+            setInitialBookmarkDraft(emptyBookmarkDraft);
             setBookmarkPreview(null);
             if (uploadedAssets.length > 0) {
               setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
@@ -878,6 +1589,8 @@ export default function App() {
             setEditingBookmarkId(null);
             setIsQuickFolderOpen(false);
             setQuickFolderDraft(emptyFolderDraft);
+            setIsQuickTagOpen(false);
+            setQuickTagDraft(emptyTagDraft);
             setIsBookmarkComposerOpen(false);
           });
         } else {
@@ -887,12 +1600,24 @@ export default function App() {
                 bookmark.id === updatedBookmark.id ? updatedBookmark : bookmark
               )
             );
+            setBookmarkInventory((currentBookmarks) =>
+              currentBookmarks.map((bookmark) =>
+                bookmark.id === updatedBookmark.id ? updatedBookmark : bookmark
+              )
+            );
             setSelectedBookmark((currentSelectedBookmark) =>
               currentSelectedBookmark?.id === updatedBookmark.id
-                ? updatedBookmark
+                ? isUpdatedBookmarkVisible
+                  ? updatedBookmark
+                  : null
                 : currentSelectedBookmark
             );
+            if (!isUpdatedBookmarkVisible) {
+              setOpenBookmarkActionMenuId(null);
+              setIsBookmarkDetailActionMenuOpen(false);
+            }
             setBookmarkDraft(emptyBookmarkDraft);
+            setInitialBookmarkDraft(emptyBookmarkDraft);
             setBookmarkPreview(null);
             if (uploadedAssets.length > 0) {
               setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
@@ -907,6 +1632,8 @@ export default function App() {
             setEditingBookmarkId(null);
             setIsQuickFolderOpen(false);
             setQuickFolderDraft(emptyFolderDraft);
+            setIsQuickTagOpen(false);
+            setQuickTagDraft(emptyTagDraft);
             setIsBookmarkComposerOpen(false);
           });
         }
@@ -922,6 +1649,7 @@ export default function App() {
           sourceContent: bookmarkPreview?.sourceContent ?? null,
           sourceSummary: bookmarkPreview?.sourceSummary ?? null,
           isFavorite: bookmarkDraft.isFavorite,
+          isHidden: bookmarkDraft.isHidden,
           bookmarkColor: bookmarkDraft.bookmarkColor || null,
           urlColor: bookmarkDraft.urlColor || null
         };
@@ -929,11 +1657,16 @@ export default function App() {
         const uploadedAssets = await uploadPendingAssets(createdBookmark.id);
 
         if (hasActiveBookmarkSearch(appliedBookmarkSearch)) {
-          const nextBookmarks = await loadBookmarks(appliedBookmarkSearch);
+          const {
+            visibleBookmarks: nextBookmarks,
+            inventoryBookmarks: nextBookmarkInventory
+          } = await loadBookmarkCollections(appliedBookmarkSearch);
 
           startTransition(() => {
             setBookmarks(nextBookmarks);
+            setBookmarkInventory(nextBookmarkInventory);
             setBookmarkDraft(emptyBookmarkDraft);
+            setInitialBookmarkDraft(emptyBookmarkDraft);
             setBookmarkPreview(null);
             if (uploadedAssets.length > 0) {
               setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
@@ -944,12 +1677,16 @@ export default function App() {
             setPendingAssetFiles([]);
             setIsQuickFolderOpen(false);
             setQuickFolderDraft(emptyFolderDraft);
+            setIsQuickTagOpen(false);
+            setQuickTagDraft(emptyTagDraft);
             setIsBookmarkComposerOpen(false);
           });
         } else {
           startTransition(() => {
             setBookmarks((currentBookmarks) => [createdBookmark, ...currentBookmarks]);
+            setBookmarkInventory((currentBookmarks) => [createdBookmark, ...currentBookmarks]);
             setBookmarkDraft(emptyBookmarkDraft);
+            setInitialBookmarkDraft(emptyBookmarkDraft);
             setBookmarkPreview(null);
             if (uploadedAssets.length > 0) {
               setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
@@ -960,6 +1697,8 @@ export default function App() {
             setPendingAssetFiles([]);
             setIsQuickFolderOpen(false);
             setQuickFolderDraft(emptyFolderDraft);
+            setIsQuickTagOpen(false);
+            setQuickTagDraft(emptyTagDraft);
             setIsBookmarkComposerOpen(false);
           });
         }
@@ -989,6 +1728,7 @@ export default function App() {
           name: folderDraft.name,
           color: folderDraft.color || null,
           icon: folderDraft.icon || null,
+          isHidden: folderDraft.isHidden,
           parentFolderId: folderDraft.parentFolderId || null
         });
 
@@ -996,18 +1736,21 @@ export default function App() {
           replaceFolderState(nextFolder);
           setEditingFolderId(null);
           setFolderDraft(emptyFolderDraft);
+          setInitialFolderDraft(emptyFolderDraft);
         });
       } else {
         const createdFolder = await createFolder({
           name: folderDraft.name,
           color: folderDraft.color || null,
           icon: folderDraft.icon || null,
+          isHidden: folderDraft.isHidden,
           parentFolderId: folderDraft.parentFolderId || null
         });
 
         startTransition(() => {
           setFolders((currentFolders) => [...currentFolders, createdFolder]);
           setFolderDraft(emptyFolderDraft);
+          setInitialFolderDraft(emptyFolderDraft);
         });
       }
     } catch (error) {
@@ -1042,6 +1785,7 @@ export default function App() {
           replaceTagState(nextTag);
           setEditingTagId(null);
           setTagDraft(emptyTagDraft);
+          setInitialTagDraft(emptyTagDraft);
         });
       } else {
         const createdTag = await createTag({
@@ -1052,6 +1796,7 @@ export default function App() {
         startTransition(() => {
           setTags((currentTags) => [...currentTags, createdTag]);
           setTagDraft(emptyTagDraft);
+          setInitialTagDraft(emptyTagDraft);
         });
       }
     } catch (error) {
@@ -1140,6 +1885,13 @@ export default function App() {
     }));
   }
 
+  function updateQuickTagDraft(nextValues: Partial<TagDraft>) {
+    setQuickTagDraft((currentDraft) => ({
+      ...currentDraft,
+      ...nextValues
+    }));
+  }
+
   function updateTagDraft(nextValues: Partial<TagDraft>) {
     setTagDraft((currentDraft) => ({
       ...currentDraft,
@@ -1148,29 +1900,49 @@ export default function App() {
   }
 
   function openFolderManager() {
+    const nextDraft = emptyFolderDraft;
     setErrorMessage(null);
     setEditingFolderId(null);
-    setFolderDraft(emptyFolderDraft);
+    setFolderDraft(nextDraft);
+    setInitialFolderDraft(nextDraft);
     setDraggingFolderId(null);
     setOpenFolderActionMenuId(null);
     setIsFolderManagerOpen(true);
   }
 
   function beginFolderEdit(folder: Folder) {
-    setIsFolderManagerOpen(true);
-    setOpenFolderActionMenuId(null);
-    setEditingFolderId(folder.id);
-    setFolderDraft({
+    const nextDraft = {
       name: folder.name,
       color: folder.color ?? "",
       icon: folder.icon ?? "",
+      isHidden: folder.isHidden === true,
       parentFolderId: folder.parentFolderId ?? ""
-    });
+    };
+    setIsFolderManagerOpen(true);
+    setOpenFolderActionMenuId(null);
+    setEditingFolderId(folder.id);
+    setFolderDraft(nextDraft);
+    setInitialFolderDraft(nextDraft);
   }
 
   function cancelFolderEdit() {
+    const nextDraft = emptyFolderDraft;
     setEditingFolderId(null);
-    setFolderDraft(emptyFolderDraft);
+    setFolderDraft(nextDraft);
+    setInitialFolderDraft(nextDraft);
+  }
+
+  function beginChildFolderCreate(parentFolder: Folder) {
+    const nextDraft = {
+      ...emptyFolderDraft,
+      isHidden: parentFolder.isHidden === true,
+      parentFolderId: parentFolder.id
+    };
+    setIsFolderManagerOpen(true);
+    setOpenFolderActionMenuId(null);
+    setEditingFolderId(null);
+    setFolderDraft(nextDraft);
+    setInitialFolderDraft(nextDraft);
   }
 
   function closeFolderManager() {
@@ -1178,6 +1950,18 @@ export default function App() {
     setDraggingFolderId(null);
     setOpenFolderActionMenuId(null);
     setIsFolderManagerOpen(false);
+  }
+
+  function requestCloseFolderManager() {
+    if (
+      !areFolderDraftsEqual(folderDraft, initialFolderDraft) &&
+      globalThis.confirm &&
+      !globalThis.confirm("저장하지 않은 폴더 변경 사항이 있습니다. 닫을까요?")
+    ) {
+      return;
+    }
+
+    closeFolderManager();
   }
 
   async function handleQuickFolderCreate() {
@@ -1193,6 +1977,7 @@ export default function App() {
         name: quickFolderDraft.name,
         color: quickFolderDraft.color || null,
         icon: quickFolderDraft.icon || null,
+        isHidden: quickFolderDraft.isHidden,
         parentFolderId:
           visibleFolderOptions.length > 0
             ? quickFolderDraft.parentFolderId || null
@@ -1219,6 +2004,40 @@ export default function App() {
     }
   }
 
+  async function handleQuickTagCreate() {
+    if (!quickTagDraft.name.trim()) {
+      setErrorMessage("태그 이름을 입력해주세요.");
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      setIsSavingTag(true);
+      const createdTag = await createTag({
+        name: quickTagDraft.name,
+        color: quickTagDraft.color || null
+      });
+
+      startTransition(() => {
+        setTags((currentTags) => [...currentTags, createdTag]);
+        setBookmarkDraft((currentDraft) => ({
+          ...currentDraft,
+          tagIds: Array.from(new Set([...currentDraft.tagIds, createdTag.id]))
+        }));
+        setQuickTagDraft(emptyTagDraft);
+        setIsQuickTagOpen(false);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "빠른 태그 생성을 완료하지 못했습니다."
+        );
+      });
+    } finally {
+      setIsSavingTag(false);
+    }
+  }
+
   function replaceFolderState(nextFolder: Folder) {
     setFolders((currentFolders) =>
       currentFolders.map((folder) => (folder.id === nextFolder.id ? nextFolder : folder))
@@ -1234,6 +2053,11 @@ export default function App() {
         )
     );
     setBookmarks((currentBookmarks) =>
+      currentBookmarks.map((bookmark) =>
+        bookmark.folderId === folderId ? { ...bookmark, folderId: null } : bookmark
+      )
+    );
+    setBookmarkInventory((currentBookmarks) =>
       currentBookmarks.map((bookmark) =>
         bookmark.folderId === folderId ? { ...bookmark, folderId: null } : bookmark
       )
@@ -1411,32 +2235,50 @@ export default function App() {
   }
 
   function openTagManager() {
+    const nextDraft = emptyTagDraft;
     setErrorMessage(null);
     setEditingTagId(null);
     setOpenTagActionMenuId(null);
-    setTagDraft(emptyTagDraft);
+    setTagDraft(nextDraft);
+    setInitialTagDraft(nextDraft);
     setIsTagManagerOpen(true);
   }
 
   function beginTagEdit(tag: Tag) {
+    const nextDraft = {
+      name: tag.name,
+      color: tag.color ?? ""
+    };
     setIsTagManagerOpen(true);
     setOpenTagActionMenuId(null);
     setEditingTagId(tag.id);
-    setTagDraft({
-      name: tag.name,
-      color: tag.color ?? ""
-    });
+    setTagDraft(nextDraft);
+    setInitialTagDraft(nextDraft);
   }
 
   function cancelTagEdit() {
+    const nextDraft = emptyTagDraft;
     setEditingTagId(null);
     setOpenTagActionMenuId(null);
-    setTagDraft(emptyTagDraft);
+    setTagDraft(nextDraft);
+    setInitialTagDraft(nextDraft);
   }
 
   function closeTagManager() {
     cancelTagEdit();
     setIsTagManagerOpen(false);
+  }
+
+  function requestCloseTagManager() {
+    if (
+      !areTagDraftsEqual(tagDraft, initialTagDraft) &&
+      globalThis.confirm &&
+      !globalThis.confirm("저장하지 않은 태그 변경 사항이 있습니다. 닫을까요?")
+    ) {
+      return;
+    }
+
+    closeTagManager();
   }
 
   function toggleTagActionMenu(tagId: string) {
@@ -1453,6 +2295,16 @@ export default function App() {
     setTags((currentTags) => currentTags.filter((tag) => tag.id !== tagId));
     setOpenTagActionMenuId((currentTagId) => (currentTagId === tagId ? null : currentTagId));
     setBookmarks((currentBookmarks) =>
+      currentBookmarks.map((bookmark) =>
+        bookmark.tagIds.includes(tagId)
+          ? {
+              ...bookmark,
+              tagIds: bookmark.tagIds.filter((currentTagId) => currentTagId !== tagId)
+            }
+          : bookmark
+      )
+    );
+    setBookmarkInventory((currentBookmarks) =>
       currentBookmarks.map((bookmark) =>
         bookmark.tagIds.includes(tagId)
           ? {
@@ -1513,19 +2365,24 @@ export default function App() {
   }
 
   async function applyBookmarkSearch(nextSearchDraft: BookmarkSearchDraft) {
-    const normalizedSearch = normalizeBookmarkSearchDraft(nextSearchDraft);
-
     try {
       setErrorMessage(null);
       setIsLoadingDashboard(true);
-      const nextBookmarks = await loadBookmarks(normalizedSearch);
+      const {
+        normalizedSearch,
+        visibleBookmarks: nextBookmarks,
+        inventoryBookmarks: nextBookmarkInventory
+      } = await loadBookmarkCollections(nextSearchDraft);
 
       startTransition(() => {
         setBookmarks(nextBookmarks);
+        setBookmarkInventory(nextBookmarkInventory);
         setSelectedBookmark(null);
         setBookmarkSearchDraft(normalizedSearch);
         setAppliedBookmarkSearch(normalizedSearch);
       });
+
+      void preloadBookmarkAssets(nextBookmarks, bookmarkAssetsByBookmarkId);
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
@@ -1541,20 +2398,117 @@ export default function App() {
     await applyBookmarkSearch(emptyBookmarkSearchDraft);
   }
 
-  async function beginBookmarkEdit(bookmark: Bookmark) {
-    setOpenBookmarkActionMenuId(null);
-    setIsBookmarkDetailActionMenuOpen(false);
-    setIsBookmarkComposerOpen(true);
-    setIsBookmarkComposerClassificationOpen(bookmark.tagIds.length > 0 || bookmark.isFavorite);
-    setIsBookmarkComposerDisplayOpen(
-      Boolean(
-        bookmark.bookmarkColor ||
-          bookmark.urlColor ||
-          (bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0) > 0
-      )
+  async function handleFolderOverviewSelect(folder: Folder) {
+    const nextSearch = normalizeBookmarkSearchDraft({
+      ...appliedBookmarkSearch,
+      folderId: folder.id,
+      includeDescendantFolders: true
+    });
+
+    if (canResolveFolderOverviewSearchLocally(nextSearch)) {
+      const nextBookmarks = filterBookmarksForFolderOverviewSearch(
+        bookmarkInventory,
+        folders,
+        nextSearch
+      );
+
+      startTransition(() => {
+        setErrorMessage(null);
+        setBookmarks(nextBookmarks);
+        setSelectedBookmark(null);
+        setBookmarkSearchDraft(nextSearch);
+        setAppliedBookmarkSearch(nextSearch);
+      });
+      void preloadBookmarkAssets(nextBookmarks, bookmarkAssetsByBookmarkId);
+      return;
+    }
+
+    await applyBookmarkSearch(nextSearch);
+  }
+
+  async function handleFolderOverviewReset() {
+    const nextSearch = normalizeBookmarkSearchDraft({
+      ...appliedBookmarkSearch,
+      folderId: "",
+      includeDescendantFolders: false
+    });
+
+    if (canResolveFolderOverviewSearchLocally(nextSearch)) {
+      const nextBookmarks = filterBookmarksForFolderOverviewSearch(
+        bookmarkInventory,
+        folders,
+        nextSearch
+      );
+
+      startTransition(() => {
+        setErrorMessage(null);
+        setBookmarks(nextBookmarks);
+        setSelectedBookmark(null);
+        setBookmarkSearchDraft(nextSearch);
+        setAppliedBookmarkSearch(nextSearch);
+      });
+      void preloadBookmarkAssets(nextBookmarks, bookmarkAssetsByBookmarkId);
+      return;
+    }
+
+    await applyBookmarkSearch(nextSearch);
+  }
+
+  function toggleFolderOverviewExpansion(folderId: string) {
+    setExpandedFolderOverviewIds((currentIds) =>
+      currentIds.includes(folderId)
+        ? currentIds.filter((currentId) => currentId !== folderId)
+        : [...currentIds, folderId]
     );
-    setEditingBookmarkId(bookmark.id);
-    setBookmarkDraft({
+  }
+
+  function collapseAllFolderOverviewGroups() {
+    setExpandedFolderOverviewIds([]);
+  }
+
+  function expandAllFolderOverviewGroups() {
+    setExpandedFolderOverviewIds(
+      Array.from(folderOverviewChildrenByParentId.entries())
+        .filter(([folderId, childFolders]) => Boolean(folderId) && childFolders.length > 0)
+        .map(([folderId]) => folderId as string)
+    );
+  }
+
+  async function handleToggleHiddenFolders() {
+    const nextShowHiddenFolders = !showHiddenFolders;
+    setShowHiddenFolders(nextShowHiddenFolders);
+
+    if (
+      nextShowHiddenFolders ||
+      !appliedBookmarkSearch.folderId ||
+      !hiddenFolderIds.has(appliedBookmarkSearch.folderId)
+    ) {
+      return;
+    }
+
+    await applyBookmarkSearch({
+      ...appliedBookmarkSearch,
+      folderId: "",
+      includeDescendantFolders: false
+    });
+  }
+
+  function handleToggleHiddenBookmarks() {
+    setShowHiddenBookmarks((currentValue) => {
+      const nextValue = !currentValue;
+
+      if (!nextValue && selectedBookmark?.isHidden === true) {
+        setSelectedBookmark(null);
+        setOpenBookmarkActionMenuId(null);
+        setIsBookmarkDetailActionMenuOpen(false);
+      }
+
+      return nextValue;
+    });
+  }
+
+  async function beginBookmarkEdit(bookmark: Bookmark) {
+    const nextDraft = {
       url: bookmark.url,
       folderId: bookmark.folderId ?? "",
       tagIds: bookmark.tagIds,
@@ -1563,8 +2517,26 @@ export default function App() {
       userTitle: bookmark.userTitle ?? "",
       userContent: bookmark.userContent ?? "",
       userSummary: bookmark.userSummary ?? "",
-      isFavorite: bookmark.isFavorite
-    });
+      isFavorite: bookmark.isFavorite,
+      isHidden: bookmark.isHidden
+    };
+
+    setOpenBookmarkActionMenuId(null);
+    setIsBookmarkDetailActionMenuOpen(false);
+    setIsBookmarkComposerOpen(true);
+    setIsBookmarkComposerClassificationOpen(
+      bookmark.tagIds.length > 0 || bookmark.isFavorite || bookmark.isHidden
+    );
+    setIsBookmarkComposerDisplayOpen(
+      Boolean(
+        bookmark.bookmarkColor ||
+          bookmark.urlColor ||
+          (bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0) > 0
+      )
+    );
+    setEditingBookmarkId(bookmark.id);
+    setBookmarkDraft(nextDraft);
+    setInitialBookmarkDraft(nextDraft);
     setBookmarkPreview(
       bookmark.sourceTitle || bookmark.sourceContent || bookmark.sourceSummary
         ? {
@@ -1578,6 +2550,8 @@ export default function App() {
     );
     setIsQuickFolderOpen(false);
     setQuickFolderDraft(emptyFolderDraft);
+    setIsQuickTagOpen(false);
+    setQuickTagDraft(emptyTagDraft);
 
     if (bookmarkAssetsByBookmarkId[bookmark.id]) {
       return;
@@ -1598,50 +2572,198 @@ export default function App() {
     }
   }
 
+  function requestCloseBookmarkComposer() {
+    const hasPendingQuickFolderDraftChanges = Boolean(
+      quickFolderDraft.name.trim() ||
+        quickFolderDraft.color.trim() ||
+        quickFolderDraft.icon.trim() ||
+        (quickFolderDraft.parentFolderId && quickFolderDraft.parentFolderId !== bookmarkDraft.folderId)
+    );
+    const hasPendingQuickTagDraftChanges = Boolean(
+      quickTagDraft.name.trim() || quickTagDraft.color.trim()
+    );
+    const hasBookmarkDraftChanges =
+      !areBookmarkDraftsEqual(bookmarkDraft, initialBookmarkDraft) ||
+      pendingAssetFiles.length > 0 ||
+      hasPendingQuickFolderDraftChanges ||
+      hasPendingQuickTagDraftChanges;
+
+    if (
+      hasBookmarkDraftChanges &&
+      globalThis.confirm &&
+      !globalThis.confirm("저장하지 않은 북마크 변경 사항이 있습니다. 닫을까요?")
+    ) {
+      return;
+    }
+
+    cancelBookmarkEdit();
+  }
+
   function cancelBookmarkEdit() {
     setEditingBookmarkId(null);
     setIsBookmarkComposerClassificationOpen(false);
     setIsBookmarkComposerDisplayOpen(false);
     setBookmarkDraft(emptyBookmarkDraft);
+    setInitialBookmarkDraft(emptyBookmarkDraft);
     setBookmarkPreview(null);
     setPendingAssetFiles([]);
     setIsQuickFolderOpen(false);
     setQuickFolderDraft(emptyFolderDraft);
+    setIsQuickTagOpen(false);
+    setQuickTagDraft(emptyTagDraft);
     setIsBookmarkComposerOpen(false);
   }
 
   function beginBookmarkCreate() {
+    const nextDraft = {
+      ...emptyBookmarkDraft,
+      folderId: appliedBookmarkSearch.folderId
+    };
+
     setErrorMessage(null);
     setOpenBookmarkActionMenuId(null);
     setIsBookmarkDetailActionMenuOpen(false);
     setEditingBookmarkId(null);
     setIsBookmarkComposerClassificationOpen(false);
     setIsBookmarkComposerDisplayOpen(false);
-    setBookmarkDraft(emptyBookmarkDraft);
+    setBookmarkDraft(nextDraft);
+    setInitialBookmarkDraft(nextDraft);
     setBookmarkPreview(null);
     setPendingAssetFiles([]);
     setIsQuickFolderOpen(false);
     setQuickFolderDraft(emptyFolderDraft);
+    setIsQuickTagOpen(false);
+    setQuickTagDraft(emptyTagDraft);
     setIsBookmarkComposerOpen(true);
   }
 
-  async function openBookmarkDetail(bookmarkId: string) {
+  async function handleBookmarkExport() {
+    try {
+      setErrorMessage(null);
+      const [exportBookmarks, exportFolders, exportTags] = await Promise.all([
+        loadBookmarks(emptyBookmarkSearchDraft),
+        loadFolders(),
+        loadTags()
+      ]);
+      const exportBookmarkAssetsByBookmarkId = await loadBookmarkAssetsByBookmark(exportBookmarks);
+      const exportPayload = {
+        exportedAt: new Date().toISOString(),
+        bookmarks: exportBookmarks,
+        folders: exportFolders,
+        tags: exportTags,
+        bookmarkAssetsByBookmarkId: exportBookmarkAssetsByBookmarkId
+      };
+      const exportBlob = new Blob([JSON.stringify(exportPayload, null, 2)], {
+        type: "application/json"
+      });
+      const exportUrl = globalThis.URL.createObjectURL(exportBlob);
+      const link = globalThis.document.createElement("a");
+      link.href = exportUrl;
+      link.download = `bookmark-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      globalThis.document.body.append(link);
+      link.click();
+      link.remove();
+      globalThis.URL.revokeObjectURL(exportUrl);
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "북마크 내보내기를 완료하지 못했습니다."
+        );
+      });
+    }
+  }
+
+  async function openBookmarkDetail(bookmarkId: string, bookmarkOverride?: Bookmark) {
+    const requestId = bookmarkDetailRequestIdRef.current + 1;
+    bookmarkDetailRequestIdRef.current = requestId;
+    const knownBookmark = findKnownBookmark(bookmarkId, bookmarkOverride);
+    const cachedAssets = bookmarkAssetsByBookmarkId[bookmarkId];
+
     try {
       setErrorMessage(null);
       setOpenBookmarkActionMenuId(null);
       setIsBookmarkDetailActionMenuOpen(false);
-      const [bookmark, assets] = await Promise.all([
-        loadBookmark(bookmarkId),
-        loadBookmarkAssets(bookmarkId)
-      ]);
 
-      startTransition(() => {
-        setSelectedBookmark(bookmark);
-        setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
-          ...currentAssetsByBookmarkId,
-          [bookmarkId]: assets
-        }));
-      });
+      if (knownBookmark) {
+        startTransition(() => {
+          setSelectedBookmark(knownBookmark);
+        });
+      } else {
+        startTransition(() => {
+          setSelectedBookmark(null);
+        });
+      }
+
+      setIsLoadingSelectedBookmark(true);
+      setIsLoadingSelectedBookmarkAssets(cachedAssets === undefined);
+
+      void loadBookmark(bookmarkId)
+        .then((bookmark) => {
+          if (bookmarkDetailRequestIdRef.current !== requestId) {
+            return;
+          }
+
+          startTransition(() => {
+            replaceBookmarkState(bookmark);
+          });
+        })
+        .catch((error) => {
+          if (bookmarkDetailRequestIdRef.current !== requestId) {
+            return;
+          }
+
+          startTransition(() => {
+            setErrorMessage(
+              error instanceof Error
+                ? error.message
+                : "북마크 상세 정보를 불러오지 못했습니다."
+            );
+            if (!knownBookmark) {
+              setSelectedBookmark(null);
+            }
+          });
+        })
+        .finally(() => {
+          if (bookmarkDetailRequestIdRef.current !== requestId) {
+            return;
+          }
+
+          setIsLoadingSelectedBookmark(false);
+        });
+
+      if (cachedAssets === undefined) {
+        void loadBookmarkAssets(bookmarkId)
+          .then((assets) => {
+            if (bookmarkDetailRequestIdRef.current !== requestId) {
+              return;
+            }
+
+            startTransition(() => {
+              setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => ({
+                ...currentAssetsByBookmarkId,
+                [bookmarkId]: assets
+              }));
+            });
+          })
+          .catch(() => {
+            if (bookmarkDetailRequestIdRef.current !== requestId) {
+              return;
+            }
+
+            startTransition(() => {
+              setErrorMessage("북마크 이미지를 불러오지 못했습니다.");
+            });
+          })
+          .finally(() => {
+            if (bookmarkDetailRequestIdRef.current !== requestId) {
+              return;
+            }
+
+            setIsLoadingSelectedBookmarkAssets(false);
+          });
+      } else {
+        setIsLoadingSelectedBookmarkAssets(false);
+      }
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
@@ -1650,16 +2772,24 @@ export default function App() {
             : "북마크 상세 정보를 불러오지 못했습니다."
         );
       });
+      setIsLoadingSelectedBookmark(false);
+      setIsLoadingSelectedBookmarkAssets(false);
     }
   }
 
   function closeBookmarkDetail() {
+    bookmarkDetailRequestIdRef.current += 1;
     setIsBookmarkDetailActionMenuOpen(false);
+    setIsLoadingSelectedBookmark(false);
+    setIsLoadingSelectedBookmarkAssets(false);
     setSelectedBookmark(null);
   }
 
   function removeBookmarkState(bookmarkId: string) {
     setBookmarks((currentBookmarks) =>
+      currentBookmarks.filter((bookmark) => bookmark.id !== bookmarkId)
+    );
+    setBookmarkInventory((currentBookmarks) =>
       currentBookmarks.filter((bookmark) => bookmark.id !== bookmarkId)
     );
     setSelectedBookmark((currentSelectedBookmark) =>
@@ -1687,6 +2817,11 @@ export default function App() {
         bookmark.id === nextBookmark.id ? nextBookmark : bookmark
       )
     );
+    setBookmarkInventory((currentBookmarks) =>
+      currentBookmarks.map((bookmark) =>
+        bookmark.id === nextBookmark.id ? nextBookmark : bookmark
+      )
+    );
     setSelectedBookmark((currentSelectedBookmark) =>
       currentSelectedBookmark?.id === nextBookmark.id ? nextBookmark : currentSelectedBookmark
     );
@@ -1703,6 +2838,80 @@ export default function App() {
     }
 
     return uploadedAssets;
+  }
+
+  function appendPendingAssetFiles(files: File[]) {
+    if (files.length === 0) {
+      return;
+    }
+
+    setPendingAssetFiles((currentFiles) => [...currentFiles, ...files]);
+  }
+
+  function removePendingAssetFile(fileName: string, fileSize: number) {
+    setPendingAssetFiles((currentFiles) =>
+      currentFiles.filter((file) => !(file.name === fileName && file.size === fileSize))
+    );
+  }
+
+  function handlePendingAssetPaste(event: ReactClipboardEvent<HTMLElement>) {
+    const files = extractImageFilesFromDataTransfer(event.clipboardData);
+    if (files.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    appendPendingAssetFiles(files);
+  }
+
+  function handlePendingAssetDrop(event: ReactDragEvent<HTMLElement>) {
+    event.preventDefault();
+    appendPendingAssetFiles(extractImageFilesFromDataTransfer(event.dataTransfer));
+  }
+
+  function closeExtensionTokenDialog() {
+    setIsExtensionTokenDialogOpen(false);
+    setExtensionTokenLabelDraft("");
+    setLatestIssuedExtensionToken(null);
+  }
+
+  function closeExtensionDownloadDialog() {
+    setIsExtensionDownloadDialogOpen(false);
+  }
+
+  function requestCloseExtensionTokenDialog() {
+    const hasExtensionTokenDialogChanges = Boolean(
+      extensionTokenLabelDraft.trim() || latestIssuedExtensionToken
+    );
+
+    if (
+      hasExtensionTokenDialogChanges &&
+      globalThis.confirm &&
+      !globalThis.confirm("저장하지 않은 확장 토큰 변경 사항이 있습니다. 닫을까요?")
+    ) {
+      return;
+    }
+
+    closeExtensionTokenDialog();
+  }
+
+  async function openExtensionTokenDialog() {
+    try {
+      setErrorMessage(null);
+      const nextTokens = await loadExtensionTokens();
+      startTransition(() => {
+        setExtensionTokens(nextTokens);
+        setIsExtensionTokenDialogOpen(true);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setExtensionTokens([]);
+        setIsExtensionTokenDialogOpen(true);
+        setErrorMessage(
+          error instanceof Error ? error.message : "확장 토큰 목록을 불러오지 못했습니다."
+        );
+      });
+    }
   }
 
   async function handleBookmarkAssetDelete(bookmarkId: string, assetId: string) {
@@ -1723,6 +2932,48 @@ export default function App() {
           error instanceof Error
             ? error.message
             : "북마크 이미지를 삭제하지 못했습니다."
+        );
+      });
+    }
+  }
+
+  async function handleExtensionTokenCreate() {
+    const label = extensionTokenLabelDraft.trim();
+    if (!label) {
+      setErrorMessage("확장 토큰 이름을 입력해주세요.");
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      const created = await createExtensionToken(label);
+      startTransition(() => {
+        setExtensionTokens((currentTokens) => [created.token, ...currentTokens]);
+        setLatestIssuedExtensionToken(created.rawToken);
+        setExtensionTokenLabelDraft("");
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "확장 토큰을 생성하지 못했습니다."
+        );
+      });
+    }
+  }
+
+  async function handleExtensionTokenRevoke(tokenId: string) {
+    try {
+      setErrorMessage(null);
+      await revokeExtensionToken(tokenId);
+      startTransition(() => {
+        setExtensionTokens((currentTokens) =>
+          currentTokens.filter((token) => token.id !== tokenId)
+        );
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "확장 토큰을 삭제하지 못했습니다."
         );
       });
     }
@@ -1922,22 +3173,87 @@ export default function App() {
     }
   }
 
-  function getFolderName(folderId: string | null) {
-    if (!folderId) {
-      return "폴더 없음";
+  async function handleResetSourceContent(bookmarkId: string) {
+    try {
+      setErrorMessage(null);
+      setIsBookmarkDetailActionMenuOpen(false);
+      const nextBookmark = await updateBookmark(bookmarkId, {
+        sourceTitle: null,
+        sourceContent: null,
+        sourceSummary: null
+      });
+
+      startTransition(() => {
+        replaceBookmarkState(nextBookmark);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "자동 추출값을 초기화하지 못했습니다."
+        );
+      });
+    }
+  }
+
+  function findKnownBookmark(bookmarkId: string, bookmarkOverride?: Bookmark) {
+    if (bookmarkOverride?.id === bookmarkId) {
+      return bookmarkOverride;
     }
 
-    return folders.find((folder) => folder.id === folderId)?.name ?? folderId;
+    if (selectedBookmark?.id === bookmarkId) {
+      return selectedBookmark;
+    }
+
+    const visibleBookmarkMatch = bookmarks.find((bookmark) => bookmark.id === bookmarkId);
+    if (visibleBookmarkMatch) {
+      return visibleBookmarkMatch;
+    }
+
+    const inventoryBookmarkMatch = bookmarkInventory.find((bookmark) => bookmark.id === bookmarkId);
+    if (inventoryBookmarkMatch) {
+      return inventoryBookmarkMatch;
+    }
+
+    return (
+      recommendations.favorites.find((bookmark) => bookmark.id === bookmarkId) ??
+      recommendations.recent.find((bookmark) => bookmark.id === bookmarkId) ??
+      recommendations.frequent.find((bookmark) => bookmark.id === bookmarkId) ??
+      null
+    );
+  }
+
+  function getFolder(folderId: string | null) {
+    if (!folderId) {
+      return null;
+    }
+
+    return folders.find((folder) => folder.id === folderId) ?? null;
+  }
+
+  function getFolderName(folderId: string | null) {
+    return getFolder(folderId)?.name ?? (folderId ? folderId : "폴더 없음");
+  }
+
+  function getTag(tagId: string) {
+    return tags.find((tag) => tag.id === tagId) ?? null;
   }
 
   function getTagNames(tagIds: string[]) {
-    return tagIds.map((tagId) => tags.find((tag) => tag.id === tagId)?.name ?? tagId);
+    return tagIds.map((tagId) => getTag(tagId)?.name ?? tagId);
   }
 
-  const shouldShowAdvancedBookmarkSearch =
-    isAdvancedBookmarkSearchOpen ||
-    hasActiveBookmarkAdvancedFilters(bookmarkSearchDraft) ||
-    hasActiveBookmarkAdvancedFilters(appliedBookmarkSearch);
+  function getTagDisplayItems(tagIds: string[]) {
+    return tagIds.map((tagId) => {
+      const tag = getTag(tagId);
+      return {
+        id: tagId,
+        name: tag?.name ?? tagId,
+        color: tag?.color ?? null
+      };
+    });
+  }
+
+  const shouldShowAdvancedBookmarkSearch = isAdvancedBookmarkSearchOpen;
   const shouldUseCompactMobileCards = isMobileSearchViewport;
   const shouldUseMobileSidebarPanels = isMobileSearchViewport;
   const shouldRenderDesktopBookmarkComposer =
@@ -1954,22 +3270,207 @@ export default function App() {
       getTagNames
     }
   );
+  const hiddenFolderIds = getHiddenFolderIds(folders);
+  const visibleFolders = showHiddenFolders
+    ? folders
+    : folders.filter((folder) => !hiddenFolderIds.has(folder.id));
+  const visibleBookmarks = filterBookmarksByHiddenBookmarks(
+    filterBookmarksByHiddenFolders(bookmarks, hiddenFolderIds, showHiddenFolders),
+    showHiddenBookmarks
+  );
+  const visibleBookmarkInventory = filterBookmarksByHiddenBookmarks(
+    filterBookmarksByHiddenFolders(bookmarkInventory, hiddenFolderIds, showHiddenFolders),
+    showHiddenBookmarks
+  );
+  const visibleRecommendations = filterRecommendationsByHiddenBookmarks(
+    filterRecommendationsByHiddenFolders(recommendations, hiddenFolderIds, showHiddenFolders),
+    showHiddenBookmarks
+  );
+  const visibleSelectedBookmark =
+    selectedBookmark &&
+    isBookmarkVisibleUnderHiddenRules(
+      selectedBookmark,
+      hiddenFolderIds,
+      showHiddenFolders,
+      showHiddenBookmarks
+    )
+      ? selectedBookmark
+      : null;
+  useEffect(() => {
+    if (!selectedBookmark) {
+      return;
+    }
+
+    if (
+      isBookmarkVisibleUnderHiddenRules(
+        selectedBookmark,
+        hiddenFolderIds,
+        showHiddenFolders,
+        showHiddenBookmarks
+      )
+    ) {
+      return;
+    }
+
+    setSelectedBookmark(null);
+    setIsBookmarkDetailActionMenuOpen(false);
+    setOpenBookmarkActionMenuId(null);
+  }, [hiddenFolderIds, selectedBookmark, showHiddenBookmarks, showHiddenFolders]);
   const disallowedParentFolderIds = editingFolderId
     ? new Set([editingFolderId, ...getFolderDescendantIds(folders, editingFolderId)])
     : new Set<string>();
   const parentFolderOptions = getHierarchicalFolderOptions(folders, disallowedParentFolderIds);
-  const visibleFolderOptions = getHierarchicalFolderOptions(folders);
-  const quickFolderParentOptions = getHierarchicalFolderOptions(folders);
-  const selectedBookmarkUserDetailRows = selectedBookmark
-    ? getBookmarkDetailFieldRows(selectedBookmark, "user")
+  const folderManagerTreeOptions = getHierarchicalFolderOptions(folders);
+  const visibleFolderOptions = getHierarchicalFolderOptions(visibleFolders);
+  const quickFolderParentOptions = getHierarchicalFolderOptions(visibleFolders);
+  const isFolderOverviewSearchActive = Boolean(folderOverviewQuery.trim());
+  const folderOverviewVisibleFolderIds = getFolderVisibleIdsForQuery(
+    visibleFolders,
+    folderOverviewQuery
+  );
+  const folderOverviewChildrenByParentId = getFoldersByParentId(
+    visibleFolders.filter((folder) => folderOverviewVisibleFolderIds.has(folder.id))
+  );
+  const selectedBookmarkUserDetailRows = visibleSelectedBookmark
+    ? getBookmarkDetailFieldRows(visibleSelectedBookmark, "user")
     : [];
-  const selectedBookmarkSourceDetailRows = selectedBookmark
-    ? getBookmarkDetailFieldRows(selectedBookmark, "source")
+  const selectedBookmarkSourceDetailRows = visibleSelectedBookmark
+    ? getBookmarkDetailFieldRows(visibleSelectedBookmark, "source")
     : [];
-  const selectedBookmarkAssetCount = selectedBookmark
-    ? bookmarkAssetsByBookmarkId[selectedBookmark.id]?.length ?? 0
+  const selectedBookmarkAssetCount = visibleSelectedBookmark
+    ? bookmarkAssetsByBookmarkId[visibleSelectedBookmark.id]?.length ?? 0
     : 0;
-  const selectedBookmarkTagNames = selectedBookmark ? getTagNames(selectedBookmark.tagIds) : [];
+  const selectedBookmarkTagItems = visibleSelectedBookmark
+    ? getTagDisplayItems(visibleSelectedBookmark.tagIds)
+    : [];
+  const selectedBookmarkVisibleTagItems = selectedBookmarkTagItems.slice(0, 4);
+  const selectedBookmarkRemainingTagCount = Math.max(
+    0,
+    selectedBookmarkTagItems.length - selectedBookmarkVisibleTagItems.length
+  );
+  const selectedBookmarkStatusMessage = isLoadingSelectedBookmark
+    ? "상세 내용을 불러오는 중..."
+    : isLoadingSelectedBookmarkAssets
+      ? "이미지를 불러오는 중..."
+      : null;
+
+  function renderFolderLabel(
+    label: string,
+    color: string | null | undefined,
+    icon: string | null | undefined,
+    className: string,
+    isHidden = false
+  ) {
+    const folderIconGlyph = getFolderIconGlyph(icon);
+
+    return (
+      <span className={className}>
+        {folderIconGlyph ? (
+          <span
+            aria-hidden="true"
+            className="folder-icon-badge"
+            style={
+              color
+                ? {
+                    color,
+                    backgroundColor: `${color}1a`
+                  }
+                : undefined
+            }
+          >
+            {folderIconGlyph}
+          </span>
+        ) : color ? (
+          renderColorSwatch(color)
+        ) : null}
+        <span className="folder-label-text">{label}</span>
+        {isHidden ? (
+          <span className="folder-hidden-indicator" aria-hidden="true">
+            🔒
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+
+  function renderTagLabel(label: string, color: string | null | undefined, className: string) {
+    return (
+      <span className={className}>
+        {color ? renderColorSwatch(color) : null}
+        <span>{label}</span>
+      </span>
+    );
+  }
+
+  function renderPendingAssetComposerSection(existingBookmarkId: string | null = null) {
+    const existingAssets = existingBookmarkId ? bookmarkAssetsByBookmarkId[existingBookmarkId] ?? [] : [];
+
+    return (
+      <>
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="이미지 붙여넣기 또는 끌어놓기"
+          className="dropzone-button bookmark-asset-dropzone"
+          onPaste={handlePendingAssetPaste}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handlePendingAssetDrop}
+        >
+          <strong>이미지 붙여넣기 또는 끌어놓기</strong>
+          <span>Ctrl+V, 드래그앤드롭, 파일 선택을 함께 지원합니다.</span>
+        </div>
+        <label>
+          이미지 업로드
+          <input
+            name="bookmarkAssetFile"
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(event) => {
+              appendPendingAssetFiles(Array.from(event.target.files ?? []));
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+        {pendingAssetFiles.length > 0 ? (
+          <ul className="inline-file-list">
+            {pendingAssetFiles.map((file) => (
+              <li key={`${file.name}-${file.size}`}>
+                <div className="inline-file-copy">
+                  <span>{file.name}</span>
+                  <small>{Math.max(1, Math.round(file.size / 1024))}KB</small>
+                </div>
+                <button
+                  type="button"
+                  className="ghost-button inline-file-remove-button"
+                  aria-label={`${file.name} 제거`}
+                  onClick={() => removePendingAssetFile(file.name, file.size)}
+                >
+                  제거
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {existingAssets.length > 0 ? (
+          <div className="asset-grid">
+            {existingAssets.map((asset, index) => (
+              <div key={asset.id} className="asset-item">
+                <img src={asset.contentUrl} alt={`업로드 이미지 ${index + 1}`} />
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => void handleBookmarkAssetDelete(existingBookmarkId as string, asset.id)}
+                >
+                  이미지 삭제 {index + 1}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </>
+    );
+  }
   const bookmarkPanelTitle = editingBookmarkId ? "북마크 수정" : "북마크 저장";
   const hasActiveBookmarkDraft =
     Boolean(
@@ -1982,6 +3483,7 @@ export default function App() {
     ) ||
     bookmarkDraft.tagIds.length > 0 ||
     bookmarkDraft.isFavorite ||
+    bookmarkDraft.isHidden ||
     pendingAssetFiles.length > 0;
   const bookmarkPanelSummary = editingBookmarkId
     ? "수정 중"
@@ -1995,14 +3497,27 @@ export default function App() {
     ? `수정 중 · 태그 ${tags.length}개`
     : `태그 ${tags.length}개`;
   const bookmarkPanelKicker = "작성 흐름";
-  const folderPanelKicker = "구조 정리";
-  const tagPanelKicker = "분류 체계";
+  const folderPanelKicker = "구조";
+  const tagPanelKicker = "분류";
   const quickFolderCreateSection = (
     <div className="inline-folder-create">
       <button
         type="button"
         className="secondary-button"
-        onClick={() => setIsQuickFolderOpen((currentValue) => !currentValue)}
+        onClick={() =>
+          setIsQuickFolderOpen((currentValue) => {
+            const nextValue = !currentValue;
+
+            if (nextValue) {
+              setQuickFolderDraft((currentDraft) => ({
+                ...currentDraft,
+                parentFolderId: currentDraft.parentFolderId || bookmarkDraft.folderId
+              }));
+            }
+
+            return nextValue;
+          })
+        }
       >
         {isQuickFolderOpen ? "새 폴더 바로 추가 닫기" : "새 폴더 바로 추가"}
       </button>
@@ -2051,6 +3566,42 @@ export default function App() {
               disabled={isSavingQuickFolder}
             >
               {isSavingQuickFolder ? "저장 중..." : "빠른 폴더 저장"}
+            </button>
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+  const quickTagCreateSection = (
+    <div className="inline-folder-create">
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => setIsQuickTagOpen((currentValue) => !currentValue)}
+      >
+        {isQuickTagOpen ? "새 태그 바로 추가 닫기" : "새 태그 바로 추가"}
+      </button>
+      {isQuickTagOpen ? (
+        <section aria-label="quick-tag-create" className="inline-folder-create-panel">
+          <label>
+            태그 이름
+            <input
+              name="quickTagName"
+              value={quickTagDraft.name}
+              onChange={(event) => updateQuickTagDraft({ name: event.target.value })}
+            />
+          </label>
+          {renderColorPicker("태그 색상", quickTagDraft.color, (value) =>
+            updateQuickTagDraft({ color: value })
+          )}
+          <div className="action-row">
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => void handleQuickTagCreate()}
+              disabled={isSavingTag}
+            >
+              {isSavingTag ? "저장 중..." : "빠른 태그 저장"}
             </button>
           </div>
         </section>
@@ -2181,10 +3732,10 @@ export default function App() {
       <div className="manager-workspace">
         <section className="manager-surface manager-editor-surface">
           <div className="manager-section-header">
-            <p className="manager-section-kicker">입력 설정</p>
+            <p className="manager-section-kicker">입력</p>
             <div>
-              <h3>{editingFolderId ? "폴더 수정" : "새 폴더 만들기"}</h3>
-              <p>{editingFolderId ? "선택한 폴더의 구조와 표시 정보를 다듬습니다." : "새 폴더를 만들고 트리에 바로 추가합니다."}</p>
+              <h3>{editingFolderId ? "폴더 수정" : "새 폴더"}</h3>
+              <p>{editingFolderId ? "구조를 정리합니다." : "트리에 추가합니다."}</p>
             </div>
           </div>
           <form className="stack-form manager-stack-form" onSubmit={(event) => void handleFolderSubmit(event)}>
@@ -2197,6 +3748,15 @@ export default function App() {
                 required
               />
             </label>
+            {renderCheckboxField({
+              className: "manager-checkbox-row",
+              label: "숨김 폴더",
+              inputProps: {
+                name: "folderIsHidden",
+                checked: folderDraft.isHidden,
+                onChange: (event) => updateFolderDraft({ isHidden: event.currentTarget.checked })
+              }
+            })}
             {renderFolderColorPicker(folderDraft.color, (value) => updateFolderDraft({ color: value }))}
             {renderFolderIconPicker(folderDraft.icon, (value) => updateFolderDraft({ icon: value }))}
             <label>
@@ -2215,18 +3775,26 @@ export default function App() {
               </select>
             </label>
             <div className="action-row">
-              <button type="submit" className="primary-button" disabled={isSavingFolder}>
+              <button
+                type="submit"
+                className="primary-button"
+                aria-label={editingFolderId ? "폴더 수정" : "폴더 추가"}
+                disabled={isSavingFolder}
+              >
                 {isSavingFolder
-                  ? editingFolderId
-                    ? "수정 중..."
-                    : "추가 중..."
+                  ? "저장 중..."
                   : editingFolderId
-                    ? "폴더 수정"
-                    : "폴더 추가"}
+                    ? "저장"
+                    : "추가"}
               </button>
               {editingFolderId ? (
-                <button type="button" className="secondary-button" onClick={() => cancelFolderEdit()}>
-                  수정 취소
+                <button
+                  type="button"
+                  className="secondary-button"
+                  aria-label="수정 취소"
+                  onClick={() => cancelFolderEdit()}
+                >
+                  취소
                 </button>
               ) : null}
             </div>
@@ -2236,7 +3804,7 @@ export default function App() {
           <div className="manager-section-header">
             <p className="manager-section-kicker">폴더 트리</p>
             <div>
-              <h3>트리와 이동</h3>
+              <h3>트리</h3>
               <p>{folders.length}개 폴더</p>
             </div>
           </div>
@@ -2263,7 +3831,7 @@ export default function App() {
             루트 이동
           </button>
           <ul className="folder-tree">
-            {visibleFolderOptions.map(({ folder, label }) => (
+            {folderManagerTreeOptions.map(({ folder, label }) => (
               <li
                 key={folder.id}
                 className={`folder-tree-item${folder.parentFolderId ? " folder-tree-item-child" : ""}`}
@@ -2286,10 +3854,15 @@ export default function App() {
               >
                 <div className="folder-tree-row">
                   <div className="folder-tree-summary">
-                    <strong>{label}</strong>
+                    {renderFolderLabel(
+                      label,
+                      folder.color,
+                      folder.icon,
+                      "folder-tree-label",
+                      folder.isHidden === true
+                    )}
                     {folder.parentFolderId ? (
                       <div className="folder-tree-meta">
-                        <p>하위</p>
                         <p>상위 {getFolderName(folder.parentFolderId)}</p>
                       </div>
                     ) : null}
@@ -2308,6 +3881,14 @@ export default function App() {
                       onDragEnd={() => resetDraggingFolder()}
                     >
                       정렬
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button folder-tree-child-create"
+                      aria-label={`${folder.name} 하위 폴더 추가`}
+                      onClick={() => beginChildFolderCreate(folder)}
+                    >
+                      + 하위
                     </button>
                     <button
                       type="button"
@@ -2333,17 +3914,17 @@ export default function App() {
                         void handleFolderMoveDrop(folder);
                       }}
                     >
-                      하위로 이동
+                      이동
                     </button>
                     <div className="folder-action-menu-shell">
                       <button
                         type="button"
-                        className="ghost-button folder-action-trigger"
+                        className="ghost-button folder-action-trigger overflow-trigger"
                         aria-label={`${folder.name} 폴더 더보기`}
                         aria-expanded={openFolderActionMenuId === folder.id}
                         onClick={() => toggleFolderActionMenu(folder.id)}
                       >
-                        더보기
+                        ...
                       </button>
                       {openFolderActionMenuId === folder.id ? (
                         <div
@@ -2383,10 +3964,10 @@ export default function App() {
       <div className="manager-workspace">
         <section className="manager-surface manager-editor-surface">
           <div className="manager-section-header">
-            <p className="manager-section-kicker">입력 설정</p>
+            <p className="manager-section-kicker">입력</p>
             <div>
-              <h3>{editingTagId ? "태그 수정" : "새 태그 만들기"}</h3>
-              <p>{editingTagId ? "선택한 태그의 이름과 색을 다듬습니다." : "분류에 바로 쓸 태그를 짧게 추가합니다."}</p>
+              <h3>{editingTagId ? "태그 수정" : "새 태그"}</h3>
+              <p>{editingTagId ? "이름과 색을 정리합니다." : "바로 쓸 태그를 추가합니다."}</p>
             </div>
           </div>
           <form className="stack-form manager-stack-form" onSubmit={(event) => void handleTagSubmit(event)}>
@@ -2399,27 +3980,30 @@ export default function App() {
                 required
               />
             </label>
-            <label>
-              태그 색상
-              <input
-                name="tagColor"
-                value={tagDraft.color}
-                onChange={(event) => updateTagDraft({ color: event.target.value })}
-              />
-            </label>
+            {renderColorPicker("태그 색상", tagDraft.color, (value) =>
+              updateTagDraft({ color: value })
+            )}
             <div className="action-row">
-              <button type="submit" className="primary-button" disabled={isSavingTag}>
+              <button
+                type="submit"
+                className="primary-button"
+                aria-label={editingTagId ? "태그 수정" : "태그 추가"}
+                disabled={isSavingTag}
+              >
                 {isSavingTag
-                  ? editingTagId
-                    ? "수정 중..."
-                    : "추가 중..."
+                  ? "저장 중..."
                   : editingTagId
-                    ? "태그 수정"
-                    : "태그 추가"}
+                    ? "저장"
+                    : "추가"}
               </button>
               {editingTagId ? (
-                <button type="button" className="secondary-button" onClick={() => cancelTagEdit()}>
-                  수정 취소
+                <button
+                  type="button"
+                  className="secondary-button"
+                  aria-label="수정 취소"
+                  onClick={() => cancelTagEdit()}
+                >
+                  취소
                 </button>
               ) : null}
             </div>
@@ -2429,14 +4013,14 @@ export default function App() {
           <div className="manager-section-header">
             <p className="manager-section-kicker">현재 태그</p>
             <div>
-              <h3>분류 목록</h3>
-              <p>현재 쓰는 태그를 훑고 필요한 항목만 빠르게 수정합니다.</p>
+              <h3>태그 목록</h3>
+              <p>지금 쓰는 태그를 빠르게 정리합니다.</p>
             </div>
           </div>
           <ul className="tag-list">
             {tags.map((tag) => (
               <li key={tag.id} className="tag-list-item">
-                <span>{tag.name}</span>
+                {renderTagLabel(tag.name, tag.color, "tag-list-name")}
                 <div className="folder-action-menu-shell">
                   <button
                     type="button"
@@ -2478,17 +4062,368 @@ export default function App() {
     );
   }
 
+  function renderFolderOverviewNodes(parentFolderId: string | null, depth = 0): ReactNode {
+    return (folderOverviewChildrenByParentId.get(parentFolderId) ?? []).map((folder) => {
+      const childFolders = folderOverviewChildrenByParentId.get(folder.id) ?? [];
+      const hasChildren = childFolders.length > 0;
+      const isExpanded =
+        hasChildren && (isFolderOverviewSearchActive || expandedFolderOverviewIds.includes(folder.id));
+      const bookmarkCount = countBookmarksInFolderTree(
+        visibleBookmarkInventory,
+        visibleFolders,
+        folder.id
+      );
+      const isActive = appliedBookmarkSearch.folderId === folder.id;
+
+      return (
+        <li key={folder.id} className="folder-overview-item">
+          <div className="folder-overview-entry">
+            <div
+              className={`folder-overview-row${isActive ? " folder-overview-row-active" : ""}`}
+              style={{ paddingLeft: `${Math.min(depth, 3) * 0.82}rem` }}
+            >
+              {hasChildren ? (
+                <button
+                  type="button"
+                  className="folder-overview-disclosure"
+                  aria-label={`${folder.name} 폴더 ${isExpanded ? "접기" : "펼치기"}`}
+                  aria-expanded={isExpanded}
+                  onClick={() => toggleFolderOverviewExpansion(folder.id)}
+                >
+                  {isExpanded ? "▾" : "▸"}
+                </button>
+              ) : (
+                <span aria-hidden="true" className="folder-overview-disclosure-spacer" />
+              )}
+              <button
+                type="button"
+                className={`folder-overview-trigger${isActive ? " folder-overview-trigger-active" : ""}`}
+                aria-label={`${folder.name} 폴더 보기`}
+                aria-pressed={isActive}
+                title={folder.name}
+                onClick={() => void handleFolderOverviewSelect(folder)}
+              >
+                <span className="folder-overview-copy">
+                  {renderFolderLabel(
+                    folder.name,
+                    folder.color,
+                    folder.icon,
+                    "folder-overview-name",
+                    folder.isHidden === true
+                  )}
+                </span>
+                <span className="folder-overview-count">{bookmarkCount}</span>
+              </button>
+              <div className="folder-overview-inline-actions">
+                <button
+                  type="button"
+                  className="secondary-button folder-overview-child-create"
+                  aria-label={`${folder.name} 하위 폴더 추가`}
+                  onClick={() => beginChildFolderCreate(folder)}
+                >
+                  + 하위
+                </button>
+                <div className="folder-action-menu-shell folder-overview-menu-shell">
+                  <button
+                    type="button"
+                    className="ghost-button folder-action-trigger overflow-trigger"
+                    aria-label={`${folder.name} 폴더 더보기`}
+                    aria-expanded={openFolderActionMenuId === folder.id}
+                    onClick={() => toggleFolderActionMenu(folder.id)}
+                  >
+                    ...
+                  </button>
+                  {openFolderActionMenuId === folder.id ? (
+                    <div
+                      role="menu"
+                      aria-label={`${folder.name} 폴더 메뉴`}
+                      className="folder-action-menu"
+                    >
+                      <button
+                        type="button"
+                        className="secondary-button folder-action-menu-item"
+                        onClick={() => beginFolderEdit(folder)}
+                      >
+                        {folder.name} 폴더 수정 시작
+                      </button>
+                      <button
+                        type="button"
+                        className="danger-button folder-action-menu-item"
+                        onClick={() => void handleFolderDelete(folder)}
+                      >
+                        {folder.name} 폴더 삭제
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+            {hasChildren && isExpanded ? (
+              <ul className="folder-overview-children">
+                {renderFolderOverviewNodes(folder.id, depth + 1)}
+              </ul>
+            ) : null}
+          </div>
+        </li>
+      );
+    });
+  }
+
+  const folderOverviewSection = (
+    <section aria-label="folder-overview" className="surface-card panel-card folder-overview-card">
+      <header className="folder-overview-header">
+        <p className="bookmark-list-kicker">구조 둘러보기</p>
+        <div className="folder-overview-title-row">
+          <h2>폴더</h2>
+          <div className="folder-overview-controls">
+            <button
+              type="button"
+              className="ghost-button folder-overview-reset-button folder-overview-lock-button"
+              aria-label={showHiddenFolders ? "숨김 폴더 숨기기" : "숨김 폴더 보기"}
+              aria-pressed={showHiddenFolders}
+              onClick={() => void handleToggleHiddenFolders()}
+            >
+              <span aria-hidden="true">{showHiddenFolders ? "🔓" : "🔒"}</span>
+            </button>
+            <button
+              type="button"
+              className="ghost-button folder-overview-reset-button"
+              aria-label="폴더 전부 펼치기"
+              onClick={() => expandAllFolderOverviewGroups()}
+            >
+              펼치기
+            </button>
+            <button
+              type="button"
+              className="ghost-button folder-overview-reset-button"
+              aria-label="폴더 모두 접기"
+              onClick={() => collapseAllFolderOverviewGroups()}
+            >
+              접기
+            </button>
+            <button
+              type="button"
+              className="ghost-button folder-overview-reset-button"
+              aria-label="전체 폴더 보기"
+              aria-pressed={!appliedBookmarkSearch.folderId}
+              onClick={() => void handleFolderOverviewReset()}
+            >
+              전체
+            </button>
+          </div>
+        </div>
+        <p className="folder-overview-helper">범위를 바로 바꿉니다.</p>
+        <input
+          type="search"
+          className="folder-overview-search-input"
+          placeholder="폴더 찾기"
+          value={folderOverviewQuery}
+          onChange={(event) => setFolderOverviewQuery(event.target.value)}
+        />
+      </header>
+      {(folderOverviewChildrenByParentId.get(null) ?? []).length === 0 ? (
+        <p className="quiet-empty-state">
+          {showHiddenFolders ? "폴더가 없습니다." : "보이는 폴더가 없습니다."}
+        </p>
+      ) : (
+        <ul className="folder-overview-list">{renderFolderOverviewNodes(null)}</ul>
+      )}
+    </section>
+  );
+
+  const recommendationSection = (
+    <section aria-label="recommendation-list" className="surface-card panel-card recommendation-panel-card">
+      <header className="recommendation-panel-header">
+        <p className="recommendation-panel-kicker">빠른 진입점</p>
+        <div className="recommendation-panel-title-row">
+          <h2>추천</h2>
+          <p className="recommendation-panel-helper">자주 여는 링크</p>
+        </div>
+      </header>
+      <div className="recommendation-grid">
+        <div className="recommendation-column">
+          <h3>즐겨찾기</h3>
+          {visibleRecommendations.favorites.length === 0 ? (
+            <p className="quiet-empty-state">없음</p>
+          ) : null}
+          <ul className="recommendation-list">
+            {visibleRecommendations.favorites.map((bookmark) => (
+              <li key={`favorite-${bookmark.id}`} className="recommendation-item">
+                <div className="recommendation-copy">
+                  <strong>{bookmark.displayTitle || bookmark.url}</strong>
+                  <p className="recommendation-meta-line">
+                    {getRecommendationReasonLabel("favorites")} · {getFolderName(bookmark.folderId)}
+                  </p>
+                  <p className="muted-text">
+                    {hasTextContent(getBookmarkPreviewText(bookmark))
+                      ? getBookmarkPreviewText(bookmark)
+                      : "요약 없음"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="ghost-button recommendation-action-button"
+                  aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
+                  onClick={() => void handleBookmarkOpen(bookmark)}
+                >
+                  열기
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="recommendation-column">
+          <h3>최근</h3>
+          {visibleRecommendations.recent.length === 0 ? (
+            <p className="quiet-empty-state">없음</p>
+          ) : null}
+          <ul className="recommendation-list">
+            {visibleRecommendations.recent.map((bookmark) => (
+              <li key={`recent-${bookmark.id}`} className="recommendation-item">
+                <div className="recommendation-copy">
+                  <strong>{bookmark.displayTitle || bookmark.url}</strong>
+                  <p className="recommendation-meta-line">
+                    {getRecommendationReasonLabel("recent")} · {getFolderName(bookmark.folderId)}
+                  </p>
+                  <p className="muted-text">
+                    {hasTextContent(getBookmarkPreviewText(bookmark))
+                      ? getBookmarkPreviewText(bookmark)
+                      : "요약 없음"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="ghost-button recommendation-action-button"
+                  aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
+                  onClick={() => void handleBookmarkOpen(bookmark)}
+                >
+                  열기
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="recommendation-column">
+          <h3>반복</h3>
+          {visibleRecommendations.frequent.length === 0 ? (
+            <p className="quiet-empty-state">없음</p>
+          ) : null}
+          <ul className="recommendation-list">
+            {visibleRecommendations.frequent.map((bookmark) => (
+              <li key={`frequent-${bookmark.id}`} className="recommendation-item">
+                <div className="recommendation-copy">
+                  <strong>{bookmark.displayTitle || bookmark.url}</strong>
+                  <p className="recommendation-meta-line">
+                    {getRecommendationReasonLabel("frequent")} · {getFolderName(bookmark.folderId)}
+                  </p>
+                  <p className="muted-text">
+                    {hasTextContent(getBookmarkPreviewText(bookmark))
+                      ? getBookmarkPreviewText(bookmark)
+                      : "요약 없음"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="ghost-button recommendation-action-button"
+                  aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
+                  onClick={() => void handleBookmarkOpen(bookmark)}
+                >
+                  열기
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+
   return (
     <main className="app-shell">
       <header className="app-hero">
         <div className="hero-copy">
-          <p className="hero-eyebrow">Personal Bookmark Workspace</p>
-          <p className="hero-support">개인 아카이브 작업 공간</p>
           <h1>Bookmark</h1>
-          <p>Save, search, and organize links from anywhere.</p>
+          <p className="hero-support">개인 링크 보관함</p>
         </div>
+        {sessionState.status === "authenticated" && !shouldUseMobileSidebarPanels ? (
+          <section aria-label="navigation-sidebar" className="hero-command-bar">
+            <div className="hero-command-meta">
+              <p className="hero-command-label">빠른 작업</p>
+              <p className="hero-command-summary">
+                북마크 {visibleBookmarks.length}개 · 폴더 {visibleFolders.length}개 · 태그 {tags.length}개
+              </p>
+            </div>
+            <div
+              role="toolbar"
+              aria-label="quick-actions-toolbar"
+              className="hero-command-toolbar"
+            >
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => {
+                  setIsQuickActionsMenuOpen(false);
+                  beginBookmarkCreate();
+                }}
+              >
+                새 북마크
+              </button>
+              <div className="folder-action-menu-shell hero-command-menu-shell">
+                <button
+                  type="button"
+                  className="ghost-button overflow-trigger"
+                  aria-label="빠른 작업 더보기"
+                  aria-expanded={isQuickActionsMenuOpen}
+                  onClick={() => setIsQuickActionsMenuOpen((currentState) => !currentState)}
+                >
+                  ...
+                </button>
+                {isQuickActionsMenuOpen ? (
+                  <div
+                    role="menu"
+                    aria-label="빠른 작업 메뉴"
+                    className="folder-action-menu"
+                  >
+                    <button
+                      type="button"
+                      className="secondary-button folder-action-menu-item"
+                      aria-label="새 폴더"
+                      onClick={() => {
+                        setIsQuickActionsMenuOpen(false);
+                        openFolderManager();
+                      }}
+                    >
+                      새 폴더
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button folder-action-menu-item"
+                      aria-label="태그 관리"
+                      onClick={() => {
+                        setIsQuickActionsMenuOpen(false);
+                        openTagManager();
+                      }}
+                    >
+                      태그 관리
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        ) : null}
         <div className="hero-actions">
           {sessionState.status === "loading" ? <p>세션을 확인하는 중입니다.</p> : null}
+          {deferredInstallPrompt ? (
+            <button
+              type="button"
+              className="secondary-button"
+              aria-label="앱 설치"
+              onClick={() => void handlePwaInstall()}
+            >
+              앱 설치
+            </button>
+          ) : null}
           {sessionState.status === "anonymous" ? (
             <button type="button" className="primary-button" onClick={() => void handleGoogleLogin()}>
               Google로 로그인
@@ -2496,11 +4431,35 @@ export default function App() {
           ) : null}
           {sessionState.status === "authenticated" ? (
             <section className="session-card">
-              <p className="session-label">로그인 계정</p>
-              <strong>{sessionState.user.email}</strong>
-              <button type="button" className="secondary-button" onClick={() => void handleLogout()}>
-                로그아웃
-              </button>
+              <div className="session-card-copy">
+                <p className="session-label">계정</p>
+                <strong>{sessionState.user.email}</strong>
+              </div>
+              <div className="session-card-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  aria-label="브라우저 확장 다운로드"
+                  onClick={() => setIsExtensionDownloadDialogOpen(true)}
+                >
+                  확장 다운로드
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  aria-label="확장 토큰 관리"
+                  onClick={() => void openExtensionTokenDialog()}
+                >
+                  확장 토큰
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => void handleLogout()}
+                >
+                  로그아웃
+                </button>
+              </div>
             </section>
           ) : null}
         </div>
@@ -2509,33 +4468,9 @@ export default function App() {
         <section aria-label="dashboard-workspace" className="dashboard-workspace">
           <div className="dashboard-layout">
             <aside aria-label="dashboard-sidebar" className="dashboard-sidebar">
-              <p className="section-eyebrow">작업 패널</p>
+              {shouldUseMobileSidebarPanels ? <p className="section-eyebrow">작업 패널</p> : null}
               {!shouldUseMobileSidebarPanels ? (
-                <section aria-label="navigation-sidebar" className="surface-card panel-card navigation-sidebar-card">
-                  <div className="navigation-sidebar-header">
-                    <p className="workspace-panel-kicker">빠른 진입</p>
-                    <div className="navigation-sidebar-heading-row">
-                      <h2>작업 시작</h2>
-                      <span className="workspace-panel-summary">데스크톱 중심</span>
-                    </div>
-                    <p className="navigation-sidebar-summary">
-                      북마크 {bookmarks.length}개 · 폴더 {folders.length}개 · 태그 {tags.length}개
-                    </p>
-                  </div>
-                  <div className="navigation-sidebar-actions">
-                    <button type="button" className="primary-button" onClick={() => beginBookmarkCreate()}>
-                      새 북마크
-                    </button>
-                    <div className="navigation-sidebar-secondary-actions">
-                      <button type="button" className="secondary-button" onClick={() => openFolderManager()}>
-                        새 폴더
-                      </button>
-                      <button type="button" className="ghost-button" onClick={() => openTagManager()}>
-                        태그 관리
-                      </button>
-                    </div>
-                  </div>
-                </section>
+                folderOverviewSection
               ) : null}
               {shouldUseMobileSidebarPanels ? (
                 <div className="sidebar-segmented-panels">
@@ -2633,91 +4568,52 @@ export default function App() {
                           onChange={(event) => updateBookmarkDraft({ userSummary: event.target.value })}
                         />
                       </label>
-                      <label>
-                        북마크 색상
-                        <input
-                          name="bookmarkColor"
-                          value={bookmarkDraft.bookmarkColor}
-                          onChange={(event) =>
-                            updateBookmarkDraft({ bookmarkColor: event.target.value })
-                          }
-                        />
-                      </label>
-                      <label>
-                        URL 색상
-                        <input
-                          name="urlColor"
-                          value={bookmarkDraft.urlColor}
-                          onChange={(event) => updateBookmarkDraft({ urlColor: event.target.value })}
-                        />
-                      </label>
-                      <label>
-                        이미지 업로드
-                        <input
-                          name="bookmarkAssetFile"
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          onChange={(event) =>
-                            setPendingAssetFiles(Array.from(event.target.files ?? []))
-                          }
-                        />
-                      </label>
-                      {pendingAssetFiles.length > 0 ? (
-                        <ul className="inline-file-list">
-                          {pendingAssetFiles.map((file) => (
-                            <li key={`${file.name}-${file.size}`}>{file.name}</li>
-                          ))}
-                        </ul>
-                      ) : null}
-                      {editingBookmarkId &&
-                      (bookmarkAssetsByBookmarkId[editingBookmarkId]?.length ?? 0) > 0 ? (
-                        <div className="asset-grid">
-                          {bookmarkAssetsByBookmarkId[editingBookmarkId].map((asset, index) => (
-                            <div key={asset.id} className="asset-item">
-                              <img src={asset.contentUrl} alt={`업로드 이미지 ${index + 1}`} />
-                              <button
-                                type="button"
-                                className="ghost-button"
-                                onClick={() =>
-                                  void handleBookmarkAssetDelete(editingBookmarkId, asset.id)
-                                }
-                              >
-                                이미지 삭제 {index + 1}
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
+                      {renderColorPicker("북마크 색상", bookmarkDraft.bookmarkColor, (value) =>
+                        updateBookmarkDraft({ bookmarkColor: value })
+                      )}
+                      {renderColorPicker("url 색상", bookmarkDraft.urlColor, (value) =>
+                        updateBookmarkDraft({ urlColor: value })
+                      )}
+                      {renderPendingAssetComposerSection(editingBookmarkId)}
                       <fieldset className="tag-fieldset">
                         <legend>태그 선택</legend>
-                        {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
-                        <div className="pill-list">
-                          {tags.map((tag) => (
-                            <label key={tag.id} className="pill-option">
-                              <input
+                        {tags.length === 0 ? (
+                          <p className="quiet-empty-state">태그가 없습니다.</p>
+                        ) : null}
+                                <div className="pill-list">
+                                    {tags.map((tag) => (
+                                      <label key={tag.id} className="pill-option">
+                                        <input
                                 type="checkbox"
                                 name="tagIds"
                                 value={tag.id}
                                 checked={bookmarkDraft.tagIds.includes(tag.id)}
                                 onChange={(event) => toggleBookmarkTag(tag.id, event.target.checked)}
                               />
-                              {tag.name}
+                              {renderTagLabel(tag.name, tag.color, "tag-option-label")}
                             </label>
                           ))}
                         </div>
                       </fieldset>
-                      <label>
-                        즐겨찾기
-                        <input
-                          name="isFavorite"
-                          type="checkbox"
-                          checked={bookmarkDraft.isFavorite}
-                          onChange={(event) =>
-                            updateBookmarkDraft({ isFavorite: event.target.checked })
-                          }
-                        />
-                      </label>
+                      {quickTagCreateSection}
+                      {renderCheckboxField({
+                        label: "즐겨찾기",
+                        inputProps: {
+                          name: "isFavorite",
+                          checked: bookmarkDraft.isFavorite,
+                          onChange: (event) =>
+                            updateBookmarkDraft({ isFavorite: event.currentTarget.checked })
+                        }
+                      })}
+                      {renderCheckboxField({
+                        label: "숨김 북마크",
+                        inputProps: {
+                          name: "isHidden",
+                          checked: bookmarkDraft.isHidden,
+                          onChange: (event) =>
+                            updateBookmarkDraft({ isHidden: event.currentTarget.checked })
+                        }
+                      })}
                       <div className="action-row">
                         <button type="submit" className="primary-button" disabled={isSavingBookmark}>
                           {isSavingBookmark
@@ -2758,35 +4654,29 @@ export default function App() {
           </aside>
 
           <section aria-label="dashboard-main" className="dashboard-main">
-            <p className="section-eyebrow">작업 결과</p>
+            {shouldUseMobileSidebarPanels ? <p className="section-eyebrow">작업 결과</p> : null}
             <div role="region" aria-label="result-primary-column" className="result-primary-column">
             <section aria-label="bookmark-results" className="bookmark-results-stack">
             <section aria-label="search-panel" className="surface-card panel-card search-panel-card">
-              <div className="search-panel-header">
-                <div className="search-panel-heading">
-                  {isMobileSearchViewport ? (
+              {isMobileSearchViewport ? (
+                <div className="search-panel-header">
+                  <div className="search-panel-heading">
                     <p className="search-panel-kicker">탐색 기준</p>
-                  ) : null}
-                  <div className="search-panel-title-row">
-                    <h2>검색과 필터</h2>
+                    <div className="search-panel-title-row">
+                      <h2>검색과 필터</h2>
+                      {shouldShowMobileSearchSummary ? (
+                        <span className="search-panel-summary-pill">
+                          활성 필터 {activeBookmarkSearchSummaryItems.length}개
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="search-panel-helper">검색과 조건을 함께 봅니다.</p>
                     {shouldShowMobileSearchSummary ? (
-                      <span className="search-panel-summary-pill">
+                      <p className="search-panel-helper search-panel-helper-mobile">
                         활성 필터 {activeBookmarkSearchSummaryItems.length}개
-                      </span>
+                      </p>
                     ) : null}
                   </div>
-                  <p className="search-panel-helper">
-                    {isMobileSearchViewport
-                      ? "검색 입력부터 고급 조건 초안까지 한 번에 조정합니다."
-                      : "검색어, 정렬, 고급 조건을 빠르게 조합해 현재 보관 목록을 좁혀봅니다."}
-                  </p>
-                  {shouldShowMobileSearchSummary ? (
-                    <p className="search-panel-helper search-panel-helper-mobile">
-                      활성 필터 {activeBookmarkSearchSummaryItems.length}개
-                    </p>
-                  ) : null}
-                </div>
-                {isMobileSearchViewport ? (
                   <button
                     type="button"
                     className="secondary-button search-panel-toggle"
@@ -2797,8 +4687,8 @@ export default function App() {
                   >
                     {isMobileSearchPanelOpen ? "검색/필터 닫기" : "검색/필터 열기"}
                   </button>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
               {shouldShowSearchPanelBody ? (
               <form className="search-form" onSubmit={(event) => void handleBookmarkSearchSubmit(event)}>
                 {isMobileSearchViewport ? (
@@ -2825,10 +4715,11 @@ export default function App() {
                           })
                         }
                       >
-                        <option value="all">통합 검색</option>
-                        <option value="title">제목 검색</option>
-                        <option value="content">내용 검색</option>
-                        <option value="folder">폴더명 검색</option>
+                        {bookmarkSearchModeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label>
@@ -2861,7 +4752,7 @@ export default function App() {
                   <div
                     role="region"
                     aria-label="desktop-search-toolbar"
-                    className="search-toolbar search-grid-surface"
+                    className="search-toolbar search-toolbar-shell"
                   >
                     <div className="search-toolbar-field search-toolbar-field-query">
                       <input
@@ -2874,22 +4765,10 @@ export default function App() {
                         }
                       />
                     </div>
-                    <div className="search-toolbar-field">
-                      <select
-                        aria-label="검색 모드"
-                        name="bookmarkSearchMode"
-                        value={bookmarkSearchDraft.mode}
-                        onChange={(event) =>
-                          updateBookmarkSearchDraft({
-                            mode: event.target.value as BookmarkSearchMode
-                          })
-                        }
-                      >
-                        <option value="all">통합 검색</option>
-                        <option value="title">제목 검색</option>
-                        <option value="content">내용 검색</option>
-                        <option value="folder">폴더명 검색</option>
-                      </select>
+                    <div className="search-toolbar-mode">
+                      {renderSearchModeSegmentedControl(bookmarkSearchDraft.mode, (value) =>
+                        updateBookmarkSearchDraft({ mode: value })
+                      )}
                     </div>
                     <div className="search-toolbar-field">
                       <select
@@ -2934,7 +4813,7 @@ export default function App() {
                 )}
                 {shouldShowAdvancedBookmarkSearch ? (
                   <fieldset className="search-grid search-grid-advanced search-grid-surface">
-                    <legend>고급 필터</legend>
+                    <legend>필터</legend>
                     <div className="search-filter-group">
                       <h3>기간</h3>
                       <div className="search-filter-group-grid">
@@ -2976,8 +4855,9 @@ export default function App() {
                       <h3>분류</h3>
                       <div className="search-filter-group-grid">
                         <label>
-                          필터 폴더
+                          <span aria-hidden="true">폴더</span>
                           <select
+                            aria-label="필터 폴더"
                             name="bookmarkSearchFolderId"
                             value={bookmarkSearchDraft.folderId}
                             onChange={(event) =>
@@ -2997,20 +4877,20 @@ export default function App() {
                             ))}
                           </select>
                         </label>
-                        <label>
-                          하위 폴더 포함
-                          <input
-                            name="bookmarkSearchIncludeDescendantFolders"
-                            type="checkbox"
-                            checked={bookmarkSearchDraft.includeDescendantFolders}
-                            onChange={(event) =>
+                        {renderCheckboxField({
+                          className: "search-filter-checkbox",
+                          label: <span aria-hidden="true">하위 포함</span>,
+                          inputProps: {
+                            "aria-label": "하위 폴더 포함",
+                            name: "bookmarkSearchIncludeDescendantFolders",
+                            checked: bookmarkSearchDraft.includeDescendantFolders,
+                            onChange: (event) =>
                               updateBookmarkSearchDraft({
-                                includeDescendantFolders: event.target.checked
-                              })
-                            }
-                            disabled={!bookmarkSearchDraft.folderId}
-                          />
-                        </label>
+                                includeDescendantFolders: event.currentTarget.checked
+                              }),
+                            disabled: !bookmarkSearchDraft.folderId
+                          }
+                        })}
                         <label>
                           태그 조건
                           <select
@@ -3028,7 +4908,9 @@ export default function App() {
                         </label>
                         <fieldset className="tag-fieldset">
                           <legend>필터 태그</legend>
-                          {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
+                          {tags.length === 0 ? (
+                            <p className="quiet-empty-state">태그가 없습니다.</p>
+                          ) : null}
                           <div className="pill-list">
                             {tags.map((tag) => (
                               <label key={tag.id} className="pill-option">
@@ -3040,7 +4922,7 @@ export default function App() {
                                     toggleBookmarkSearchTag(tag.id, event.target.checked)
                                   }
                                 />
-                                {tag.name}
+                                {renderTagLabel(tag.name, tag.color, "tag-option-label")}
                               </label>
                             ))}
                           </div>
@@ -3050,42 +4932,29 @@ export default function App() {
                     <div className="search-filter-group">
                       <h3>상태</h3>
                       <div className="search-filter-group-grid">
-                        <label>
-                          즐겨찾기만
-                          <input
-                            name="bookmarkSearchFavoriteOnly"
-                            type="checkbox"
-                            checked={bookmarkSearchDraft.favoriteOnly}
-                            onChange={(event) =>
+                        {renderCheckboxField({
+                          className: "search-filter-checkbox",
+                          label: <span aria-hidden="true">즐겨찾기</span>,
+                          inputProps: {
+                            "aria-label": "즐겨찾기만",
+                            name: "bookmarkSearchFavoriteOnly",
+                            checked: bookmarkSearchDraft.favoriteOnly,
+                            onChange: (event) =>
                               updateBookmarkSearchDraft({
-                                favoriteOnly: event.target.checked
+                                favoriteOnly: event.currentTarget.checked
                               })
-                            }
-                          />
-                        </label>
+                          }
+                        })}
+                        {renderSearchColorSelect("북마크 색상 필터", bookmarkSearchDraft.bookmarkColor, (value) =>
+                          updateBookmarkSearchDraft({ bookmarkColor: value })
+                        )}
+                        {renderSearchColorSelect("url 색상 필터", bookmarkSearchDraft.urlColor, (value) =>
+                          updateBookmarkSearchDraft({ urlColor: value })
+                        )}
                         <label>
-                          북마크 색상 필터
-                          <input
-                            name="bookmarkSearchBookmarkColor"
-                            value={bookmarkSearchDraft.bookmarkColor}
-                            onChange={(event) =>
-                              updateBookmarkSearchDraft({ bookmarkColor: event.target.value })
-                            }
-                          />
-                        </label>
-                        <label>
-                          URL 색상 필터
-                          <input
-                            name="bookmarkSearchUrlColor"
-                            value={bookmarkSearchDraft.urlColor}
-                            onChange={(event) =>
-                              updateBookmarkSearchDraft({ urlColor: event.target.value })
-                            }
-                          />
-                        </label>
-                        <label>
-                          요약 필터
+                          <span aria-hidden="true">요약</span>
                           <select
+                            aria-label="요약 필터"
                             name="bookmarkSearchSummaryState"
                             value={bookmarkSearchDraft.summaryState}
                             onChange={(event) =>
@@ -3146,255 +5015,297 @@ export default function App() {
                 </div>
               ) : null}
             </section>
+            {shouldUseMobileSidebarPanels ? folderOverviewSection : null}
             </section>
 
-            <section aria-label="recommendation-list" className="surface-card panel-card recommendation-panel-card">
-              <header className="recommendation-panel-header">
-                <p className="recommendation-panel-kicker">빠른 진입점</p>
-                <div className="recommendation-panel-title-row">
-                  <h2>추천 링크</h2>
-                  <p className="recommendation-panel-helper">
-                    자주 다시 여는 링크입니다.
-                  </p>
-                </div>
-              </header>
-              <div className="recommendation-grid">
-              <div className="recommendation-column">
-                <h3>즐겨찾기 추천</h3>
-                {recommendations.favorites.length === 0 ? <p>추천 링크가 없습니다.</p> : null}
-                <ul className="recommendation-list">
-                  {recommendations.favorites.map((bookmark) => (
-                    <li key={`favorite-${bookmark.id}`} className="recommendation-item">
-                      <div className="recommendation-copy">
-                        <span className="meta-pill meta-pill-accent">
-                          {getRecommendationReasonLabel("favorites")}
-                        </span>
-                        <strong>{bookmark.displayTitle || bookmark.url}</strong>
-                        <p className="recommendation-meta-line">{getFolderName(bookmark.folderId)}</p>
-                        <p className="muted-text">
-                          {hasTextContent(bookmark.displaySummary)
-                            ? bookmark.displaySummary
-                            : "요약 없음"}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        className="ghost-button recommendation-action-button"
-                        aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
-                        onClick={() => void handleBookmarkOpen(bookmark)}
-                      >
-                        열기
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="recommendation-column">
-                <h3>최근 열람</h3>
-                <ul className="recommendation-list">
-                  {recommendations.recent.map((bookmark) => (
-                    <li key={`recent-${bookmark.id}`} className="recommendation-item">
-                      <div className="recommendation-copy">
-                        <span className="meta-pill meta-pill-accent">
-                          {getRecommendationReasonLabel("recent")}
-                        </span>
-                        <strong>{bookmark.displayTitle || bookmark.url}</strong>
-                        <p className="recommendation-meta-line">{getFolderName(bookmark.folderId)}</p>
-                        <p className="muted-text">
-                          {hasTextContent(bookmark.displaySummary)
-                            ? bookmark.displaySummary
-                            : "요약 없음"}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        className="ghost-button recommendation-action-button"
-                        aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
-                        onClick={() => void handleBookmarkOpen(bookmark)}
-                      >
-                        열기
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="recommendation-column">
-                <h3>자주 연 링크</h3>
-                <ul className="recommendation-list">
-                  {recommendations.frequent.map((bookmark) => (
-                    <li key={`frequent-${bookmark.id}`} className="recommendation-item">
-                      <div className="recommendation-copy">
-                        <span className="meta-pill meta-pill-accent">
-                          {getRecommendationReasonLabel("frequent")}
-                        </span>
-                        <strong>{bookmark.displayTitle || bookmark.url}</strong>
-                        <p className="recommendation-meta-line">{getFolderName(bookmark.folderId)}</p>
-                        <p className="muted-text">
-                          {hasTextContent(bookmark.displaySummary)
-                            ? bookmark.displaySummary
-                            : "요약 없음"}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        className="ghost-button recommendation-action-button"
-                        aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
-                        onClick={() => void handleBookmarkOpen(bookmark)}
-                      >
-                        열기
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              </div>
-            </section>
+            {shouldUseMobileSidebarPanels ? recommendationSection : null}
             <section aria-label="bookmark-list" className="surface-card panel-card">
             <header className="bookmark-list-header">
-              <p className="bookmark-list-kicker">보관 목록</p>
               <div className="bookmark-list-title-row">
-                <h2>저장된 북마크</h2>
-                <p className="bookmark-list-helper">
-                  정리된 링크와 상태 배지를 한 번에 훑어보고 바로 동작합니다.
-                </p>
+                <div className="bookmark-list-heading-copy">
+                  <h2>저장된 북마크</h2>
+                </div>
+                <div className="bookmark-list-header-actions">
+                  <button
+                    type="button"
+                    className="ghost-button bookmark-list-hidden-toggle"
+                    aria-label={showHiddenBookmarks ? "숨김 북마크 숨기기" : "숨김 북마크 보기"}
+                    aria-pressed={showHiddenBookmarks}
+                    onClick={() => handleToggleHiddenBookmarks()}
+                  >
+                    <span aria-hidden="true" className="bookmark-list-hidden-toggle-icon">
+                      {showHiddenBookmarks ? "🔓" : "🔒"}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button bookmark-list-export-button"
+                    aria-label="북마크 내보내기"
+                    onClick={() => void handleBookmarkExport()}
+                  >
+                    내보내기
+                  </button>
+                </div>
               </div>
             </header>
-            {isLoadingDashboard ? <p>대시보드 데이터를 불러오는 중입니다.</p> : null}
-            {bookmarks.length === 0 ? <p>아직 저장된 북마크가 없습니다.</p> : null}
-            <ul className="bookmark-grid">
-              {bookmarks.map((bookmark) => (
-                <li key={bookmark.id} className="bookmark-card">
-                  <div className="bookmark-card-header">
-                    <div className="bookmark-card-title-block">
-                      <strong>{bookmark.displayTitle || bookmark.url}</strong>
-                      <p className="muted-text">{bookmark.url}</p>
-                    </div>
-                    <div className="meta-pill-list bookmark-card-primary-meta">
-                      <span className="meta-pill">{getFolderName(bookmark.folderId)}</span>
-                      {bookmark.isFavorite ? <span className="meta-pill">즐겨찾기</span> : null}
-                    </div>
-                  </div>
-                  <div className="meta-pill-list">
-                    <span className="meta-pill">{getBookmarkSummaryStateLabel(bookmark)}</span>
-                    <span className="meta-pill">태그 {bookmark.tagIds.length}개</span>
-                    {(bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0) > 0 ? (
-                      <span className="meta-pill">
-                        이미지 {bookmarkAssetsByBookmarkId[bookmark.id].length}장
-                      </span>
-                    ) : null}
-                    {bookmark.bookmarkColor || bookmark.urlColor ? (
-                      <span className="meta-pill">
-                        {shouldUseCompactMobileCards
-                          ? "색상 설정됨"
-                          : `색상 ${
-                              Number(Boolean(bookmark.bookmarkColor)) +
-                              Number(Boolean(bookmark.urlColor))
-                            }개`}
-                      </span>
-                    ) : null}
-                  </div>
-                  {bookmark.displaySummary ? (
-                    <p className={shouldUseCompactMobileCards ? "bookmark-card-summary" : undefined}>
-                      {bookmark.displaySummary}
-                    </p>
-                  ) : null}
-                  {!shouldUseCompactMobileCards &&
-                  (bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0) > 0 ? (
-                    <div className="asset-grid">
-                      {bookmarkAssetsByBookmarkId[bookmark.id].map((asset, index) => (
-                        <img
-                          key={asset.id}
-                          src={asset.contentUrl}
-                          alt={`업로드 이미지 ${index + 1}`}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
-                  <div className="action-row bookmark-card-actions">
-                    <button type="button" className="primary-button" onClick={() => void handleBookmarkOpen(bookmark)}>
-                      열기 {bookmark.displayTitle || bookmark.url}
-                    </button>
-                    <button type="button" className="secondary-button" onClick={() => void openBookmarkDetail(bookmark.id)}>
-                      상세 보기
-                    </button>
-                    {shouldUseCompactMobileCards ? (
-                      <>
-                        <button type="button" className="secondary-button" onClick={() => beginBookmarkEdit(bookmark)}>
-                          수정
-                        </button>
-                        <button type="button" className="danger-button" onClick={() => void handleBookmarkDelete(bookmark)}>
-                          삭제
-                        </button>
-                      </>
-                    ) : (
-                      <div className="folder-action-menu-shell bookmark-card-menu-shell">
-                        <button
-                          type="button"
-                          className="ghost-button folder-action-trigger"
-                          aria-label={`${bookmark.displayTitle || bookmark.url} 북마크 더보기`}
-                          aria-expanded={openBookmarkActionMenuId === bookmark.id}
-                          onClick={() => toggleBookmarkActionMenu(bookmark.id)}
+            {isLoadingDashboard ? (
+              <p className="quiet-empty-state">대시보드 데이터를 불러오는 중입니다.</p>
+            ) : null}
+            {visibleBookmarks.length === 0 ? (
+              <p className="quiet-empty-state">보관한 북마크가 없습니다.</p>
+            ) : null}
+            <ul className="bookmark-grid bookmark-list-table">
+              {visibleBookmarks.map((bookmark) => {
+                const bookmarkTagItems = getTagDisplayItems(bookmark.tagIds);
+                const visibleBookmarkTagItems = bookmarkTagItems.slice(
+                  0,
+                  shouldUseCompactMobileCards ? 1 : 2
+                );
+                const remainingBookmarkTagCount = Math.max(
+                  0,
+                  bookmarkTagItems.length - visibleBookmarkTagItems.length
+                );
+                const bookmarkAssetCount = bookmarkAssetsByBookmarkId[bookmark.id]?.length ?? 0;
+
+                return (
+                <li
+                  key={bookmark.id}
+                  className="bookmark-card bookmark-list-row"
+                  style={
+                    bookmark.bookmarkColor
+                      ? {
+                          borderLeftColor: bookmark.bookmarkColor,
+                          borderLeftWidth: "3px"
+                        }
+                      : undefined
+                  }
+                >
+                    <div
+                    className="bookmark-row-main bookmark-row-click-target"
+                    onClick={() => void openBookmarkDetail(bookmark.id, bookmark)}
+                  >
+                    <div className="bookmark-card-header">
+                      <div className="bookmark-card-title-block">
+                        <strong>{bookmark.displayTitle || bookmark.url}</strong>
+                        <p
+                          className="muted-text bookmark-row-url"
+                          title={bookmark.url}
+                          style={bookmark.urlColor ? { color: bookmark.urlColor } : undefined}
                         >
-                          더보기
-                        </button>
-                        {openBookmarkActionMenuId === bookmark.id ? (
-                          <div
-                            role="menu"
-                            aria-label={`${bookmark.displayTitle || bookmark.url} 북마크 메뉴`}
-                            className="folder-action-menu"
-                          >
-                            <button
-                              type="button"
-                              className="secondary-button folder-action-menu-item"
-                              onClick={() => beginBookmarkEdit(bookmark)}
-                            >
-                              {bookmark.displayTitle || bookmark.url} 북마크 수정
-                            </button>
-                            <button
-                              type="button"
-                              className="danger-button folder-action-menu-item"
-                              onClick={() => void handleBookmarkDelete(bookmark)}
-                            >
-                              {bookmark.displayTitle || bookmark.url} 북마크 삭제
-                            </button>
-                          </div>
-                        ) : null}
+                          {bookmark.url}
+                        </p>
                       </div>
-                    )}
+                    </div>
+                    {hasTextContent(getBookmarkPreviewText(bookmark)) ? (
+                      <p
+                        className={`bookmark-row-summary${
+                          shouldUseCompactMobileCards ? " bookmark-card-summary" : ""
+                        }`}
+                      >
+                        {getBookmarkPreviewText(bookmark)}
+                      </p>
+                    ) : null}
+                    {!shouldUseCompactMobileCards && bookmarkAssetCount > 0 ? (
+                      <div className="asset-grid bookmark-row-assets">
+                        {bookmarkAssetsByBookmarkId[bookmark.id].map((asset, index) => (
+                          <img
+                            key={asset.id}
+                            src={asset.contentUrl}
+                            alt={`업로드 이미지 ${index + 1}`}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div
+                    className="bookmark-row-meta bookmark-row-click-target"
+                    onClick={() => void openBookmarkDetail(bookmark.id, bookmark)}
+                  >
+                    <div className="bookmark-row-meta-line bookmark-row-meta-primary">
+                      <span className="bookmark-row-meta-item">{getFolderName(bookmark.folderId)}</span>
+                      {bookmark.isFavorite ? (
+                        <span className="bookmark-row-meta-item">즐겨찾기</span>
+                      ) : null}
+                    </div>
+                    <div className="bookmark-row-meta-line bookmark-row-meta-secondary">
+                      <span className="bookmark-row-meta-item">
+                        {getBookmarkSummaryStateLabel(bookmark)}
+                      </span>
+                      {visibleBookmarkTagItems.map((tag) => (
+                        <span
+                          key={`${bookmark.id}-${tag.id}`}
+                          className="bookmark-row-meta-item"
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                      {remainingBookmarkTagCount > 0 ? (
+                        <span className="bookmark-row-meta-item">+{remainingBookmarkTagCount}</span>
+                      ) : null}
+                      {bookmarkAssetCount > 0 ? (
+                        <span className="bookmark-row-meta-item">이미지 {bookmarkAssetCount}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="action-row bookmark-card-actions bookmark-row-actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
+                      onClick={() => void handleBookmarkOpen(bookmark)}
+                    >
+                      열기
+                    </button>
+                    <div className="bookmark-card-secondary-actions">
+                      {shouldUseCompactMobileCards ? (
+                        <>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            aria-label={`${bookmark.displayTitle || bookmark.url} 상세 보기`}
+                            onClick={() => void openBookmarkDetail(bookmark.id, bookmark)}
+                          >
+                            보기
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            aria-label={`${bookmark.displayTitle || bookmark.url} 북마크 수정`}
+                            onClick={() => beginBookmarkEdit(bookmark)}
+                          >
+                            편집
+                          </button>
+                          <button
+                            type="button"
+                            className="danger-button"
+                            onClick={() => void handleBookmarkDelete(bookmark)}
+                          >
+                            삭제
+                          </button>
+                        </>
+                      ) : (
+                        <div className="folder-action-menu-shell bookmark-card-menu-shell">
+                          <button
+                            type="button"
+                            className="ghost-button folder-action-trigger overflow-trigger"
+                            aria-label={`${bookmark.displayTitle || bookmark.url} 북마크 더보기`}
+                            aria-expanded={openBookmarkActionMenuId === bookmark.id}
+                            onClick={() => toggleBookmarkActionMenu(bookmark.id)}
+                          >
+                            ...
+                          </button>
+                          {openBookmarkActionMenuId === bookmark.id ? (
+                            <div
+                              role="menu"
+                              aria-label={`${bookmark.displayTitle || bookmark.url} 북마크 메뉴`}
+                              className="folder-action-menu"
+                            >
+                              <button
+                                type="button"
+                                className="secondary-button folder-action-menu-item"
+                                onClick={() => void openBookmarkDetail(bookmark.id, bookmark)}
+                              >
+                                상세 보기
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary-button folder-action-menu-item"
+                                onClick={() => beginBookmarkEdit(bookmark)}
+                              >
+                                수정
+                              </button>
+                              <button
+                                type="button"
+                                className="danger-button folder-action-menu-item"
+                                onClick={() => void handleBookmarkDelete(bookmark)}
+                              >
+                                삭제
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </li>
-              ))}
+              )})}
             </ul>
           </section>
           </div>
           <aside role="region" aria-label="bookmark-reading-rail" className="bookmark-reading-rail">
             <section aria-label="bookmark-detail-shell" className="bookmark-detail-region">
-            {selectedBookmark ? (
-              <section aria-label="bookmark-detail" className="surface-card panel-card bookmark-detail-card">
+            {visibleSelectedBookmark ? (
+              <section
+                aria-label="bookmark-detail"
+                className="surface-card panel-card bookmark-detail-card"
+                aria-busy={isLoadingSelectedBookmark || isLoadingSelectedBookmarkAssets}
+                style={
+                  visibleSelectedBookmark.bookmarkColor
+                    ? {
+                        borderLeftColor: visibleSelectedBookmark.bookmarkColor,
+                        borderLeftWidth: "3px"
+                      }
+                    : undefined
+                }
+              >
                 <header className="bookmark-detail-header">
                   <p className="bookmark-detail-kicker">읽기 중심</p>
+                  {selectedBookmarkStatusMessage ? (
+                    <p className="bookmark-detail-loading-status" aria-live="polite">
+                      {selectedBookmarkStatusMessage}
+                    </p>
+                  ) : null}
                   <div className="bookmark-detail-title-row">
                     <div className="bookmark-detail-title-copy">
                       <h2>북마크 상세</h2>
-                      <strong>{selectedBookmark.displayTitle || selectedBookmark.url}</strong>
+                      <strong>{visibleSelectedBookmark.displayTitle || visibleSelectedBookmark.url}</strong>
                     </div>
-                    <p className="muted-text">{selectedBookmark.url}</p>
+                    <p
+                      className="muted-text bookmark-detail-url"
+                      title={visibleSelectedBookmark.url}
+                      style={visibleSelectedBookmark.urlColor ? { color: visibleSelectedBookmark.urlColor } : undefined}
+                    >
+                      {visibleSelectedBookmark.url}
+                    </p>
                   </div>
                 </header>
-                <div className="meta-pill-list bookmark-detail-meta">
-                  <span className="meta-pill">{getFolderName(selectedBookmark.folderId)}</span>
-                  <span className="meta-pill">{getBookmarkSummaryStateLabel(selectedBookmark)}</span>
-                  <span className="meta-pill">태그 {selectedBookmark.tagIds.length}개</span>
-                  {selectedBookmarkAssetCount > 0 ? (
-                    <span className="meta-pill">이미지 {selectedBookmarkAssetCount}장</span>
+                <div className="bookmark-detail-meta">
+                  <div className="bookmark-detail-meta-line bookmark-detail-meta-primary">
+                    <span className="bookmark-detail-meta-item">
+                      {getFolderName(visibleSelectedBookmark.folderId)}
+                    </span>
+                    <span className="bookmark-detail-meta-item">
+                      {getBookmarkSummaryStateLabel(visibleSelectedBookmark)}
+                    </span>
+                  </div>
+                  {selectedBookmarkVisibleTagItems.length > 0 ||
+                  selectedBookmarkRemainingTagCount > 0 ||
+                  selectedBookmarkAssetCount > 0 ? (
+                    <div className="bookmark-detail-meta-line">
+                      {selectedBookmarkVisibleTagItems.map((tag) => (
+                        <span
+                          key={`${visibleSelectedBookmark.id}-${tag.id}`}
+                          className="bookmark-detail-meta-item"
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                      {selectedBookmarkRemainingTagCount > 0 ? (
+                        <span className="bookmark-detail-meta-item">
+                          +{selectedBookmarkRemainingTagCount}
+                        </span>
+                      ) : null}
+                      {selectedBookmarkAssetCount > 0 ? (
+                        <span className="bookmark-detail-meta-item">
+                          이미지 {selectedBookmarkAssetCount}
+                        </span>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
-                {selectedBookmarkTagNames.length > 0 ? (
-                  <p className="bookmark-detail-tag-line">{selectedBookmarkTagNames.join(", ")}</p>
-                ) : null}
 
                 <section className="detail-block">
-                  <h3>직접 정리한 내용</h3>
+                  <h3>직접 정리</h3>
                   {selectedBookmarkUserDetailRows.map((row) => (
                     <div key={row.label} className="detail-row">
                       <p className="detail-row-label">{row.label}</p>
@@ -3402,12 +5313,12 @@ export default function App() {
                     </div>
                   ))}
                   {selectedBookmarkUserDetailRows.length === 0 ? (
-                    <p>사용자 입력값이 없습니다.</p>
+                    <p className="quiet-empty-state">사용자 입력값이 없습니다.</p>
                   ) : null}
                 </section>
 
                 <section className="detail-block">
-                  <h3>자동 추출 내용</h3>
+                  <h3>자동 추출</h3>
                   {selectedBookmarkSourceDetailRows.map((row) => (
                     <div key={row.label} className="detail-row">
                       <p className="detail-row-label">{row.label}</p>
@@ -3415,13 +5326,13 @@ export default function App() {
                     </div>
                   ))}
                   {selectedBookmarkSourceDetailRows.length === 0 ? (
-                    <p>자동 추출값이 없습니다.</p>
+                    <p className="quiet-empty-state">자동 추출값이 없습니다.</p>
                   ) : null}
                 </section>
 
                 {selectedBookmarkAssetCount > 0 ? (
                   <div className="asset-grid">
-                    {bookmarkAssetsByBookmarkId[selectedBookmark.id].map((asset, index) => (
+                    {bookmarkAssetsByBookmarkId[visibleSelectedBookmark.id].map((asset, index) => (
                       <img
                         key={asset.id}
                         src={asset.contentUrl}
@@ -3429,34 +5340,41 @@ export default function App() {
                       />
                     ))}
                   </div>
+                ) : isLoadingSelectedBookmarkAssets ? (
+                  <p className="quiet-empty-state" aria-live="polite">
+                    이미지를 불러오는 중...
+                  </p>
                 ) : (
-                  <p>업로드된 이미지가 없습니다.</p>
+                  <p className="quiet-empty-state">이미지가 없습니다.</p>
                 )}
 
                 <div className="bookmark-detail-actions">
                   <button
                     type="button"
                     className="primary-button"
-                    onClick={() => void handleBookmarkOpen(selectedBookmark)}
+                    aria-label={`${visibleSelectedBookmark.displayTitle || visibleSelectedBookmark.url} 열기`}
+                    onClick={() => void handleBookmarkOpen(visibleSelectedBookmark)}
                   >
-                    열기 {selectedBookmark.displayTitle || selectedBookmark.url}
+                    열기
                   </button>
-                  <button
-                    type="button"
-                    className="ghost-button"
-                    onClick={() => closeBookmarkDetail()}
-                  >
-                    닫기
-                  </button>
+                  <div className="bookmark-detail-secondary-actions">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      aria-label="상세 닫기"
+                      onClick={() => closeBookmarkDetail()}
+                    >
+                      목록
+                    </button>
                   <div className="folder-action-menu-shell bookmark-detail-menu-shell">
                     <button
                       type="button"
-                      className="ghost-button folder-action-trigger"
+                      className="ghost-button folder-action-trigger overflow-trigger"
                       aria-label="상세 작업 더보기"
                       aria-expanded={isBookmarkDetailActionMenuOpen}
                       onClick={() => toggleBookmarkDetailActionMenu()}
                     >
-                      더보기
+                      ...
                     </button>
                     {isBookmarkDetailActionMenuOpen ? (
                       <div
@@ -3467,63 +5385,82 @@ export default function App() {
                         <button
                           type="button"
                           className="secondary-button folder-action-menu-item"
-                          onClick={() => void beginBookmarkEdit(selectedBookmark)}
+                          onClick={() => void beginBookmarkEdit(visibleSelectedBookmark)}
                         >
                           수정 시작
                         </button>
                         <button
                           type="button"
                           className="secondary-button folder-action-menu-item"
-                          onClick={() => void handleBookmarkReextract(selectedBookmark.id)}
+                          onClick={() => void handleBookmarkReextract(visibleSelectedBookmark.id)}
                         >
                           자동 추출 다시 시도
                         </button>
                         <button
                           type="button"
                           className="secondary-button folder-action-menu-item"
-                          onClick={() => void handleResetUserContent(selectedBookmark.id)}
+                          onClick={() => void handleResetSourceContent(visibleSelectedBookmark.id)}
+                        >
+                          자동 추출 초기화
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button folder-action-menu-item"
+                          onClick={() => void handleResetUserContent(visibleSelectedBookmark.id)}
                         >
                           사용자 입력 초기화
                         </button>
                         <button
                           type="button"
                           className="danger-button folder-action-menu-item"
-                          onClick={() => void handleBookmarkDelete(selectedBookmark)}
+                          onClick={() => void handleBookmarkDelete(visibleSelectedBookmark)}
                         >
                           삭제
                         </button>
                       </div>
                     ) : null}
                   </div>
+                  </div>
                 </div>
+              </section>
+            ) : isLoadingSelectedBookmark ? (
+              <section className="surface-card panel-card bookmark-detail-placeholder">
+                <p className="bookmark-detail-kicker">읽기 중심</p>
+                <h2>북마크를 불러오는 중입니다</h2>
+                <p className="muted-text">상세 내용을 준비하고 있습니다.</p>
               </section>
             ) : (
               <section className="surface-card panel-card bookmark-detail-placeholder">
                 <p className="bookmark-detail-kicker">읽기 중심</p>
                 <h2>상세 북마크를 선택하세요</h2>
                 <p className="muted-text">
-                  목록이나 추천 링크에서 상세 보기를 누르면 제목, 자동 추출값, 사용자 입력값,
-                  업로드 이미지와 빠른 조작이 이 영역에 정리됩니다.
+                  목록이나 추천에서 보기를 누르면 이곳에 정리됩니다.
                 </p>
               </section>
             )}
             </section>
+            {!shouldUseMobileSidebarPanels ? recommendationSection : null}
           </aside>
           </section>
           {shouldRenderDesktopBookmarkComposer ? (
-            <div className="overlay-backdrop">
+            <div className="overlay-backdrop" onClick={() => requestCloseBookmarkComposer()}>
               <section
                 role="dialog"
                 aria-modal="true"
                 aria-label="bookmark-composer-dialog"
                 className="surface-card overlay-dialog-shell"
+                onClick={(event) => event.stopPropagation()}
               >
                 <div className="overlay-dialog-header">
                   <div className="overlay-dialog-title">
-                    <p className="workspace-panel-kicker">작성 오버레이</p>
+                    <p className="workspace-panel-kicker">작성</p>
                     <h2>{editingBookmarkId ? "북마크 수정" : "새 북마크"}</h2>
                   </div>
-                  <button type="button" className="ghost-button" onClick={() => cancelBookmarkEdit()}>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => requestCloseBookmarkComposer()}
+                  >
                     닫기
                   </button>
                 </div>
@@ -3540,7 +5477,7 @@ export default function App() {
                           <section className="bookmark-composer-section">
                             <div className="bookmark-composer-section-header">
                               <h3>기본 정보</h3>
-                              <p>저장 URL과 폴더, 표시 제목을 먼저 정리합니다.</p>
+                              <p>URL, 폴더, 제목을 먼저 정리합니다.</p>
                             </div>
                             <label>
                               URL
@@ -3596,8 +5533,8 @@ export default function App() {
 
                           <section className="bookmark-composer-section">
                             <div className="bookmark-composer-section-header">
-                              <h3>내용과 요약</h3>
-                              <p>읽기 전에 보이는 핵심 설명을 정리합니다.</p>
+                              <h3>내용/요약</h3>
+                              <p>읽기 전 핵심 설명을 정리합니다.</p>
                             </div>
                             <label>
                               내용
@@ -3640,7 +5577,9 @@ export default function App() {
                               <div className="bookmark-composer-disclosure-body">
                                 <fieldset className="tag-fieldset">
                                   <legend>태그 선택</legend>
-                                  {tags.length === 0 ? <p>등록된 태그가 없습니다.</p> : null}
+                                  {tags.length === 0 ? (
+                                    <p className="quiet-empty-state">태그가 없습니다.</p>
+                                  ) : null}
                                   <div className="pill-list">
                                     {tags.map((tag) => (
                                       <label key={tag.id} className="pill-option">
@@ -3651,22 +5590,34 @@ export default function App() {
                                           checked={bookmarkDraft.tagIds.includes(tag.id)}
                                           onChange={(event) => toggleBookmarkTag(tag.id, event.target.checked)}
                                         />
-                                        {tag.name}
+                                        {renderTagLabel(tag.name, tag.color, "tag-option-label")}
                                       </label>
                                     ))}
                                   </div>
                                 </fieldset>
-                                <label>
-                                  즐겨찾기
-                                  <input
-                                    name="isFavorite"
-                                    type="checkbox"
-                                    checked={bookmarkDraft.isFavorite}
-                                    onChange={(event) =>
-                                      updateBookmarkDraft({ isFavorite: event.target.checked })
-                                    }
-                                  />
-                                </label>
+                                {quickTagCreateSection}
+                                {renderCheckboxField({
+                                  label: "즐겨찾기",
+                                  inputProps: {
+                                    name: "isFavorite",
+                                    checked: bookmarkDraft.isFavorite,
+                                    onChange: (event) =>
+                                      updateBookmarkDraft({
+                                        isFavorite: event.currentTarget.checked
+                                      })
+                                  }
+                                })}
+                                {renderCheckboxField({
+                                  label: "숨김 북마크",
+                                  inputProps: {
+                                    name: "isHidden",
+                                    checked: bookmarkDraft.isHidden,
+                                    onChange: (event) =>
+                                      updateBookmarkDraft({
+                                        isHidden: event.currentTarget.checked
+                                      })
+                                  }
+                                })}
                               </div>
                             ) : null}
                           </section>
@@ -3692,62 +5643,13 @@ export default function App() {
                             </button>
                             {isBookmarkComposerDisplayOpen ? (
                               <div className="bookmark-composer-disclosure-body">
-                                <label>
-                                  북마크 색상
-                                  <input
-                                    name="bookmarkColor"
-                                    value={bookmarkDraft.bookmarkColor}
-                                    onChange={(event) =>
-                                      updateBookmarkDraft({ bookmarkColor: event.target.value })
-                                    }
-                                  />
-                                </label>
-                                <label>
-                                  URL 색상
-                                  <input
-                                    name="urlColor"
-                                    value={bookmarkDraft.urlColor}
-                                    onChange={(event) => updateBookmarkDraft({ urlColor: event.target.value })}
-                                  />
-                                </label>
-                                <label>
-                                  이미지 업로드
-                                  <input
-                                    name="bookmarkAssetFile"
-                                    type="file"
-                                    accept="image/*"
-                                    multiple
-                                    onChange={(event) =>
-                                      setPendingAssetFiles(Array.from(event.target.files ?? []))
-                                    }
-                                  />
-                                </label>
-                                {pendingAssetFiles.length > 0 ? (
-                                  <ul className="inline-file-list">
-                                    {pendingAssetFiles.map((file) => (
-                                      <li key={`${file.name}-${file.size}`}>{file.name}</li>
-                                    ))}
-                                  </ul>
-                                ) : null}
-                                {editingBookmarkId &&
-                                (bookmarkAssetsByBookmarkId[editingBookmarkId]?.length ?? 0) > 0 ? (
-                                  <div className="asset-grid">
-                                    {bookmarkAssetsByBookmarkId[editingBookmarkId].map((asset, index) => (
-                                      <div key={asset.id} className="asset-item">
-                                        <img src={asset.contentUrl} alt={`업로드 이미지 ${index + 1}`} />
-                                        <button
-                                          type="button"
-                                          className="ghost-button"
-                                          onClick={() =>
-                                            void handleBookmarkAssetDelete(editingBookmarkId, asset.id)
-                                          }
-                                        >
-                                          이미지 삭제 {index + 1}
-                                        </button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : null}
+                                {renderColorPicker("북마크 색상", bookmarkDraft.bookmarkColor, (value) =>
+                                  updateBookmarkDraft({ bookmarkColor: value })
+                                )}
+                                {renderColorPicker("url 색상", bookmarkDraft.urlColor, (value) =>
+                                  updateBookmarkDraft({ urlColor: value })
+                                )}
+                                {renderPendingAssetComposerSection(editingBookmarkId)}
                               </div>
                             ) : null}
                           </section>
@@ -3776,19 +5678,24 @@ export default function App() {
             </div>
           ) : null}
           {shouldRenderDesktopFolderManager ? (
-            <div className="overlay-backdrop">
+            <div className="overlay-backdrop" onClick={() => requestCloseFolderManager()}>
               <section
                 role="dialog"
                 aria-modal="true"
                 aria-label="folder-manager-dialog"
                 className="surface-card overlay-dialog-shell"
+                onClick={(event) => event.stopPropagation()}
               >
                 <div className="overlay-dialog-header">
                   <div className="overlay-dialog-title">
-                    <p className="workspace-panel-kicker">구조 오버레이</p>
+                    <p className="workspace-panel-kicker">구조</p>
                     <h2>{editingFolderId ? "폴더 수정" : "폴더 관리"}</h2>
                   </div>
-                  <button type="button" className="ghost-button" onClick={() => closeFolderManager()}>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => requestCloseFolderManager()}
+                  >
                     닫기
                   </button>
                 </div>
@@ -3806,19 +5713,24 @@ export default function App() {
             </div>
           ) : null}
           {shouldRenderDesktopTagManager ? (
-            <div className="overlay-backdrop">
+            <div className="overlay-backdrop" onClick={() => requestCloseTagManager()}>
               <section
                 role="dialog"
                 aria-modal="true"
                 aria-label="tag-manager-dialog"
                 className="surface-card overlay-dialog-shell"
+                onClick={(event) => event.stopPropagation()}
               >
                 <div className="overlay-dialog-header">
                   <div className="overlay-dialog-title">
-                    <p className="workspace-panel-kicker">분류 오버레이</p>
+                    <p className="workspace-panel-kicker">분류</p>
                     <h2>{editingTagId ? "태그 수정" : "태그 관리"}</h2>
                   </div>
-                  <button type="button" className="ghost-button" onClick={() => closeTagManager()}>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => requestCloseTagManager()}
+                  >
                     닫기
                   </button>
                 </div>
@@ -3831,6 +5743,149 @@ export default function App() {
                     regionLabel: "tag-manager",
                     children: renderTagManagerContent()
                   })}
+                </div>
+              </section>
+            </div>
+          ) : null}
+          {isExtensionTokenDialogOpen ? (
+            <div className="overlay-backdrop" onClick={() => requestCloseExtensionTokenDialog()}>
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-label="extension-token-dialog"
+                className="surface-card overlay-dialog-shell"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="overlay-dialog-header">
+                  <div className="overlay-dialog-title">
+                    <p className="workspace-panel-kicker">확장</p>
+                    <h2>확장 토큰 관리</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => requestCloseExtensionTokenDialog()}
+                  >
+                    닫기
+                  </button>
+                </div>
+                <div className="overlay-dialog-panel extension-token-panel">
+                  <section className="surface-card extension-token-create-card">
+                    <div className="bookmark-composer-section-header">
+                      <h3>새 토큰</h3>
+                      <p>Chrome/Edge 확장에서 사용할 토큰을 발급합니다.</p>
+                    </div>
+                    <label>
+                      토큰 이름
+                      <input
+                        name="extensionTokenLabel"
+                        value={extensionTokenLabelDraft}
+                        onChange={(event) => setExtensionTokenLabelDraft(event.target.value)}
+                        placeholder="예: Chrome desktop"
+                      />
+                    </label>
+                    <div className="action-row">
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => void handleExtensionTokenCreate()}
+                      >
+                        토큰 발급
+                      </button>
+                    </div>
+                  </section>
+                  {latestIssuedExtensionToken ? (
+                    <section className="surface-card extension-token-secret-card">
+                      <div className="bookmark-composer-section-header">
+                        <h3>방금 발급한 토큰</h3>
+                        <p>이 값은 지금만 다시 확인할 수 있습니다.</p>
+                      </div>
+                      <code>{latestIssuedExtensionToken}</code>
+                    </section>
+                  ) : null}
+                  <section className="surface-card extension-token-list-card">
+                    <div className="bookmark-composer-section-header">
+                      <h3>발급된 토큰</h3>
+                      <p>사용하지 않는 토큰은 바로 폐기할 수 있습니다.</p>
+                    </div>
+                    {extensionTokens.length > 0 ? (
+                      <ul className="extension-token-list">
+                        {extensionTokens.map((token) => (
+                          <li key={token.id} className="extension-token-row">
+                            <div className="extension-token-copy">
+                              <strong>{token.label}</strong>
+                              <span>{new Date(token.createdAt).toLocaleString("ko-KR")}</span>
+                            </div>
+                            <button
+                              type="button"
+                              className="ghost-button"
+                              aria-label={`${token.label} 토큰 삭제`}
+                              onClick={() => void handleExtensionTokenRevoke(token.id)}
+                            >
+                              삭제
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="muted-text">아직 발급한 확장 토큰이 없습니다.</p>
+                    )}
+                  </section>
+                </div>
+              </section>
+            </div>
+          ) : null}
+          {isExtensionDownloadDialogOpen ? (
+            <div className="overlay-backdrop" onClick={() => closeExtensionDownloadDialog()}>
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-label="extension-download-dialog"
+                className="surface-card overlay-dialog-shell"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="overlay-dialog-header">
+                  <div className="overlay-dialog-title">
+                    <p className="workspace-panel-kicker">확장</p>
+                    <h2>브라우저 확장 다운로드</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => closeExtensionDownloadDialog()}
+                  >
+                    닫기
+                  </button>
+                </div>
+                <div className="overlay-dialog-panel extension-download-panel">
+                  <section className="surface-card extension-download-card">
+                    <div className="bookmark-composer-section-header">
+                      <h3>설치 파일</h3>
+                      <p>Chrome 또는 Edge에서 직접 불러올 수 있는 압축 파일입니다.</p>
+                    </div>
+                    <a
+                      className="primary-button extension-download-link"
+                      href={EXTENSION_DOWNLOAD_PATH}
+                      download
+                    >
+                      확장 다운로드 (.zip)
+                    </a>
+                  </section>
+                  <section className="surface-card extension-download-card">
+                    <div className="bookmark-composer-section-header">
+                      <h3>설치 방법</h3>
+                      <p>스토어 등록 전에는 개발자 모드에서 압축을 해제한 뒤 불러와야 합니다.</p>
+                    </div>
+                    <ol className="extension-download-steps">
+                      <li>다운로드한 zip 파일을 압축 해제합니다.</li>
+                      <li>
+                        Chrome은 <code>chrome://extensions</code>, Edge는{" "}
+                        <code>edge://extensions</code>로 이동합니다.
+                      </li>
+                      <li>개발자 모드를 켠 뒤 압축해제된 확장 프로그램 로드를 누릅니다.</li>
+                      <li>압축을 푼 폴더를 선택하면 바로 사용할 수 있습니다.</li>
+                    </ol>
+                  </section>
                 </div>
               </section>
             </div>
