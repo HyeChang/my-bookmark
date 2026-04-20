@@ -5978,4 +5978,28 @@ img {
   .bookmark-row-actions-mobile-compact .bookmark-card-secondary-actions {
     flex: 0 0 auto;
   }
+
+  .bookmark-list-table,
+  .bookmark-list-row,
+  .bookmark-row-main,
+  .bookmark-row-meta,
+  .bookmark-row-summary,
+  .bookmark-card-summary {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .bookmark-list-row,
+  .bookmark-row-main,
+  .bookmark-row-meta {
+    width: 100%;
+  }
+
+  .bookmark-row-summary,
+  .bookmark-card-summary,
+  .bookmark-row-meta-item {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+  }
 }
