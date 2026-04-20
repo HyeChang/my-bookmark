@@ -121,6 +121,7 @@ export type BookmarkExtractPreview = {
   sourceTitle: string | null;
   sourceContent: string | null;
   sourceSummary: string | null;
+  sourceImageUrl?: string | null;
 };
 
 export type BookmarkExtractResponse = {

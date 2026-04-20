@@ -755,6 +755,10 @@ function getBookmarkPreviewFieldRows(preview: BookmarkExtractPreview | null) {
   ].filter((row) => hasTextContent(row.value));
 }
 
+function getBookmarkPreviewImageAlt(preview: BookmarkExtractPreview) {
+  return `${preview.sourceTitle ?? preview.normalizedUrl ?? preview.url} 미리보기 이미지`;
+}
+
 function getRecommendationReasonLabel(kind: RecommendationKind) {
   switch (kind) {
     case "favorites":
@@ -4271,6 +4275,13 @@ export default function App() {
             ) : null}
             <section className="detail-block">
               <h3>최신 미리보기</h3>
+              {selectedBookmarkLivePreview?.sourceImageUrl ? (
+                <img
+                  className="bookmark-preview-image"
+                  src={selectedBookmarkLivePreview.sourceImageUrl}
+                  alt={getBookmarkPreviewImageAlt(selectedBookmarkLivePreview)}
+                />
+              ) : null}
               {selectedBookmarkLivePreviewRows.map((row) => (
                 <div key={row.label} className="detail-row">
                   <p className="detail-row-label">{row.label}</p>
@@ -6868,6 +6879,13 @@ export default function App() {
                             {bookmarkPreview ? (
                               <section aria-label="bookmark-preview" className="bookmark-preview-card">
                                 <h3>자동 추출 미리보기</h3>
+                                {bookmarkPreview.sourceImageUrl ? (
+                                  <img
+                                    className="bookmark-preview-image"
+                                    src={bookmarkPreview.sourceImageUrl}
+                                    alt={getBookmarkPreviewImageAlt(bookmarkPreview)}
+                                  />
+                                ) : null}
                                 {bookmarkPreview.sourceTitle ? <p>{bookmarkPreview.sourceTitle}</p> : null}
                                 {bookmarkPreview.sourceSummary ? <p>{bookmarkPreview.sourceSummary}</p> : null}
                                 {bookmarkPreview.sourceContent ? <p>{bookmarkPreview.sourceContent}</p> : null}

@@ -6,6 +6,7 @@ export type BookmarkExtractPreviewRecord = {
   sourceTitle: string | null;
   sourceContent: string | null;
   sourceSummary: string | null;
+  sourceImageUrl?: string | null;
 };
 
 export type BookmarkExtractor = {
@@ -47,6 +48,24 @@ function extractMetaContent(html: string, keys: string[]) {
   return null;
 }
 
+function extractLinkHref(html: string, relValues: string[]) {
+  const linkTags = html.match(/<link\b[^>]*>/gi) ?? [];
+
+  for (const linkTag of linkTags) {
+    const rel = readAttribute(linkTag, "rel")?.toLowerCase();
+    if (!rel || !relValues.some((relValue) => rel.split(/\s+/).includes(relValue))) {
+      continue;
+    }
+
+    const href = readAttribute(linkTag, "href");
+    if (href) {
+      return decodeHtmlEntities(href);
+    }
+  }
+
+  return null;
+}
+
 function extractTagContent(html: string, tagName: string) {
   const match = html.match(new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)</${tagName}>`, "i"));
   return match?.[1] ? decodeHtmlEntities(match[1].replace(/\s+/g, " ").trim()) : null;
@@ -67,15 +86,35 @@ function extractPrimaryHtml(html: string) {
   return bodyMatch?.[1] ?? html;
 }
 
+function resolveExtractedUrl(baseUrl: string, value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
 function stripHtml(html: string) {
+  const blockStrippedHtml = html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ");
+  const decodedHtml = decodeHtmlEntities(blockStrippedHtml);
+
   return decodeHtmlEntities(
-    html
+    decodedHtml
       .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
       .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
       .replace(/<!--[\s\S]*?-->/g, " ")
       .replace(/<br\s*\/?>/gi, " ")
-      .replace(/<\/p>/gi, " ")
+      .replace(/<\/(?:p|div|section|article|li|h[1-6])>/gi, " ")
       .replace(/<[^>]+>/g, " ")
+      .replace(/\b[a-z][\w:-]*\s*=\s*(?:"[^"]*"|'[^']*')/gi, " ")
+      .replace(/\s\.[a-z][\w-]+(?=\s|$)/gi, " ")
       .replace(/\s+/g, " ")
       .trim()
   );
@@ -110,6 +149,11 @@ export function extractBookmarkPreviewFromHtml(
     "og:description",
     "twitter:description"
   ]);
+  const sourceImageUrl = resolveExtractedUrl(
+    normalizedUrl,
+    extractMetaContent(html, ["og:image", "og:image:url", "twitter:image", "twitter:image:src"]) ??
+      extractLinkHref(html, ["image_src"])
+  );
   const sourceContent = toNullableText(stripHtml(extractPrimaryHtml(html)));
   const sourceSummary = truncateText(metaDescription ?? sourceContent, 280);
 
@@ -118,7 +162,8 @@ export function extractBookmarkPreviewFromHtml(
     normalizedUrl,
     sourceTitle,
     sourceContent,
-    sourceSummary
+    sourceSummary,
+    sourceImageUrl
   };
 }
 

@@ -8767,7 +8767,8 @@ describe("bookmark dashboard", () => {
               normalizedUrl: "https://example.com/detail",
               sourceTitle: `Fresh preview title ${detailPreviewRequestCount}`,
               sourceContent: `Fresh preview content ${detailPreviewRequestCount}`,
-              sourceSummary: `Fresh preview summary ${detailPreviewRequestCount}`
+              sourceSummary: `Fresh preview summary ${detailPreviewRequestCount}`,
+              sourceImageUrl: "https://example.com/detail-preview.png"
             }
           }),
           {
@@ -8919,6 +8920,9 @@ describe("bookmark dashboard", () => {
     });
     expect(within(detailRegion).getByText(/^Fresh preview content 1$/i)).toBeInTheDocument();
     expect(within(detailRegion).getByText(/^Fresh preview summary 1$/i)).toBeInTheDocument();
+    expect(
+      within(detailRegion).getByRole("img", { name: /Fresh preview title 1 미리보기 이미지/i })
+    ).toHaveAttribute("src", "https://example.com/detail-preview.png");
     expect(within(detailRegion).getByText(/^저장된 자동 추출$/i)).toBeInTheDocument();
     expect(within(detailRegion).getByText(/^Source title$/i)).toBeInTheDocument();
     expect(detailPreviewRequestCount).toBe(1);
