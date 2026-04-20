@@ -115,6 +115,17 @@ export type BookmarkExtractRequest = {
   url: string;
 };
 
+export type BookmarkExtractPreviewBlock =
+  | {
+      type: "heading" | "paragraph" | "list-item";
+      text: string;
+    }
+  | {
+      type: "image";
+      url: string;
+      alt: string | null;
+    };
+
 export type BookmarkExtractPreview = {
   url: string;
   normalizedUrl: string;
@@ -122,6 +133,7 @@ export type BookmarkExtractPreview = {
   sourceContent: string | null;
   sourceSummary: string | null;
   sourceImageUrl?: string | null;
+  sourceBlocks?: BookmarkExtractPreviewBlock[];
 };
 
 export type BookmarkExtractResponse = {

@@ -1,3 +1,5 @@
+import type { BookmarkExtractPreviewBlock } from "@bookmark/shared";
+
 import { normalizeBookmarkUrl } from "../repositories/bookmarks";
 
 export type BookmarkExtractPreviewRecord = {
@@ -7,6 +9,7 @@ export type BookmarkExtractPreviewRecord = {
   sourceContent: string | null;
   sourceSummary: string | null;
   sourceImageUrl?: string | null;
+  sourceBlocks?: BookmarkExtractPreviewBlock[];
 };
 
 export type BookmarkExtractor = {
@@ -98,6 +101,20 @@ function resolveExtractedUrl(baseUrl: string, value: string | null) {
   }
 }
 
+function readImageSource(tag: string) {
+  const src =
+    readAttribute(tag, "src") ??
+    readAttribute(tag, "data-src") ??
+    readAttribute(tag, "data-original-src") ??
+    readAttribute(tag, "data-origin-src");
+  if (src) {
+    return src;
+  }
+
+  const srcset = readAttribute(tag, "srcset") ?? readAttribute(tag, "data-srcset");
+  return srcset?.split(",")[0]?.trim().split(/\s+/)[0] ?? null;
+}
+
 function removeExtractionNoise(value: string) {
   return value
     .replace(/페이지뷰"?\s*>\s*/g, "")
@@ -108,6 +125,14 @@ function removeExtractionNoise(value: string) {
     .replace(/하단 고정 영역\s*>\s*매거진 다른글 클릭"?\s*>[\s\S]*$/g, "")
     .replace(/매거진의\s*(?:이전글|다음글)[\s\S]*$/g, "")
     .replace(/\s*>\s*/g, " ");
+}
+
+function hasTrailingExtractionNoise(value: string) {
+  return (
+    /keyword\s+본문 하단/i.test(value) ||
+    /하단 고정 영역\s*>/i.test(value) ||
+    /매거진의\s*(?:이전글|다음글)/i.test(value)
+  );
 }
 
 function normalizeExtractedText(value: string) {
@@ -158,6 +183,121 @@ function stripHtml(html: string) {
   return normalizeExtractedText(removeExtractionNoise(strippedHtml));
 }
 
+function preparePrimaryHtmlForExtraction(html: string) {
+  return decodeHtmlEntities(
+    html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<!--[\s\S]*?-->/g, " ")
+  );
+}
+
+function extractPreviewBlocks(
+  html: string,
+  baseUrl: string
+): BookmarkExtractPreviewBlock[] {
+  const preparedHtml = preparePrimaryHtmlForExtraction(html);
+  const tokens = preparedHtml.match(/<[^>]+>|[^<]+/g) ?? [];
+  const blocks: BookmarkExtractPreviewBlock[] = [];
+  let pendingText = "";
+  let pendingType: "heading" | "paragraph" | "list-item" = "paragraph";
+  let shouldStop = false;
+
+  function appendText(value: string) {
+    const text = removeExtractionNoise(value);
+    if (!text.trim()) {
+      return;
+    }
+
+    pendingText = pendingText ? `${pendingText} ${text}` : text;
+  }
+
+  function flushText() {
+    const text = normalizeExtractedText(pendingText);
+    pendingText = "";
+    if (!text) {
+      return;
+    }
+
+    blocks.push({ type: pendingType, text });
+  }
+
+  for (const token of tokens) {
+    if (shouldStop) {
+      break;
+    }
+
+    if (!token.startsWith("<")) {
+      if (hasTrailingExtractionNoise(token)) {
+        appendText(token);
+        flushText();
+        shouldStop = true;
+      } else {
+        appendText(token);
+      }
+      continue;
+    }
+
+    const tagName = token.match(/^<\/?\s*([a-z0-9-]+)/i)?.[1]?.toLowerCase();
+    if (!tagName) {
+      continue;
+    }
+
+    if (/^<\s*img\b/i.test(token)) {
+      flushText();
+      const imageUrl = resolveExtractedUrl(baseUrl, readImageSource(token));
+      if (imageUrl) {
+        const alt = toNullableText(stripHtml(readAttribute(token, "alt") ?? "")) ?? null;
+        if (!blocks.some((block) => block.type === "image" && block.url === imageUrl)) {
+          blocks.push({ type: "image", url: imageUrl, alt });
+        }
+      }
+      continue;
+    }
+
+    if (/^<\s*br\b/i.test(token)) {
+      pendingText = pendingText ? `${pendingText}\n` : pendingText;
+      continue;
+    }
+
+    if (/^<\s*\//.test(token)) {
+      if (
+        /^(address|article|aside|blockquote|dd|div|figcaption|figure|footer|h[1-6]|header|li|main|nav|p|section|td|th)$/.test(
+          tagName
+        )
+      ) {
+        flushText();
+        pendingType = "paragraph";
+      }
+      continue;
+    }
+
+    if (/^h[1-6]$/.test(tagName)) {
+      flushText();
+      pendingType = "heading";
+      continue;
+    }
+
+    if (tagName === "li") {
+      flushText();
+      pendingType = "list-item";
+      continue;
+    }
+
+    if (
+      /^(address|article|aside|blockquote|dd|details|div|figcaption|figure|footer|header|main|nav|ol|p|section|table|tbody|td|tfoot|th|thead|tr|ul)$/.test(
+        tagName
+      )
+    ) {
+      flushText();
+      pendingType = "paragraph";
+    }
+  }
+
+  flushText();
+  return blocks.filter((block) => block.type === "image" || block.text.length > 0);
+}
+
 function truncateText(value: string | null, maxLength: number) {
   if (!value) {
     return null;
@@ -192,8 +332,10 @@ export function extractBookmarkPreviewFromHtml(
     extractMetaContent(html, ["og:image", "og:image:url", "twitter:image", "twitter:image:src"]) ??
       extractLinkHref(html, ["image_src"])
   );
-  const sourceContent = toNullableText(stripHtml(extractPrimaryHtml(html)));
+  const primaryHtml = extractPrimaryHtml(html);
+  const sourceContent = toNullableText(stripHtml(primaryHtml));
   const sourceSummary = truncateText(metaDescription ?? sourceContent, 280);
+  const sourceBlocks = extractPreviewBlocks(primaryHtml, normalizedUrl);
 
   return {
     url,
@@ -201,7 +343,8 @@ export function extractBookmarkPreviewFromHtml(
     sourceTitle,
     sourceContent,
     sourceSummary,
-    sourceImageUrl
+    sourceImageUrl,
+    sourceBlocks
   };
 }
 

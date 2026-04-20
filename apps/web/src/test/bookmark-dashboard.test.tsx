@@ -8768,7 +8768,17 @@ describe("bookmark dashboard", () => {
               sourceTitle: `Fresh preview title ${detailPreviewRequestCount}`,
               sourceContent: `Fresh preview content ${detailPreviewRequestCount}`,
               sourceSummary: `Fresh preview summary ${detailPreviewRequestCount}`,
-              sourceImageUrl: "https://example.com/detail-preview.png"
+              sourceImageUrl: "https://example.com/detail-preview.png",
+              sourceBlocks: [
+                { type: "heading", text: `Fresh preview title ${detailPreviewRequestCount}` },
+                { type: "paragraph", text: `Fresh preview content ${detailPreviewRequestCount}` },
+                {
+                  type: "image",
+                  url: "https://example.com/detail-inline.png",
+                  alt: "Fresh inline image"
+                },
+                { type: "paragraph", text: "Fresh preview second paragraph" }
+              ]
             }
           }),
           {
@@ -8916,13 +8926,22 @@ describe("bookmark dashboard", () => {
     fireEvent.click(within(detailRegion).getByRole("tab", { name: /^미리보기$/i }));
 
     await waitFor(() => {
-      expect(within(detailRegion).getByText(/^Fresh preview title 1$/i)).toBeInTheDocument();
+      expect(within(detailRegion).getAllByText(/^Fresh preview title 1$/i).length).toBeGreaterThan(0);
     });
     expect(within(detailRegion).getByText(/^Fresh preview content 1$/i)).toBeInTheDocument();
-    expect(within(detailRegion).getByText(/^Fresh preview summary 1$/i)).toBeInTheDocument();
     expect(
       within(detailRegion).getByRole("img", { name: /Fresh preview title 1 미리보기 이미지/i })
     ).toHaveAttribute("src", "https://example.com/detail-preview.png");
+    const previewArticle = detailRegion.querySelector(".bookmark-preview-article");
+    expect(previewArticle).toBeInTheDocument();
+    expect(
+      Array.from(previewArticle?.children ?? []).map((element) => element.tagName)
+    ).toEqual(["H4", "P", "FIGURE", "P"]);
+    expect(
+      within(previewArticle as HTMLElement).getByRole("img", {
+        name: /Fresh inline image/i
+      })
+    ).toHaveAttribute("src", "https://example.com/detail-inline.png");
     expect(within(detailRegion).getByText(/^저장된 자동 추출$/i)).toBeInTheDocument();
     expect(within(detailRegion).getByText(/^Source title$/i)).toBeInTheDocument();
     expect(detailPreviewRequestCount).toBe(1);
@@ -8944,7 +8963,7 @@ describe("bookmark dashboard", () => {
     fireEvent.click(within(detailRegion).getByRole("tab", { name: /^미리보기$/i }));
 
     await waitFor(() => {
-      expect(within(detailRegion).getByText(/^Fresh preview title 2$/i)).toBeInTheDocument();
+      expect(within(detailRegion).getAllByText(/^Fresh preview title 2$/i).length).toBeGreaterThan(0);
     });
     expect(detailPreviewRequestCount).toBe(2);
     expect(fetchSpy).toHaveBeenCalledWith(

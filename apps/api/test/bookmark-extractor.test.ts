@@ -87,4 +87,41 @@ describe("bookmark extractor", () => {
     expect(preview.sourceContent).not.toContain("매거진의 다음글");
     expect(preview.sourceContent).not.toContain(">");
   });
+
+  it("extracts article preview blocks with images in their original reading order", () => {
+    const preview = extractBookmarkPreviewFromHtml(
+      "https://brunch.co.kr/@pletalk/95",
+      `
+        <html>
+          <head>
+            <meta property="og:image" content="https://img.example.com/cover.png">
+          </head>
+          <body>
+            <article>
+              <h1>raindrop.io : 올인원 북마크 서비스</h1>
+              <p>첫 번째 본문 문단입니다.</p>
+              <figure>
+                <img src="/images/article-screen.png" alt="raindrop 화면">
+              </figure>
+              <p>이미지 뒤에 이어지는 두 번째 본문 문단입니다.</p>
+            </article>
+          </body>
+        </html>
+      `
+    );
+
+    expect(preview.sourceBlocks).toEqual([
+      { type: "heading", text: "raindrop.io : 올인원 북마크 서비스" },
+      { type: "paragraph", text: "첫 번째 본문 문단입니다." },
+      {
+        type: "image",
+        url: "https://brunch.co.kr/images/article-screen.png",
+        alt: "raindrop 화면"
+      },
+      { type: "paragraph", text: "이미지 뒤에 이어지는 두 번째 본문 문단입니다." }
+    ]);
+    expect(preview.sourceContent).toContain(
+      "첫 번째 본문 문단입니다.\n\n이미지 뒤에 이어지는 두 번째 본문 문단입니다."
+    );
+  });
 });

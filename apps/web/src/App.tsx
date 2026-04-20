@@ -17,6 +17,7 @@ import type {
   Bookmark,
   BookmarkAsset,
   BookmarkExtractPreview,
+  BookmarkExtractPreviewBlock,
   BookmarkRelativeDateRange,
   BookmarkSearchMode,
   BookmarkSortMode,
@@ -748,6 +749,11 @@ function getBookmarkPreviewFieldRows(preview: BookmarkExtractPreview | null) {
     return [];
   }
 
+  const hasArticleBlocks = getBookmarkPreviewArticleBlocks(preview).length > 0;
+  if (hasArticleBlocks) {
+    return [];
+  }
+
   return [
     { label: "제목", value: preview.sourceTitle },
     { label: "내용", value: preview.sourceContent },
@@ -757,6 +763,92 @@ function getBookmarkPreviewFieldRows(preview: BookmarkExtractPreview | null) {
 
 function getBookmarkPreviewImageAlt(preview: BookmarkExtractPreview) {
   return `${preview.sourceTitle ?? preview.normalizedUrl ?? preview.url} 미리보기 이미지`;
+}
+
+function getBookmarkPreviewArticleBlocks(preview: BookmarkExtractPreview | null) {
+  return (preview?.sourceBlocks ?? []).filter((block) => {
+    if (block.type === "image") {
+      return hasTextContent(block.url);
+    }
+
+    return hasTextContent(block.text);
+  });
+}
+
+function getBookmarkPreviewArticleImageAlt(
+  preview: BookmarkExtractPreview,
+  block: Extract<BookmarkExtractPreviewBlock, { type: "image" }>,
+  index: number
+) {
+  return block.alt ?? `${preview.sourceTitle ?? preview.normalizedUrl ?? preview.url} 본문 이미지 ${index + 1}`;
+}
+
+function renderBookmarkPreviewArticle(preview: BookmarkExtractPreview) {
+  const blocks = getBookmarkPreviewArticleBlocks(preview);
+  if (blocks.length === 0) {
+    return null;
+  }
+
+  let imageIndex = 0;
+  return (
+    <section className="bookmark-preview-article" aria-label="미리보기 본문">
+      {blocks.map((block, index) => {
+        const key =
+          block.type === "image"
+            ? `${block.type}-${block.url}-${index}`
+            : `${block.type}-${block.text.slice(0, 32)}-${index}`;
+
+        if (block.type === "image") {
+          const currentImageIndex = imageIndex;
+          imageIndex += 1;
+          return (
+            <figure key={key} className="bookmark-preview-article-figure">
+              <img
+                className="bookmark-preview-article-image"
+                src={block.url}
+                alt={getBookmarkPreviewArticleImageAlt(preview, block, currentImageIndex)}
+                loading="lazy"
+              />
+              {block.alt ? <figcaption>{block.alt}</figcaption> : null}
+            </figure>
+          );
+        }
+
+        if (block.type === "heading") {
+          return (
+            <h4 key={key} className="bookmark-preview-article-heading">
+              {block.text}
+            </h4>
+          );
+        }
+
+        if (block.type === "list-item") {
+          return (
+            <p key={key} className="bookmark-preview-article-list-item">
+              <span aria-hidden="true">•</span>
+              <span>{block.text}</span>
+            </p>
+          );
+        }
+
+        return (
+          <p key={key} className="bookmark-preview-article-paragraph">
+            {block.text}
+          </p>
+        );
+      })}
+    </section>
+  );
+}
+
+function hasBookmarkPreviewCoverImage(preview: BookmarkExtractPreview | null) {
+  if (!preview?.sourceImageUrl) {
+    return false;
+  }
+
+  return !getBookmarkPreviewArticleBlocks(preview).some(
+    (block) => block.type === "image" && block.url === preview.sourceImageUrl
+  );
 }
 
 function getRecommendationReasonLabel(kind: RecommendationKind) {
@@ -4039,6 +4131,9 @@ export default function App() {
   const selectedBookmarkSourceDetailRows = visibleSelectedBookmark
     ? getBookmarkDetailFieldRows(visibleSelectedBookmark, "source")
     : [];
+  const selectedBookmarkLivePreviewBlocks = getBookmarkPreviewArticleBlocks(
+    selectedBookmarkLivePreview
+  );
   const selectedBookmarkLivePreviewRows =
     getBookmarkPreviewFieldRows(selectedBookmarkLivePreview);
   const selectedBookmarkAssetCount = visibleSelectedBookmark
@@ -4275,13 +4370,17 @@ export default function App() {
             ) : null}
             <section className="detail-block">
               <h3>최신 미리보기</h3>
-              {selectedBookmarkLivePreview?.sourceImageUrl ? (
+              {hasBookmarkPreviewCoverImage(selectedBookmarkLivePreview) &&
+              selectedBookmarkLivePreview?.sourceImageUrl ? (
                 <img
                   className="bookmark-preview-image"
                   src={selectedBookmarkLivePreview.sourceImageUrl}
                   alt={getBookmarkPreviewImageAlt(selectedBookmarkLivePreview)}
                 />
               ) : null}
+              {selectedBookmarkLivePreview
+                ? renderBookmarkPreviewArticle(selectedBookmarkLivePreview)
+                : null}
               {selectedBookmarkLivePreviewRows.map((row) => (
                 <div key={row.label} className="detail-row">
                   <p className="detail-row-label">{row.label}</p>
@@ -4289,6 +4388,7 @@ export default function App() {
                 </div>
               ))}
               {selectedBookmarkLivePreviewRows.length === 0 &&
+              selectedBookmarkLivePreviewBlocks.length === 0 &&
               selectedBookmarkLivePreview &&
               !isLoadingSelectedBookmarkPreview ? (
                 <p className="quiet-empty-state">최신 미리보기 결과가 없습니다.</p>
