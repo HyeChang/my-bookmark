@@ -4,12 +4,14 @@ import type {
   BookmarkAssetResponse,
   BookmarkExtractRequest,
   BookmarkExtractResponse,
+  BookmarkPreviewResponse,
   BookmarkRelativeDateRange,
   BookmarkSearchMode,
   BookmarkSortMode,
   BookmarkTagMode,
   BookmarkListResponse,
   BookmarkResponse,
+  BookmarkPermanentDeleteResponse,
   CreateBookmarkRequest,
   UpdateBookmarkRequest
 } from "@bookmark/shared";
@@ -40,6 +42,10 @@ import {
   createFolderRepository,
   type FolderRepository
 } from "../lib/repositories/folders";
+import {
+  createExtensionTokenRepository,
+  type ExtensionTokenRepository
+} from "../lib/repositories/extension-tokens";
 import { syncAuthenticatedUser } from "../lib/repositories/users";
 import {
   createR2BookmarkAssetStorage,
@@ -53,11 +59,20 @@ type BookmarkRouteOptions = {
   assetStorage?: BookmarkAssetStorage;
   bookmarkExtractor?: BookmarkExtractor;
   folderRepository?: FolderRepository;
+  extensionTokenRepository?: ExtensionTokenRepository;
   sessionSecret?: string;
 };
 
 const bookmarkSearchModes: BookmarkSearchMode[] = ["all", "title", "content", "folder"];
-const bookmarkSortModes: BookmarkSortMode[] = ["created_desc", "opened_desc"];
+const bookmarkSortModes: BookmarkSortMode[] = [
+  "created_desc",
+  "created_asc",
+  "opened_desc",
+  "title_asc",
+  "title_desc",
+  "site_asc",
+  "site_desc"
+];
 const bookmarkRelativeDateRanges: BookmarkRelativeDateRange[] = ["all", "7d", "30d"];
 const bookmarkTagModes: BookmarkTagMode[] = ["and", "or"];
 
@@ -105,10 +120,43 @@ function sanitizeFileName(fileName: string) {
   return normalizedFileName.replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 80) || "asset";
 }
 
+function compareText(left: string, right: string) {
+  return left.localeCompare(right, "ko", {
+    numeric: true,
+    sensitivity: "base"
+  });
+}
+
+function getBookmarkTitleForSort(bookmark: { displayTitle: string; url: string }) {
+  return bookmark.displayTitle.trim() || bookmark.url;
+}
+
+function getBookmarkSiteForSort(bookmark: { url: string }) {
+  try {
+    return new URL(bookmark.url).hostname.replace(/^www\./i, "");
+  } catch {
+    return bookmark.url;
+  }
+}
+
+function resolveExtensionTokenRepository(
+  c: { env?: AppBindings },
+  options: BookmarkRouteOptions
+) {
+  return (
+    options.extensionTokenRepository ??
+    (c.env?.bookmark ? createExtensionTokenRepository(c.env.bookmark) : undefined)
+  );
+}
+
 export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
   return new Hono<{ Bindings: AppBindings }>()
     .get("/", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -134,6 +182,13 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       const createdWithin = (requestedCreatedWithin ?? "all") as BookmarkRelativeDateRange;
       const requestedOpenedWithin = c.req.query("openedWithin");
       const openedWithin = (requestedOpenedWithin ?? "all") as BookmarkRelativeDateRange;
+      const requestedTrashed = c.req.query("trashed")?.trim();
+      const trashMode =
+        requestedTrashed === "1"
+          ? "trashed"
+          : requestedTrashed === "all"
+            ? "all"
+            : "active";
       const requestedTagMode = c.req.query("tagMode");
       const tagMode = (requestedTagMode ?? "and") as BookmarkTagMode;
       const requestedFolderId = c.req.query("folderId")?.trim() || undefined;
@@ -164,6 +219,7 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         folderIds,
         tagIds: tagIds.length > 0 ? tagIds : undefined,
         tagMode: tagIds.length > 0 ? tagMode : undefined,
+        trashMode,
         bookmarkColor: c.req.query("bookmarkColor")?.trim() || undefined,
         urlColor: c.req.query("urlColor")?.trim() || undefined,
         summaryState: (() => {
@@ -250,7 +306,6 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       }
 
       if (sort === "opened_desc") {
-        
         bookmarks.sort((left, right) => {
           const leftStat = openStatsByBookmarkId.get(left.id);
           const rightStat = openStatsByBookmarkId.get(right.id);
@@ -273,6 +328,25 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
 
           return right.createdAt.localeCompare(left.createdAt);
         });
+      } else if (sort === "created_asc") {
+        bookmarks.sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+      } else if (sort === "created_desc") {
+        bookmarks.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+      } else if (sort === "title_asc" || sort === "title_desc") {
+        bookmarks.sort((left, right) => {
+          const comparedTitle = compareText(
+            getBookmarkTitleForSort(left),
+            getBookmarkTitleForSort(right)
+          );
+          return sort === "title_asc" ? comparedTitle : -comparedTitle;
+        });
+      } else if (sort === "site_asc" || sort === "site_desc") {
+        bookmarks.sort((left, right) => {
+          const comparedSite =
+            compareText(getBookmarkSiteForSort(left), getBookmarkSiteForSort(right)) ||
+            compareText(getBookmarkTitleForSort(left), getBookmarkTitleForSort(right));
+          return sort === "site_asc" ? comparedSite : -comparedSite;
+        });
       }
 
       return c.json<BookmarkListResponse>({
@@ -280,7 +354,11 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       });
     })
     .post("/", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -343,7 +421,11 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       );
     })
     .post("/extract", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -376,7 +458,11 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       }
     })
     .get("/:bookmarkId", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -398,12 +484,67 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         return c.json({ error: "bookmark_not_found" }, 404);
       }
 
+      if (bookmark.isTrashed && c.req.query("trashed") !== "1") {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
       return c.json<BookmarkResponse>({
         bookmark: toBookmarkResponse(bookmark)
       });
     })
+    .get("/:bookmarkId/preview", async (c) => {
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const bookmarkExtractor = options.bookmarkExtractor ?? createBookmarkExtractor();
+
+      if (!bookmarkRepository) {
+        return c.json({ error: "bookmark_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      try {
+        const preview = await bookmarkExtractor.extract(bookmark.url);
+        return c.json<BookmarkPreviewResponse>({
+          preview
+        });
+      } catch (error) {
+        if (error instanceof TypeError) {
+          return c.json({ error: "invalid_url" }, 400);
+        }
+
+        if (
+          error instanceof Error &&
+          error.message === "bookmark_extract_unsupported_content_type"
+        ) {
+          return c.json({ error: "bookmark_extract_unsupported_content_type" }, 422);
+        }
+
+        return c.json({ error: "bookmark_extract_failed" }, 502);
+      }
+    })
     .patch("/:bookmarkId", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -441,7 +582,68 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       });
     })
     .delete("/:bookmarkId", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+
+      if (!bookmarkRepository) {
+        return c.json({ error: "bookmark_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      await bookmarkRepository.delete(bookmark.id, user.uid);
+
+      return c.body(null, 204);
+    })
+    .post("/:bookmarkId/restore", async (c) => {
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+
+      if (!bookmarkRepository) {
+        return c.json({ error: "bookmark_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.restore(c.req.param("bookmarkId"), user.uid);
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      return c.json<BookmarkResponse>({
+        bookmark: toBookmarkResponse(bookmark)
+      });
+    })
+    .delete("/:bookmarkId/permanent", async (c) => {
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -482,12 +684,19 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         }
       }
 
-      await bookmarkRepository.delete(bookmark.id, user.uid);
+      const deleted = await bookmarkRepository.permanentlyDelete(bookmark.id, user.uid);
+      if (!deleted) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
 
-      return c.body(null, 204);
+      return c.json<BookmarkPermanentDeleteResponse>({ ok: true });
     })
     .post("/:bookmarkId/open", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -518,7 +727,11 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       });
     })
     .post("/:bookmarkId/reextract", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -567,7 +780,11 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       }
     })
     .get("/:bookmarkId/assets", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -601,7 +818,11 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       });
     })
     .post("/:bookmarkId/assets", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -665,7 +886,11 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       );
     })
     .get("/:bookmarkId/assets/:assetId/content", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }

@@ -5,6 +5,7 @@ import type { VerifyIdToken } from "./lib/auth/types";
 import type { BookmarkAssetRepository } from "./lib/repositories/bookmark-assets";
 import type { BookmarkActivityRepository } from "./lib/repositories/bookmark-activity";
 import type { BookmarkRepository } from "./lib/repositories/bookmarks";
+import type { ExtensionTokenRepository } from "./lib/repositories/extension-tokens";
 import type { FolderRepository } from "./lib/repositories/folders";
 import type { TagRepository } from "./lib/repositories/tags";
 import type { BookmarkExtractor } from "./lib/extract/bookmark-extractor";
@@ -12,6 +13,7 @@ import type { BookmarkAssetStorage } from "./lib/storage/assets";
 import { healthRoute } from "./routes/health";
 import { createAuthRoute } from "./routes/auth";
 import { createBookmarkRoute } from "./routes/bookmarks";
+import { createExtensionTokenRoute } from "./routes/extension-tokens";
 import { createFolderRoute } from "./routes/folders";
 import { createRecommendationRoute } from "./routes/recommendations";
 import { createTagRoute } from "./routes/tags";
@@ -26,6 +28,7 @@ type CreateAppOptions = {
   bookmarkExtractor?: BookmarkExtractor;
   folderRepository?: FolderRepository;
   tagRepository?: TagRepository;
+  extensionTokenRepository?: ExtensionTokenRepository;
 };
 
 export function createApp(options: CreateAppOptions = {}) {
@@ -40,6 +43,13 @@ export function createApp(options: CreateAppOptions = {}) {
     })
   );
   app.route(
+    "/api/extension-tokens",
+    createExtensionTokenRoute({
+      extensionTokenRepository: options.extensionTokenRepository,
+      sessionSecret: options.sessionSecret
+    })
+  );
+  app.route(
     "/api/bookmarks",
     createBookmarkRoute({
       bookmarkRepository: options.bookmarkRepository,
@@ -48,6 +58,7 @@ export function createApp(options: CreateAppOptions = {}) {
       assetStorage: options.assetStorage,
       bookmarkExtractor: options.bookmarkExtractor,
       folderRepository: options.folderRepository,
+      extensionTokenRepository: options.extensionTokenRepository,
       sessionSecret: options.sessionSecret
     })
   );
@@ -55,6 +66,7 @@ export function createApp(options: CreateAppOptions = {}) {
     "/api/folders",
     createFolderRoute({
       folderRepository: options.folderRepository,
+      extensionTokenRepository: options.extensionTokenRepository,
       sessionSecret: options.sessionSecret
     })
   );
@@ -62,6 +74,7 @@ export function createApp(options: CreateAppOptions = {}) {
     "/api/tags",
     createTagRoute({
       tagRepository: options.tagRepository,
+      extensionTokenRepository: options.extensionTokenRepository,
       sessionSecret: options.sessionSecret
     })
   );

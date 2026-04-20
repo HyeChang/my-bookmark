@@ -17,6 +17,7 @@ type FolderRecord = {
   name: string;
   color: string | null;
   icon: string | null;
+  isHidden: boolean;
   parentFolderId: string | null;
   sortOrder: number;
   createdAt: string;
@@ -50,6 +51,7 @@ function createInMemoryFolderRepository() {
       name: string;
       color?: string | null;
       icon?: string | null;
+      isHidden?: boolean;
       parentFolderId?: string | null;
     }) {
       const now = "2026-04-13T10:00:00.000Z";
@@ -59,6 +61,7 @@ function createInMemoryFolderRepository() {
         name: input.name,
         color: input.color ?? null,
         icon: input.icon ?? null,
+        isHidden: input.isHidden ?? false,
         parentFolderId: input.parentFolderId ?? null,
         sortOrder: folders.size,
         createdAt: now,
@@ -75,6 +78,7 @@ function createInMemoryFolderRepository() {
         name?: string;
         color?: string | null;
         icon?: string | null;
+        isHidden?: boolean;
         parentFolderId?: string | null;
       }
     ) {
@@ -88,6 +92,7 @@ function createInMemoryFolderRepository() {
         name: input.name ?? folder.name,
         color: input.color === undefined ? folder.color : input.color,
         icon: input.icon === undefined ? folder.icon : input.icon,
+        isHidden: input.isHidden === undefined ? folder.isHidden : input.isHidden,
         parentFolderId:
           input.parentFolderId === undefined ? folder.parentFolderId : input.parentFolderId,
         updatedAt: "2026-04-13T11:00:00.000Z"
@@ -344,6 +349,45 @@ describe("folder and tag routes", () => {
         id: created.folder.id,
         name: "Articles",
         color: "#0f766e"
+      }
+    });
+  });
+
+  it("creates and updates a hidden folder", async () => {
+    const repository = createInMemoryFolderRepository();
+    const app = createApp({
+      sessionSecret,
+      folderRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/folders", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Private",
+        isHidden: true
+      })
+    });
+
+    expect(createRes.status).toBe(201);
+    await expect(createRes.json()).resolves.toMatchObject({
+      folder: {
+        name: "Private",
+        isHidden: true
+      }
+    });
+
+    const updateRes = await authenticatedRequest(app, "/api/folders/folder-1", {
+      method: "PATCH",
+      body: JSON.stringify({
+        isHidden: false
+      })
+    });
+
+    expect(updateRes.status).toBe(200);
+    await expect(updateRes.json()).resolves.toMatchObject({
+      folder: {
+        id: "folder-1",
+        isHidden: false
       }
     });
   });

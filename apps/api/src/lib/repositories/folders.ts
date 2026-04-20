@@ -12,6 +12,7 @@ type FolderRow = {
   name: string;
   color: string | null;
   icon: string | null;
+  is_hidden: number;
   parent_folder_id: string | null;
   sort_order: number;
   created_at: string;
@@ -53,6 +54,7 @@ function toFolderRecord(row: FolderRow): FolderRecord {
     name: row.name,
     color: row.color,
     icon: row.icon,
+    isHidden: row.is_hidden === 1,
     parentFolderId: row.parent_folder_id,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
@@ -66,6 +68,7 @@ export function toFolderResponse(folder: FolderRecord): Folder {
     name: folder.name,
     color: folder.color,
     icon: folder.icon,
+    isHidden: folder.isHidden ?? false,
     parentFolderId: folder.parentFolderId,
     sortOrder: folder.sortOrder,
     createdAt: folder.createdAt,
@@ -83,6 +86,7 @@ export function createFolderRepository(db: D1Database): FolderRepository {
           name,
           color,
           icon,
+          is_hidden,
           parent_folder_id,
           sort_order,
           created_at,
@@ -106,6 +110,7 @@ export function createFolderRepository(db: D1Database): FolderRepository {
           name,
           color,
           icon,
+          is_hidden,
           parent_folder_id,
           sort_order,
           created_at,
@@ -148,10 +153,11 @@ export function createFolderRepository(db: D1Database): FolderRepository {
             name,
             color,
             icon,
+            is_hidden,
             sort_order,
             created_at,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           folderId,
@@ -160,6 +166,7 @@ export function createFolderRepository(db: D1Database): FolderRepository {
           input.name,
           input.color ?? null,
           input.icon ?? null,
+          input.isHidden ? 1 : 0,
           sortOrder,
           now,
           now
@@ -175,7 +182,7 @@ export function createFolderRepository(db: D1Database): FolderRepository {
     },
     async update(folderId, userId, input) {
       const assignments: string[] = [];
-      const values: Array<string | null> = [];
+      const values: Array<string | number | null> = [];
 
       if ("name" in input) {
         assignments.push("name = ?");
@@ -188,6 +195,10 @@ export function createFolderRepository(db: D1Database): FolderRepository {
       if ("icon" in input) {
         assignments.push("icon = ?");
         values.push(input.icon ?? null);
+      }
+      if ("isHidden" in input) {
+        assignments.push("is_hidden = ?");
+        values.push(input.isHidden ? 1 : 0);
       }
       if ("parentFolderId" in input) {
         assignments.push("parent_folder_id = ?");

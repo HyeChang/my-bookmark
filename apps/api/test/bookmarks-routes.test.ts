@@ -31,6 +31,7 @@ function createInMemoryFolderRepository() {
     name: string;
     color: string | null;
     icon: string | null;
+    isHidden: boolean;
     parentFolderId: string | null;
     sortOrder: number;
     createdAt: string;
@@ -48,6 +49,7 @@ function createInMemoryFolderRepository() {
       name: string;
       color?: string | null;
       icon?: string | null;
+      isHidden?: boolean;
       parentFolderId?: string | null;
     }) {
       const now = "2026-04-13T10:00:00.000Z";
@@ -57,6 +59,7 @@ function createInMemoryFolderRepository() {
         name: input.name,
         color: input.color ?? null,
         icon: input.icon ?? null,
+        isHidden: input.isHidden ?? false,
         parentFolderId: input.parentFolderId ?? null,
         sortOrder: folders.size,
         createdAt: now,
@@ -92,6 +95,8 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
 
   function matchesQuery(bookmark: BookmarkWithTags, query: string, mode: string) {
     const normalizedQuery = query.toLowerCase();
+    const searchableTitle = (bookmark.displayTitle.trim() || bookmark.url).toLowerCase();
+    const searchableUrl = bookmark.url.toLowerCase();
     const tagText = bookmark.tagIds
       .map((tagId) => tagNames.get(tagId) ?? "")
       .join(" ")
@@ -99,7 +104,7 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
     const folderName = (bookmark.folderId ? folderNames.get(bookmark.folderId) : "")?.toLowerCase() ?? "";
 
     if (mode === "title") {
-      return bookmark.displayTitle.toLowerCase().includes(normalizedQuery);
+      return searchableTitle.includes(normalizedQuery);
     }
 
     if (mode === "content") {
@@ -111,7 +116,8 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
     }
 
     return (
-      bookmark.displayTitle.toLowerCase().includes(normalizedQuery) ||
+      searchableTitle.includes(normalizedQuery) ||
+      searchableUrl.includes(normalizedQuery) ||
       bookmark.displayContent.toLowerCase().includes(normalizedQuery) ||
       tagText.includes(normalizedQuery)
     );
@@ -120,6 +126,15 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
   function matchesFilters(bookmark: BookmarkWithTags, filters: BookmarkListFilters = {}) {
     const normalizedBookmarkColor = bookmark.bookmarkColor?.trim().toLowerCase() ?? "";
     const normalizedUrlColor = bookmark.urlColor?.trim().toLowerCase() ?? "";
+    const trashMode = filters.trashMode ?? "active";
+
+    if (trashMode === "active" && bookmark.isTrashed) {
+      return false;
+    }
+
+    if (trashMode === "trashed" && !bookmark.isTrashed) {
+      return false;
+    }
 
     if (filters.favoriteOnly && !bookmark.isFavorite) {
       return false;
@@ -189,6 +204,9 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
         url: input.url,
         normalizedUrl: input.normalizedUrl,
         isFavorite: input.isFavorite,
+        isHidden: input.isHidden ?? false,
+        isTrashed: false,
+        trashedAt: null,
         bookmarkColor: input.bookmarkColor ?? null,
         urlColor: input.urlColor ?? null,
         sourceTitle: input.sourceTitle ?? null,
@@ -222,6 +240,36 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
         return false;
       }
 
+      bookmarks.set(bookmarkId, {
+        ...bookmark,
+        isTrashed: true,
+        trashedAt: "2026-04-13T10:00:00.000Z",
+        updatedAt: "2026-04-13T10:00:00.000Z"
+      });
+      return true;
+    },
+    async restore(bookmarkId, userId) {
+      const bookmark = bookmarks.get(bookmarkId);
+      if (!bookmark || bookmark.userId !== userId) {
+        return null;
+      }
+
+      const restored = {
+        ...bookmark,
+        isTrashed: false,
+        trashedAt: null,
+        updatedAt: "2026-04-13T11:00:00.000Z"
+      } as BookmarkWithTags;
+
+      bookmarks.set(bookmarkId, restored);
+      return restored;
+    },
+    async permanentlyDelete(bookmarkId, userId) {
+      const bookmark = bookmarks.get(bookmarkId);
+      if (!bookmark || bookmark.userId !== userId) {
+        return false;
+      }
+
       bookmarks.delete(bookmarkId);
       return true;
     },
@@ -235,6 +283,7 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
         ...bookmark,
         folderId: input.folderId === undefined ? bookmark.folderId : input.folderId,
         isFavorite: input.isFavorite ?? bookmark.isFavorite,
+        isHidden: "isHidden" in input ? (input.isHidden ?? false) : bookmark.isHidden,
         bookmarkColor:
           input.bookmarkColor === undefined ? bookmark.bookmarkColor : input.bookmarkColor,
         urlColor: input.urlColor === undefined ? bookmark.urlColor : input.urlColor,
@@ -518,6 +567,77 @@ describe("bookmark routes", () => {
     });
   });
 
+  it("creates a hidden bookmark and returns hidden state in the response", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    const res = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/hidden-post",
+        userTitle: "Hidden title",
+        isHidden: true
+      })
+    });
+
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({
+      bookmark: {
+        url: "https://example.com/hidden-post",
+        userTitle: "Hidden title",
+        isHidden: true
+      }
+    });
+  });
+
+  it("creates a bookmark with a valid extension bearer token", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository(),
+      ...( {
+        extensionTokenRepository: {
+          async findByRawToken(rawToken: string) {
+            if (rawToken !== "ext-valid-token") {
+              return null;
+            }
+
+            return {
+              id: "token-1",
+              userId: fakeUser.uid,
+              label: "Chrome desktop",
+              createdAt: "2026-04-17T10:00:00.000Z",
+              updatedAt: "2026-04-17T10:00:00.000Z",
+              revokedAt: null,
+              user: fakeUser
+            };
+          }
+        }
+      } as any)
+    } as Parameters<typeof createApp>[0]);
+
+    const res = await app.request("http://example.com/api/bookmarks", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer ext-valid-token"
+      },
+      body: JSON.stringify({
+        url: "https://extension.example.com/capture",
+        userTitle: "Captured from extension"
+      })
+    });
+
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({
+      bookmark: {
+        url: "https://extension.example.com/capture",
+        userTitle: "Captured from extension"
+      }
+    });
+  });
+
   it("lists bookmarks for the authenticated user", async () => {
     const app = createApp({
       sessionSecret,
@@ -598,6 +718,51 @@ describe("bookmark routes", () => {
       bookmarks: [
         {
           url: "https://example.com/paper"
+        }
+      ]
+    });
+  });
+
+  it("searches bookmarks by URL substring in all and title modes when no title is set", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://chatgpt.com/",
+        userTitle: null,
+        sourceTitle: null,
+        userContent: "",
+        sourceContent: null
+      })
+    });
+
+    const integratedRes = await authenticatedRequest(
+      app,
+      "/api/bookmarks?mode=all&query=ch"
+    );
+    const titleRes = await authenticatedRequest(
+      app,
+      "/api/bookmarks?mode=title&query=ch"
+    );
+
+    expect(integratedRes.status).toBe(200);
+    await expect(integratedRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        {
+          url: "https://chatgpt.com/"
+        }
+      ]
+    });
+
+    expect(titleRes.status).toBe(200);
+    await expect(titleRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        {
+          url: "https://chatgpt.com/"
         }
       ]
     });
@@ -964,6 +1129,48 @@ describe("bookmark routes", () => {
     });
   });
 
+  it("sorts bookmarks by title and site when requested", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://zeta.example.com/article",
+        userTitle: "Beta link"
+      })
+    });
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://alpha.example.com/article",
+        userTitle: "Alpha link"
+      })
+    });
+
+    const titleRes = await authenticatedRequest(app, "/api/bookmarks?sort=title_asc");
+    const siteRes = await authenticatedRequest(app, "/api/bookmarks?sort=site_desc");
+
+    expect(titleRes.status).toBe(200);
+    await expect(titleRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        { url: "https://alpha.example.com/article" },
+        { url: "https://zeta.example.com/article" }
+      ]
+    });
+
+    expect(siteRes.status).toBe(200);
+    await expect(siteRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        { url: "https://zeta.example.com/article" },
+        { url: "https://alpha.example.com/article" }
+      ]
+    });
+  });
+
   it("filters bookmarks by createdWithin when set to 7d", async () => {
     const baseRepository = createInMemoryBookmarkRepository();
     const repository: BookmarkRepository = {
@@ -972,8 +1179,8 @@ describe("bookmark routes", () => {
         const created = await baseRepository.create(input);
 
         if (input.url.includes("recent-created")) {
-          created.createdAt = "2026-04-12T08:00:00.000Z";
-          created.updatedAt = "2026-04-12T08:00:00.000Z";
+          created.createdAt = "2026-04-18T08:00:00.000Z";
+          created.updatedAt = "2026-04-18T08:00:00.000Z";
         }
 
         if (input.url.includes("old-created")) {
@@ -1170,6 +1377,84 @@ describe("bookmark routes", () => {
     });
   });
 
+  it("updates hidden state for an existing bookmark", async () => {
+    const repository = createInMemoryBookmarkRepository();
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/hidden-state",
+        userTitle: "Hidden state bookmark"
+      })
+    });
+    const created = (await createRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const res = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          isHidden: true
+        })
+      }
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      bookmark: {
+        id: created.bookmark.id,
+        isHidden: true
+      }
+    });
+  });
+
+  it("keeps a hidden bookmark hidden when patching unrelated fields", async () => {
+    const repository = createInMemoryBookmarkRepository();
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/hidden-unchanged",
+        userTitle: "Hidden bookmark",
+        isHidden: true
+      })
+    });
+    const created = (await createRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const res = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          userTitle: "Renamed bookmark"
+        })
+      }
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      bookmark: {
+        id: created.bookmark.id,
+        userTitle: "Renamed bookmark",
+        isHidden: true
+      }
+    });
+  });
+
   it("reextracts source values for an existing bookmark", async () => {
     const repository = createInMemoryBookmarkRepository();
     const app = createApp({
@@ -1221,7 +1506,7 @@ describe("bookmark routes", () => {
     });
   });
 
-  it("deletes a bookmark and rejects subsequent detail requests", async () => {
+  it("moves a bookmark to trash, restores it, and permanently deletes it", async () => {
     const app = createApp({
       sessionSecret,
       bookmarkRepository: createInMemoryBookmarkRepository(),
@@ -1261,5 +1546,65 @@ describe("bookmark routes", () => {
     await expect(listRes.json()).resolves.toMatchObject({
       bookmarks: []
     });
+
+    const trashListRes = await authenticatedRequest(app, "/api/bookmarks?trashed=1");
+    await expect(trashListRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        {
+          id: created.bookmark.id,
+          isTrashed: true,
+          trashedAt: "2026-04-13T10:00:00.000Z"
+        }
+      ]
+    });
+
+    const trashedDetailRes = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}?trashed=1`
+    );
+    expect(trashedDetailRes.status).toBe(200);
+
+    const restoreRes = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}/restore`,
+      {
+        method: "POST"
+      }
+    );
+    expect(restoreRes.status).toBe(200);
+    await expect(restoreRes.json()).resolves.toMatchObject({
+      bookmark: {
+        id: created.bookmark.id,
+        isTrashed: false,
+        trashedAt: null
+      }
+    });
+
+    const restoredListRes = await authenticatedRequest(app, "/api/bookmarks");
+    await expect(restoredListRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        {
+          id: created.bookmark.id,
+          isTrashed: false,
+          trashedAt: null
+        }
+      ]
+    });
+
+    await authenticatedRequest(app, `/api/bookmarks/${created.bookmark.id}`, {
+      method: "DELETE"
+    });
+    const permanentDeleteRes = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}/permanent`,
+      {
+        method: "DELETE"
+      }
+    );
+    expect(permanentDeleteRes.status).toBe(200);
+    await expect(permanentDeleteRes.json()).resolves.toEqual({ ok: true });
+
+    const finalTrashListRes = await authenticatedRequest(app, "/api/bookmarks?trashed=1");
+    await expect(finalTrashListRes.json()).resolves.toEqual({ bookmarks: [] });
   });
 });

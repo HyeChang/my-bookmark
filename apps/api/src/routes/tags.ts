@@ -13,10 +13,15 @@ import {
   toTagResponse,
   type TagRepository
 } from "../lib/repositories/tags";
+import {
+  createExtensionTokenRepository,
+  type ExtensionTokenRepository
+} from "../lib/repositories/extension-tokens";
 import { syncAuthenticatedUser } from "../lib/repositories/users";
 
 type TagRouteOptions = {
   tagRepository?: TagRepository;
+  extensionTokenRepository?: ExtensionTokenRepository;
   sessionSecret?: string;
 };
 
@@ -24,10 +29,24 @@ function normalizeTagName(name: string | undefined) {
   return name?.trim() ?? "";
 }
 
+function resolveExtensionTokenRepository(
+  c: { env?: AppBindings },
+  options: TagRouteOptions
+) {
+  return (
+    options.extensionTokenRepository ??
+    (c.env?.bookmark ? createExtensionTokenRepository(c.env.bookmark) : undefined)
+  );
+}
+
 export function createTagRoute(options: TagRouteOptions = {}) {
   return new Hono<{ Bindings: AppBindings }>()
     .get("/", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -51,7 +70,11 @@ export function createTagRoute(options: TagRouteOptions = {}) {
       });
     })
     .post("/", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -88,7 +111,11 @@ export function createTagRoute(options: TagRouteOptions = {}) {
       );
     })
     .patch("/:tagId", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -126,7 +153,11 @@ export function createTagRoute(options: TagRouteOptions = {}) {
       });
     })
     .delete("/:tagId", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }

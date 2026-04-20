@@ -3,8 +3,24 @@ type RequestJsonOptions = {
   mapErrorCode?: (errorCode: string) => string | null;
 };
 
-const networkErrorMessage =
+const localNetworkErrorMessage =
   "로컬 서버에 연결하지 못했습니다. 실행 중인지 확인해주세요.";
+const deployedNetworkErrorMessage =
+  "서버에 연결하지 못했습니다. 네트워크 상태 또는 배포 주소를 확인해주세요.";
+
+function getNetworkErrorMessage() {
+  const hostname = globalThis.location?.hostname?.trim().toLowerCase() ?? "";
+  if (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname.endsWith(".localhost")
+  ) {
+    return localNetworkErrorMessage;
+  }
+
+  return deployedNetworkErrorMessage;
+}
 
 async function parseErrorCode(response: Response) {
   const contentType = response.headers.get("content-type") ?? "";
@@ -25,11 +41,11 @@ function normalizeRequestError(error: unknown) {
       normalizedMessage.includes("networkerror") ||
       normalizedMessage.includes("load failed")
     ) {
-      return new Error(networkErrorMessage);
+      return new Error(getNetworkErrorMessage());
     }
   }
 
-  return error instanceof Error ? error : new Error(networkErrorMessage);
+  return error instanceof Error ? error : new Error(getNetworkErrorMessage());
 }
 
 export async function requestJson<TResponse>(

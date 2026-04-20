@@ -27,15 +27,18 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
       normalizedUrl: string;
     }
   ): BookmarkRecord {
-    return {
-      id: partial.id,
-      userId: partial.userId,
-      folderId: partial.folderId ?? null,
-      tagIds: partial.tagIds ?? [],
-      url: partial.url,
-      normalizedUrl: partial.normalizedUrl,
-      isFavorite: partial.isFavorite ?? false,
-      bookmarkColor: partial.bookmarkColor ?? null,
+      return {
+        id: partial.id,
+        userId: partial.userId,
+        folderId: partial.folderId ?? null,
+        tagIds: partial.tagIds ?? [],
+        url: partial.url,
+        normalizedUrl: partial.normalizedUrl,
+        isFavorite: partial.isFavorite ?? false,
+        isHidden: partial.isHidden ?? false,
+        isTrashed: partial.isTrashed ?? false,
+        trashedAt: partial.trashedAt ?? null,
+        bookmarkColor: partial.bookmarkColor ?? null,
       urlColor: partial.urlColor ?? null,
       sourceTitle: partial.sourceTitle ?? null,
       sourceContent: partial.sourceContent ?? null,
@@ -115,23 +118,51 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
     userTitle: "Unopened link",
     updatedAt: "2026-04-14T04:00:00.000Z"
   });
+  const trashedFavoriteBookmark = createRecord({
+    id: "bookmark-trashed-favorite",
+    userId: fakeUser.uid,
+    folderId: "folder-trash",
+    tagIds: [],
+    url: "https://example.com/trashed-favorite",
+    normalizedUrl: "https://example.com/trashed-favorite",
+    isFavorite: true,
+    isTrashed: true,
+    trashedAt: "2026-04-14T05:00:00.000Z",
+    userTitle: "Trashed favorite link",
+    updatedAt: "2026-04-14T05:00:00.000Z"
+  });
 
   [
     favoriteBookmark,
     passiveFavoriteBookmark,
     contextBookmark,
     plainBookmark,
-    unopenedBookmark
+    unopenedBookmark,
+    trashedFavoriteBookmark
   ].forEach((bookmark) => {
     bookmarks.set(bookmark.id, bookmark);
   });
 
   return {
-    async listByUser(userId) {
-      return Array.from(bookmarks.values()).filter((bookmark) => bookmark.userId === userId);
+    async listByUser(userId, filters = {}) {
+      return Array.from(bookmarks.values()).filter((bookmark) => {
+        if (bookmark.userId !== userId) {
+          return false;
+        }
+
+        const trashMode = filters.trashMode ?? "active";
+        if (trashMode === "active" && bookmark.isTrashed) {
+          return false;
+        }
+        if (trashMode === "trashed" && !bookmark.isTrashed) {
+          return false;
+        }
+
+        return true;
+      });
     },
-    async searchByUser(userId) {
-      return Array.from(bookmarks.values()).filter((bookmark) => bookmark.userId === userId);
+    async searchByUser(userId, _query, _mode, filters = {}) {
+      return this.listByUser(userId, filters);
     },
     async create(input) {
       const bookmark = createRecord({
@@ -142,6 +173,9 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
         url: input.url,
         normalizedUrl: input.normalizedUrl,
         isFavorite: input.isFavorite ?? false,
+        isHidden: input.isHidden ?? false,
+        isTrashed: false,
+        trashedAt: null,
         bookmarkColor: input.bookmarkColor ?? null,
         urlColor: input.urlColor ?? null,
         sourceTitle: input.sourceTitle ?? null,
@@ -164,6 +198,33 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
       return bookmark;
     },
     async delete(bookmarkId, userId) {
+      const bookmark = bookmarks.get(bookmarkId);
+      if (!bookmark || bookmark.userId !== userId) {
+        return false;
+      }
+
+      bookmarks.set(bookmarkId, {
+        ...bookmark,
+        isTrashed: true,
+        trashedAt: "2026-04-14T06:00:00.000Z"
+      });
+      return true;
+    },
+    async restore(bookmarkId, userId) {
+      const bookmark = bookmarks.get(bookmarkId);
+      if (!bookmark || bookmark.userId !== userId) {
+        return null;
+      }
+
+      const restored = {
+        ...bookmark,
+        isTrashed: false,
+        trashedAt: null
+      };
+      bookmarks.set(bookmarkId, restored);
+      return restored;
+    },
+    async permanentlyDelete(bookmarkId, userId) {
       const bookmark = bookmarks.get(bookmarkId);
       if (!bookmark || bookmark.userId !== userId) {
         return false;
@@ -282,6 +343,11 @@ describe("recommendation routes", () => {
     ]);
     expect(payload.recent.at(-1)?.id).toBe("bookmark-unopened");
     expect(payload.frequent.at(-1)?.id).toBe("bookmark-unopened");
+    expect([
+      ...payload.favorites,
+      ...payload.recent,
+      ...payload.frequent
+    ].map((bookmark) => bookmark.id)).not.toContain("bookmark-trashed-favorite");
   });
 
   it("records bookmark open activity for the authenticated user", async () => {

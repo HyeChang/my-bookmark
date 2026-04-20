@@ -7,8 +7,10 @@
   ],
   "scripts": {
     "dev:web": "npm run dev --workspace apps/web",
-    "dev:api": "wrangler dev",
-    "build:web": "npm run build --workspace apps/web",
+    "db:migrate:local": "npx wrangler d1 migrations apply bookmark --local",
+    "dev:api": "npm run build:web && npm run db:migrate:local && wrangler dev",
+    "build:web": "npm run build:extension && npm run build --workspace apps/web",
+    "build:extension": "npm run build --workspace apps/extension && pwsh -NoProfile -File ./scripts/package-extension-download.ps1",
     "test:web": "npm run test --workspace apps/web",
     "test:api": "npm run test --workspace apps/api"
   },

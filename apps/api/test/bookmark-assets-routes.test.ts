@@ -35,6 +35,7 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
         url: input.url,
         normalizedUrl: input.normalizedUrl,
         isFavorite: input.isFavorite ?? false,
+        isHidden: input.isHidden ?? false,
         bookmarkColor: input.bookmarkColor ?? null,
         urlColor: input.urlColor ?? null,
         sourceTitle: input.sourceTitle ?? null,
@@ -81,6 +82,7 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
         folderId: input.folderId === undefined ? bookmark.folderId : input.folderId,
         tagIds: input.tagIds === undefined ? bookmark.tagIds : input.tagIds,
         isFavorite: input.isFavorite ?? bookmark.isFavorite,
+        isHidden: input.isHidden ?? bookmark.isHidden,
         bookmarkColor:
           input.bookmarkColor === undefined ? bookmark.bookmarkColor : input.bookmarkColor,
         urlColor: input.urlColor === undefined ? bookmark.urlColor : input.urlColor,

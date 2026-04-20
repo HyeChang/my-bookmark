@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Bookmark Saver",
+  "version": "0.0.1",
+  "description": "Bookmark 웹앱으로 페이지, 텍스트, 이미지를 저장하는 확장 프로그램입니다.",
+  "action": {
+    "default_title": "Bookmark Saver",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "options_page": "options.html",
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "storage",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

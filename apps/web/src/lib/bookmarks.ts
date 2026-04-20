@@ -1,11 +1,16 @@
 import type {
   Bookmark,
+  BookmarkExtractPreview,
+  BookmarkPermanentDeleteResponse,
+  BookmarkPreviewResponse,
   BookmarkRelativeDateRange,
   BookmarkSearchMode,
   BookmarkSortMode,
   BookmarkTagMode,
+  BookmarkTrashMode,
   BookmarkListResponse,
   BookmarkResponse,
+  BookmarkRestoreResponse,
   CreateBookmarkRequest,
   UpdateBookmarkRequest
 } from "@bookmark/shared";
@@ -25,6 +30,11 @@ type LoadBookmarksOptions = {
   bookmarkColor?: string;
   urlColor?: string;
   summaryState?: "all" | "with" | "without";
+  trashMode?: BookmarkTrashMode;
+};
+
+type LoadBookmarkOptions = {
+  includeTrashed?: boolean;
 };
 
 function mapBookmarkErrorCode(errorCode: string) {
@@ -39,6 +49,8 @@ function mapBookmarkErrorCode(errorCode: string) {
       return "북마크를 찾지 못했습니다.";
     case "bookmark_extract_failed":
       return "URL 메타 미리보기를 불러오지 못했습니다.";
+    case "bookmark_extract_unsupported_content_type":
+      return "이 URL에서는 미리보기를 가져올 수 없습니다.";
     case "bookmark_reextract_failed":
       return "자동 추출을 다시 수행하지 못했습니다.";
     default:
@@ -95,6 +107,11 @@ export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
   if (options.summaryState && options.summaryState !== "all") {
     searchParams.set("summaryState", options.summaryState);
   }
+  if (options.trashMode === "trashed") {
+    searchParams.set("trashed", "1");
+  } else if (options.trashMode === "all") {
+    searchParams.set("trashed", "all");
+  }
 
   const url = searchParams.size > 0 ? `/api/bookmarks?${searchParams.toString()}` : "/api/bookmarks";
   const data = await requestJson<Partial<BookmarkListResponse>>(
@@ -110,9 +127,16 @@ export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
   return Array.isArray(data.bookmarks) ? (data.bookmarks as Bookmark[]) : [];
 }
 
-export async function loadBookmark(bookmarkId: string) {
+export async function loadBookmark(bookmarkId: string, options: LoadBookmarkOptions = {}) {
+  const searchParams = new URLSearchParams();
+  if (options.includeTrashed) {
+    searchParams.set("trashed", "1");
+  }
+  const url = searchParams.size > 0
+    ? `/api/bookmarks/${bookmarkId}?${searchParams.toString()}`
+    : `/api/bookmarks/${bookmarkId}`;
   const data = await requestJson<BookmarkResponse>(
-    `/api/bookmarks/${bookmarkId}`,
+    url,
     {
       credentials: "include"
     },
@@ -122,6 +146,49 @@ export async function loadBookmark(bookmarkId: string) {
     }
   );
   return data.bookmark;
+}
+
+export async function loadBookmarkPreview(bookmarkId: string) {
+  const data = await requestJson<BookmarkPreviewResponse>(
+    `/api/bookmarks/${bookmarkId}/preview`,
+    {
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "미리보기를 불러오지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
+  return data.preview as BookmarkExtractPreview;
+}
+
+export async function restoreBookmark(bookmarkId: string) {
+  const data = await requestJson<BookmarkRestoreResponse>(
+    `/api/bookmarks/${bookmarkId}/restore`,
+    {
+      method: "POST",
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "휴지통에서 북마크를 복구하지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
+  return data.bookmark;
+}
+
+export async function permanentlyDeleteBookmark(bookmarkId: string) {
+  await requestJson<BookmarkPermanentDeleteResponse>(
+    `/api/bookmarks/${bookmarkId}/permanent`,
+    {
+      method: "DELETE",
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "북마크를 영구 삭제하지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
 }
 
 export async function reextractBookmark(bookmarkId: string) {

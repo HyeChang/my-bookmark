@@ -19,10 +19,18 @@ export type SessionResponse =
     };
 
 export type BookmarkSearchMode = "all" | "title" | "content" | "folder";
-export type BookmarkSortMode = "created_desc" | "opened_desc";
+export type BookmarkSortMode =
+  | "created_desc"
+  | "created_asc"
+  | "opened_desc"
+  | "title_asc"
+  | "title_desc"
+  | "site_asc"
+  | "site_desc";
 export type BookmarkRelativeDateRange = "all" | "7d" | "30d";
 export type BookmarkTagMode = "and" | "or";
 export type BookmarkAssetType = "image" | "capture";
+export type BookmarkTrashMode = "active" | "trashed" | "all";
 
 export type Bookmark = {
   id: string;
@@ -30,6 +38,9 @@ export type Bookmark = {
   tagIds: string[];
   url: string;
   isFavorite: boolean;
+  isHidden: boolean;
+  isTrashed: boolean;
+  trashedAt: string | null;
   bookmarkColor: string | null;
   urlColor: string | null;
   sourceTitle: string | null;
@@ -56,6 +67,7 @@ export type CreateBookmarkRequest = {
   sourceContent?: string | null;
   sourceSummary?: string | null;
   isFavorite?: boolean;
+  isHidden?: boolean;
   bookmarkColor?: string | null;
   urlColor?: string | null;
 };
@@ -66,7 +78,11 @@ export type UpdateBookmarkRequest = {
   userTitle?: string | null;
   userContent?: string | null;
   userSummary?: string | null;
+  sourceTitle?: string | null;
+  sourceContent?: string | null;
+  sourceSummary?: string | null;
   isFavorite?: boolean;
+  isHidden?: boolean;
   bookmarkColor?: string | null;
   urlColor?: string | null;
 };
@@ -74,6 +90,8 @@ export type UpdateBookmarkRequest = {
 export type BookmarkResponse = {
   bookmark: Bookmark;
 };
+
+export type BookmarkRestoreResponse = BookmarkResponse;
 
 export type BookmarkListResponse = {
   bookmarks: Bookmark[];
@@ -86,6 +104,10 @@ export type BookmarkRecommendationsResponse = {
 };
 
 export type BookmarkOpenResponse = {
+  ok: true;
+};
+
+export type BookmarkPermanentDeleteResponse = {
   ok: true;
 };
 
@@ -102,6 +124,10 @@ export type BookmarkExtractPreview = {
 };
 
 export type BookmarkExtractResponse = {
+  preview: BookmarkExtractPreview;
+};
+
+export type BookmarkPreviewResponse = {
   preview: BookmarkExtractPreview;
 };
 
@@ -131,6 +157,7 @@ export type Folder = {
   name: string;
   color: string | null;
   icon: string | null;
+  isHidden?: boolean;
   parentFolderId: string | null;
   sortOrder: number;
   createdAt: string;
@@ -141,6 +168,7 @@ export type CreateFolderRequest = {
   name: string;
   color?: string | null;
   icon?: string | null;
+  isHidden?: boolean;
   parentFolderId?: string | null;
 };
 
@@ -148,6 +176,7 @@ export type UpdateFolderRequest = {
   name?: string;
   color?: string | null;
   icon?: string | null;
+  isHidden?: boolean;
   parentFolderId?: string | null;
 };
 
@@ -192,4 +221,24 @@ export type TagResponse = {
 
 export type TagListResponse = {
   tags: Tag[];
+};
+
+export type ExtensionToken = {
+  id: string;
+  label: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateExtensionTokenRequest = {
+  label: string;
+};
+
+export type CreateExtensionTokenResponse = {
+  token: ExtensionToken;
+  rawToken: string;
+};
+
+export type ExtensionTokenListResponse = {
+  tokens: ExtensionToken[];
 };

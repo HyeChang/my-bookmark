@@ -1,5 +1,6 @@
 import type {
   Bookmark,
+  BookmarkTrashMode,
   BookmarkSearchMode,
   BookmarkTagMode,
   CreateBookmarkRequest,
@@ -23,6 +24,8 @@ type BookmarkRow = {
   url: string;
   normalized_url: string;
   is_favorite: number;
+  is_hidden: number;
+  trashed_at: string | null;
   bookmark_color: string | null;
   url_color: string | null;
   source_title: string | null;
@@ -72,6 +75,7 @@ export type BookmarkListFilters = {
   folderIds?: string[];
   tagIds?: string[];
   tagMode?: BookmarkTagMode;
+  trashMode?: BookmarkTrashMode;
   bookmarkColor?: string;
   urlColor?: string;
   summaryState?: "with" | "without";
@@ -88,6 +92,8 @@ export type BookmarkRepository = {
   create(input: CreateBookmarkInput): Promise<BookmarkRecord>;
   getByUserAndId(userId: string, bookmarkId: string): Promise<BookmarkRecord | null>;
   delete(bookmarkId: string, userId: string): Promise<boolean>;
+  restore(bookmarkId: string, userId: string): Promise<BookmarkRecord | null>;
+  permanentlyDelete(bookmarkId: string, userId: string): Promise<boolean>;
   update(
     bookmarkId: string,
     userId: string,
@@ -123,6 +129,9 @@ function toBookmarkRecord(row: BookmarkRow): BookmarkRecord {
     url: row.url,
     normalizedUrl: row.normalized_url,
     isFavorite: row.is_favorite === 1,
+    isHidden: row.is_hidden === 1,
+    isTrashed: row.trashed_at !== null,
+    trashedAt: row.trashed_at,
     bookmarkColor: row.bookmark_color,
     urlColor: row.url_color,
     sourceTitle: row.source_title,
@@ -146,6 +155,9 @@ export function toBookmarkResponse(bookmark: BookmarkRecord): Bookmark {
     tagIds: bookmark.tagIds,
     url: bookmark.url,
     isFavorite: bookmark.isFavorite,
+    isHidden: bookmark.isHidden,
+    isTrashed: bookmark.isTrashed,
+    trashedAt: bookmark.trashedAt,
     bookmarkColor: bookmark.bookmarkColor,
     urlColor: bookmark.urlColor,
     sourceTitle: bookmark.sourceTitle,
@@ -275,6 +287,8 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
           url,
           normalized_url,
           is_favorite,
+          is_hidden,
+          trashed_at,
           bookmark_color,
           url_color,
           source_title,
@@ -303,9 +317,11 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
     folderName: string
   ) {
     const normalizedQuery = query.toLowerCase();
+    const searchableTitle = (bookmark.displayTitle.trim() || bookmark.url).toLowerCase();
+    const searchableUrl = bookmark.url.toLowerCase();
 
     if (mode === "title") {
-      return bookmark.displayTitle.toLowerCase().includes(normalizedQuery);
+      return searchableTitle.includes(normalizedQuery);
     }
 
     if (mode === "content") {
@@ -318,7 +334,8 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
 
     const tagText = tagNames.join(" ").toLowerCase();
     return (
-      bookmark.displayTitle.toLowerCase().includes(normalizedQuery) ||
+      searchableTitle.includes(normalizedQuery) ||
+      searchableUrl.includes(normalizedQuery) ||
       bookmark.displayContent.toLowerCase().includes(normalizedQuery) ||
       tagText.includes(normalizedQuery)
     );
@@ -329,6 +346,14 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
     const normalizedUrlColor = bookmark.urlColor?.trim().toLowerCase() ?? "";
 
     if (filters.favoriteOnly && !bookmark.isFavorite) {
+      return false;
+    }
+
+    const trashMode = filters.trashMode ?? "active";
+    if (trashMode === "active" && bookmark.isTrashed) {
+      return false;
+    }
+    if (trashMode === "trashed" && !bookmark.isTrashed) {
       return false;
     }
 
@@ -446,6 +471,8 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
           url,
           normalized_url,
           is_favorite,
+          is_hidden,
+          trashed_at,
           bookmark_color,
           url_color,
           source_title,
@@ -517,12 +544,13 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
           `INSERT INTO bookmarks (
             id,
             user_id,
-            folder_id,
-            url,
-            normalized_url,
-            is_favorite,
-            bookmark_color,
-            url_color,
+          folder_id,
+          url,
+          normalized_url,
+          is_favorite,
+          is_hidden,
+          bookmark_color,
+          url_color,
             source_title,
             source_content,
             source_summary,
@@ -531,7 +559,7 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
             user_summary,
             created_at,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           bookmarkId,
@@ -540,6 +568,7 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
           input.url,
           input.normalizedUrl,
           input.isFavorite ? 1 : 0,
+          input.isHidden ? 1 : 0,
           input.bookmarkColor ?? null,
           input.urlColor ?? null,
           input.sourceTitle ?? null,
@@ -564,6 +593,46 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
     },
     getByUserAndId,
     async delete(bookmarkId, userId) {
+      const existingBookmark = await getByUserAndId(userId, bookmarkId);
+      if (!existingBookmark) {
+        return false;
+      }
+
+      if (existingBookmark.isTrashed) {
+        return true;
+      }
+
+      const now = new Date().toISOString();
+      await db
+        .prepare(
+          `UPDATE bookmarks
+          SET trashed_at = ?, updated_at = ?
+          WHERE id = ? AND user_id = ?`
+        )
+        .bind(now, now, bookmarkId, userId)
+        .run();
+
+      return true;
+    },
+    async restore(bookmarkId, userId) {
+      const existingBookmark = await getByUserAndId(userId, bookmarkId);
+      if (!existingBookmark) {
+        return null;
+      }
+
+      const now = new Date().toISOString();
+      await db
+        .prepare(
+          `UPDATE bookmarks
+          SET trashed_at = ?, updated_at = ?
+          WHERE id = ? AND user_id = ?`
+        )
+        .bind(null, now, bookmarkId, userId)
+        .run();
+
+      return getByUserAndId(userId, bookmarkId);
+    },
+    async permanentlyDelete(bookmarkId, userId) {
       const existingBookmark = await getByUserAndId(userId, bookmarkId);
       if (!existingBookmark) {
         return false;
@@ -641,6 +710,10 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
       if ("isFavorite" in input) {
         assignments.push("is_favorite = ?");
         values.push(input.isFavorite ? 1 : 0);
+      }
+      if ("isHidden" in input) {
+        assignments.push("is_hidden = ?");
+        values.push(input.isHidden ? 1 : 0);
       }
       if ("bookmarkColor" in input) {
         assignments.push("bookmark_color = ?");

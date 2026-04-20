@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
 import { createSessionValue } from "../src/lib/auth/session";
+import type {
+  BookmarkRecord,
+  BookmarkRepository
+} from "../src/lib/repositories/bookmarks";
 
 const sessionSecret = "bookmark-test-secret";
 const fakeUser = {
@@ -58,6 +62,75 @@ describe("bookmark extract routes", () => {
         sourceTitle: "Example title",
         sourceContent: "Example article body",
         sourceSummary: "Example summary"
+      }
+    });
+  });
+
+  it("loads a fresh preview for an existing bookmark without updating stored source fields", async () => {
+    const bookmark: BookmarkRecord = {
+      id: "bookmark-preview",
+      userId: fakeUser.uid,
+      folderId: null,
+      tagIds: [],
+      url: "https://example.com/stored",
+      normalizedUrl: "https://example.com/stored",
+      isFavorite: false,
+      isHidden: false,
+      isTrashed: false,
+      trashedAt: null,
+      bookmarkColor: null,
+      urlColor: null,
+      sourceTitle: "Stored source title",
+      sourceContent: "Stored source content",
+      sourceSummary: "Stored source summary",
+      userTitle: null,
+      userContent: null,
+      userSummary: null,
+      displayTitle: "Stored source title",
+      displayContent: "Stored source content",
+      displaySummary: "Stored source summary",
+      createdAt: "2026-04-20T00:00:00.000Z",
+      updatedAt: "2026-04-20T00:00:00.000Z"
+    };
+    const update = vi.fn();
+    const bookmarkRepository: BookmarkRepository = {
+      listByUser: async () => [],
+      searchByUser: async () => [],
+      create: async () => bookmark,
+      getByUserAndId: async (userId, bookmarkId) =>
+        userId === fakeUser.uid && bookmarkId === bookmark.id ? bookmark : null,
+      delete: async () => false,
+      restore: async () => null,
+      permanentlyDelete: async () => false,
+      update
+    };
+    const extract = vi.fn(async (url: string) => ({
+      url,
+      normalizedUrl: new URL(url).toString(),
+      sourceTitle: "Fresh preview title",
+      sourceContent: "Fresh preview body",
+      sourceSummary: "Fresh preview summary"
+    }));
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository,
+      bookmarkExtractor: {
+        extract
+      }
+    });
+
+    const res = await authenticatedRequest(app, "/api/bookmarks/bookmark-preview/preview");
+
+    expect(res.status).toBe(200);
+    expect(extract).toHaveBeenCalledWith("https://example.com/stored");
+    expect(update).not.toHaveBeenCalled();
+    await expect(res.json()).resolves.toMatchObject({
+      preview: {
+        url: "https://example.com/stored",
+        normalizedUrl: "https://example.com/stored",
+        sourceTitle: "Fresh preview title",
+        sourceContent: "Fresh preview body",
+        sourceSummary: "Fresh preview summary"
       }
     });
   });

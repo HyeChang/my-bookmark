@@ -13,10 +13,15 @@ import {
   toFolderResponse,
   type FolderRepository
 } from "../lib/repositories/folders";
+import {
+  createExtensionTokenRepository,
+  type ExtensionTokenRepository
+} from "../lib/repositories/extension-tokens";
 import { syncAuthenticatedUser } from "../lib/repositories/users";
 
 type FolderRouteOptions = {
   folderRepository?: FolderRepository;
+  extensionTokenRepository?: ExtensionTokenRepository;
   sessionSecret?: string;
 };
 
@@ -127,10 +132,24 @@ async function validateParentFolderSelection(
   };
 }
 
+function resolveExtensionTokenRepository(
+  c: { env?: AppBindings },
+  options: FolderRouteOptions
+) {
+  return (
+    options.extensionTokenRepository ??
+    (c.env?.bookmark ? createExtensionTokenRepository(c.env.bookmark) : undefined)
+  );
+}
+
 export function createFolderRoute(options: FolderRouteOptions = {}) {
   return new Hono<{ Bindings: AppBindings }>()
     .get("/", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -154,7 +173,11 @@ export function createFolderRoute(options: FolderRouteOptions = {}) {
       });
     })
     .post("/", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -190,6 +213,7 @@ export function createFolderRoute(options: FolderRouteOptions = {}) {
       const folder = await repository.create({
         ...body,
         name,
+        isHidden: body?.isHidden === true,
         parentFolderId: parentFolderValidation.parentFolderId,
         userId: user.uid
       });
@@ -202,7 +226,11 @@ export function createFolderRoute(options: FolderRouteOptions = {}) {
       );
     })
     .post("/reorder", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -242,7 +270,11 @@ export function createFolderRoute(options: FolderRouteOptions = {}) {
       });
     })
     .post("/:folderId/move", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -280,7 +312,11 @@ export function createFolderRoute(options: FolderRouteOptions = {}) {
       });
     })
     .patch("/:folderId", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
@@ -322,6 +358,10 @@ export function createFolderRoute(options: FolderRouteOptions = {}) {
         input.parentFolderId = parentFolderValidation.parentFolderId;
       }
 
+      if ("isHidden" in input) {
+        input.isHidden = input.isHidden === true;
+      }
+
       const folder = await repository.update(c.req.param("folderId"), user.uid, input);
 
       if (!folder) {
@@ -333,7 +373,11 @@ export function createFolderRoute(options: FolderRouteOptions = {}) {
       });
     })
     .delete("/:folderId", async (c) => {
-      const user = await getAuthenticatedUser(c, options.sessionSecret);
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
       if (!user) {
         return c.json({ error: "unauthorized" }, 401);
       }
