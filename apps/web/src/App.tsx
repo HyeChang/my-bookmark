@@ -271,6 +271,15 @@ const defaultBookmarkCardDisplaySettings: BookmarkCardDisplaySettings = {
   coverSize: 132
 };
 
+const defaultBookmarkListDisplaySettings: BookmarkCardDisplaySettings = {
+  coverImage: true,
+  title: true,
+  description: false,
+  tags: true,
+  bookmarkInfo: true,
+  coverSize: 132
+};
+
 const MOBILE_SEARCH_BREAKPOINT = 720;
 const MOBILE_SEARCH_MEDIA_QUERY = `(max-width: ${MOBILE_SEARCH_BREAKPOINT}px)`;
 const EXTENSION_FOLDER_NAME = "확장";
@@ -618,55 +627,69 @@ function isBookmarkViewMode(value: unknown): value is BookmarkViewMode {
   return bookmarkViewModeOptions.some((option) => option.value === value);
 }
 
+function normalizeBookmarkDisplaySettings(
+  parsedSettings: Partial<BookmarkCardDisplaySettings> | undefined,
+  defaultSettings: BookmarkCardDisplaySettings
+): BookmarkCardDisplaySettings {
+  return {
+    coverImage:
+      typeof parsedSettings?.coverImage === "boolean"
+        ? parsedSettings.coverImage
+        : defaultSettings.coverImage,
+    title:
+      typeof parsedSettings?.title === "boolean"
+        ? parsedSettings.title
+        : defaultSettings.title,
+    description:
+      typeof parsedSettings?.description === "boolean"
+        ? parsedSettings.description
+        : defaultSettings.description,
+    tags:
+      typeof parsedSettings?.tags === "boolean" ? parsedSettings.tags : defaultSettings.tags,
+    bookmarkInfo:
+      typeof parsedSettings?.bookmarkInfo === "boolean"
+        ? parsedSettings.bookmarkInfo
+        : defaultSettings.bookmarkInfo,
+    coverSize: clampBookmarkCoverSize(
+      Number(parsedSettings?.coverSize ?? defaultSettings.coverSize)
+    )
+  };
+}
+
 function loadStoredBookmarkViewSettings() {
   try {
     const storedSettings = globalThis.localStorage?.getItem(BOOKMARK_VIEW_SETTINGS_STORAGE_KEY);
     if (!storedSettings) {
       return {
         mode: DEFAULT_BOOKMARK_VIEW_MODE,
+        list: defaultBookmarkListDisplaySettings,
         card: defaultBookmarkCardDisplaySettings
       };
     }
 
     const parsedSettings = JSON.parse(storedSettings) as {
       mode?: unknown;
+      list?: Partial<BookmarkCardDisplaySettings>;
       card?: Partial<BookmarkCardDisplaySettings>;
     };
-    const parsedCardSettings = parsedSettings.card ?? {};
 
     return {
       mode: isBookmarkViewMode(parsedSettings.mode)
         ? parsedSettings.mode
         : DEFAULT_BOOKMARK_VIEW_MODE,
-      card: {
-        coverImage:
-          typeof parsedCardSettings.coverImage === "boolean"
-            ? parsedCardSettings.coverImage
-            : defaultBookmarkCardDisplaySettings.coverImage,
-        title:
-          typeof parsedCardSettings.title === "boolean"
-            ? parsedCardSettings.title
-            : defaultBookmarkCardDisplaySettings.title,
-        description:
-          typeof parsedCardSettings.description === "boolean"
-            ? parsedCardSettings.description
-            : defaultBookmarkCardDisplaySettings.description,
-        tags:
-          typeof parsedCardSettings.tags === "boolean"
-            ? parsedCardSettings.tags
-            : defaultBookmarkCardDisplaySettings.tags,
-        bookmarkInfo:
-          typeof parsedCardSettings.bookmarkInfo === "boolean"
-            ? parsedCardSettings.bookmarkInfo
-            : defaultBookmarkCardDisplaySettings.bookmarkInfo,
-        coverSize: clampBookmarkCoverSize(
-          Number(parsedCardSettings.coverSize ?? defaultBookmarkCardDisplaySettings.coverSize)
-        )
-      }
+      list: normalizeBookmarkDisplaySettings(
+        parsedSettings.list,
+        defaultBookmarkListDisplaySettings
+      ),
+      card: normalizeBookmarkDisplaySettings(
+        parsedSettings.card,
+        defaultBookmarkCardDisplaySettings
+      )
     };
   } catch {
     return {
       mode: DEFAULT_BOOKMARK_VIEW_MODE,
+      list: defaultBookmarkListDisplaySettings,
       card: defaultBookmarkCardDisplaySettings
     };
   }
@@ -1483,6 +1506,8 @@ export default function App() {
   const [bookmarkViewMode, setBookmarkViewMode] = useState<BookmarkViewMode>(
     () => loadStoredBookmarkViewSettings().mode
   );
+  const [bookmarkListDisplaySettings, setBookmarkListDisplaySettings] =
+    useState<BookmarkCardDisplaySettings>(() => loadStoredBookmarkViewSettings().list);
   const [bookmarkCardDisplaySettings, setBookmarkCardDisplaySettings] =
     useState<BookmarkCardDisplaySettings>(() => loadStoredBookmarkViewSettings().card);
   const [openFolderActionMenuId, setOpenFolderActionMenuId] = useState<string | null>(null);
@@ -1707,13 +1732,14 @@ export default function App() {
         BOOKMARK_VIEW_SETTINGS_STORAGE_KEY,
         JSON.stringify({
           mode: bookmarkViewMode,
+          list: bookmarkListDisplaySettings,
           card: bookmarkCardDisplaySettings
         })
       );
     } catch {
       // The setting is a convenience preference; keep the UI usable if storage is unavailable.
     }
-  }, [bookmarkViewMode, bookmarkCardDisplaySettings]);
+  }, [bookmarkViewMode, bookmarkListDisplaySettings, bookmarkCardDisplaySettings]);
 
   useEffect(() => {
     function handleBeforeInstallPrompt(event: Event) {
@@ -4658,10 +4684,24 @@ export default function App() {
     );
   }
 
-  function updateBookmarkCardDisplaySetting(
+  function getActiveBookmarkDisplaySettings() {
+    return bookmarkViewMode === "list"
+      ? bookmarkListDisplaySettings
+      : bookmarkCardDisplaySettings;
+  }
+
+  function updateBookmarkDisplaySetting(
     key: keyof Omit<BookmarkCardDisplaySettings, "coverSize">,
     value: boolean
   ) {
+    if (bookmarkViewMode === "list") {
+      setBookmarkListDisplaySettings((currentSettings) => ({
+        ...currentSettings,
+        [key]: value
+      }));
+      return;
+    }
+
     setBookmarkCardDisplaySettings((currentSettings) => ({
       ...currentSettings,
       [key]: value
@@ -4670,8 +4710,10 @@ export default function App() {
 
   function renderBookmarkViewControl() {
     const activeViewLabel = getBookmarkViewModeLabel(bookmarkViewMode);
-    const shouldShowCardDisplayControls =
+    const shouldShowDisplayControls = bookmarkViewMode !== "title";
+    const shouldShowCoverSizeControl =
       bookmarkViewMode === "card" || bookmarkViewMode === "moodboard";
+    const activeBookmarkDisplaySettings = getActiveBookmarkDisplaySettings();
 
     return (
       <div className="bookmark-view-menu-shell">
@@ -4719,9 +4761,9 @@ export default function App() {
                 </button>
               ))}
             </section>
-            {shouldShowCardDisplayControls ? (
+            {shouldShowDisplayControls ? (
             <section className="bookmark-view-menu-section">
-              <p className="bookmark-view-menu-title">보기 in 카드</p>
+              <p className="bookmark-view-menu-title">항목에서 표시</p>
               {[
                 ["coverImage", "커버 이미지"],
                 ["title", "제목"],
@@ -4730,7 +4772,7 @@ export default function App() {
                 ["bookmarkInfo", "북마크 정보"]
               ].map(([key, label]) => {
                 const settingKey = key as keyof Omit<BookmarkCardDisplaySettings, "coverSize">;
-                const isChecked = bookmarkCardDisplaySettings[settingKey];
+                const isChecked = activeBookmarkDisplaySettings[settingKey];
 
                 return (
                   <button
@@ -4741,7 +4783,7 @@ export default function App() {
                     className={`secondary-button folder-action-menu-item bookmark-view-menu-item${
                       isChecked ? " bookmark-view-menu-item-active" : ""
                     }`}
-                    onClick={() => updateBookmarkCardDisplaySetting(settingKey, !isChecked)}
+                    onClick={() => updateBookmarkDisplaySetting(settingKey, !isChecked)}
                   >
                     <span aria-hidden="true" className="bookmark-view-menu-check">
                       {isChecked ? "✓" : ""}
@@ -4752,7 +4794,7 @@ export default function App() {
               })}
             </section>
             ) : null}
-            {shouldShowCardDisplayControls ? (
+            {shouldShowCoverSizeControl ? (
             <section className="bookmark-view-menu-section bookmark-cover-size-section">
               <label className="bookmark-cover-size-label" htmlFor="bookmark-cover-size-input">
                 커버 이미지
@@ -6620,24 +6662,29 @@ export default function App() {
               {visibleBookmarks.map((bookmark) => {
                 const bookmarkAssets = bookmarkAssetsByBookmarkId[bookmark.id] ?? [];
                 const bookmarkTagItems = getTagDisplayItems(bookmark.tagIds);
-                const appliesCardDisplaySettings =
-                  bookmarkViewMode === "card" || bookmarkViewMode === "moodboard";
+                const appliesItemDisplaySettings = bookmarkViewMode !== "title";
+                const bookmarkDisplaySettings =
+                  bookmarkViewMode === "list"
+                    ? bookmarkListDisplaySettings
+                    : bookmarkCardDisplaySettings;
                 const shouldShowBookmarkCover =
-                  appliesCardDisplaySettings &&
-                  bookmarkCardDisplaySettings.coverImage &&
+                  (bookmarkViewMode === "card" || bookmarkViewMode === "moodboard") &&
+                  bookmarkDisplaySettings.coverImage &&
                   bookmarkAssets.length > 0;
                 const shouldShowListBookmarkCover =
-                  bookmarkViewMode === "list" && bookmarkAssets.length > 0;
+                  bookmarkViewMode === "list" &&
+                  bookmarkDisplaySettings.coverImage &&
+                  bookmarkAssets.length > 0;
                 const shouldShowBookmarkTitle =
-                  !appliesCardDisplaySettings || bookmarkCardDisplaySettings.title;
+                  !appliesItemDisplaySettings || bookmarkDisplaySettings.title;
                 const shouldShowBookmarkDescription =
                   bookmarkViewMode !== "title" &&
-                  (!appliesCardDisplaySettings || bookmarkCardDisplaySettings.description);
+                  (!appliesItemDisplaySettings || bookmarkDisplaySettings.description);
                 const shouldShowBookmarkTags =
-                  !appliesCardDisplaySettings || bookmarkCardDisplaySettings.tags;
+                  !appliesItemDisplaySettings || bookmarkDisplaySettings.tags;
                 const shouldShowBookmarkInfo =
                   bookmarkViewMode !== "title" &&
-                  (!appliesCardDisplaySettings || bookmarkCardDisplaySettings.bookmarkInfo);
+                  (!appliesItemDisplaySettings || bookmarkDisplaySettings.bookmarkInfo);
                 const visibleBookmarkTagItems = bookmarkTagItems.slice(
                   0,
                   shouldUseCompactMobileCards ? 1 : 2

@@ -540,7 +540,7 @@ describe("bookmark dashboard", () => {
     expect(listThumbnail.closest(".bookmark-row-list-thumbnail")).toBeInTheDocument();
     expect(listThumbnail.closest(".bookmark-list-row")).toHaveClass("bookmark-list-row-has-cover");
     expect(within(bookmarkListRegion).getByText(/^View settings title$/i)).toBeInTheDocument();
-    expect(within(bookmarkListRegion).getByText(/^View settings summary$/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).queryByText(/^View settings summary$/i)).not.toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^design$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^미분류$/i)).toBeInTheDocument();
 
@@ -549,11 +549,38 @@ describe("bookmark dashboard", () => {
       "aria-checked",
       "true"
     );
+    expect(screen.getByRole("menuitemcheckbox", { name: /커버 이미지/i })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByRole("menuitemcheckbox", { name: /제목/i })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByRole("menuitemcheckbox", { name: /설명/i })).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
+    expect(screen.getByRole("menuitemcheckbox", { name: /태그/i })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByRole("menuitemcheckbox", { name: /북마크 정보/i })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
     expect(screen.queryByLabelText(/커버 이미지 크기/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /태그/i }));
+    expect(within(bookmarkListRegion).queryByText(/^design$/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /북마크 정보/i }));
+    expect(within(bookmarkListRegion).queryByText(/^미분류$/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("menuitemradio", { name: /^카드$/i }));
     expect(bookmarkListTable).toHaveClass("bookmark-list-table-view-card");
     expect(screen.getByLabelText(/커버 이미지 크기/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).getByText(/^View settings summary$/i)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/커버 이미지 크기/i), {
       target: {
@@ -6636,7 +6663,7 @@ describe("bookmark dashboard", () => {
     expect(within(firstCard).getByText(/^미분류$/i)).toBeInTheDocument();
     expect(within(firstCard).getByText(/^즐겨찾기$/i)).toBeInTheDocument();
     expect(within(firstCard).queryByText(/^research$/i)).not.toBeInTheDocument();
-    expect(within(firstCard).getByText(/^Manual summary$/i)).toBeInTheDocument();
+    expect(within(firstCard).queryByText(/^Manual summary$/i)).not.toBeInTheDocument();
     expect(within(firstCard).queryByText(/^https:\/\/example.com\/post$/i)).not.toBeInTheDocument();
     expect(within(firstCard).queryByText(/^북마크 주황$/i)).not.toBeInTheDocument();
     expect(within(firstCard).queryByText(/^URL 네이비$/i)).not.toBeInTheDocument();
@@ -9830,6 +9857,21 @@ describe("bookmark dashboard", () => {
   });
 
   it("shows manual content ahead of extracted summaries in bookmark cards", async () => {
+    globalThis.localStorage?.setItem(
+      "bookmark-view-settings:v2",
+      JSON.stringify({
+        mode: "card",
+        card: {
+          coverImage: true,
+          title: true,
+          description: true,
+          tags: true,
+          bookmarkInfo: true,
+          coverSize: 132
+        }
+      })
+    );
+
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
 
