@@ -271,10 +271,17 @@ const defaultBookmarkCardDisplaySettings: BookmarkCardDisplaySettings = {
 };
 
 const MOBILE_SEARCH_BREAKPOINT = 720;
+const MOBILE_SEARCH_MEDIA_QUERY = `(max-width: ${MOBILE_SEARCH_BREAKPOINT}px)`;
 const EXTENSION_FOLDER_NAME = "확장";
 
 function getIsMobileSearchViewport() {
-  return (globalThis.innerWidth ?? 1024) <= MOBILE_SEARCH_BREAKPOINT;
+  if (typeof globalThis.matchMedia === "function") {
+    return globalThis.matchMedia(MOBILE_SEARCH_MEDIA_QUERY).matches;
+  }
+
+  return (
+    globalThis.document?.documentElement?.clientWidth ?? globalThis.innerWidth ?? 1024
+  ) <= MOBILE_SEARCH_BREAKPOINT;
 }
 
 function normalizeBookmarkSearchDraft(search: BookmarkSearchDraft): BookmarkSearchDraft {

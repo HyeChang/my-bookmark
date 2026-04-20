@@ -46,6 +46,24 @@ function chooseColorOption(container: HTMLElement, label: string, optionLabel: s
   );
 }
 
+function stubDashboardViewport(width: number) {
+  vi.stubGlobal("innerWidth", width);
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: query.includes("max-width: 720px") ? width <= 720 : false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  );
+  window.dispatchEvent(new Event("resize"));
+}
+
 describe("bookmark dashboard", () => {
   it("shows the bookmark form and stored bookmarks for an authenticated user", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -5712,11 +5730,7 @@ describe("bookmark dashboard", () => {
   });
 
   it("starts with a collapsed search panel on mobile and opens it on demand", async () => {
-    vi.stubGlobal(
-      "innerWidth",
-      640
-    );
-    window.dispatchEvent(new Event("resize"));
+    stubDashboardViewport(640);
 
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
@@ -5806,13 +5820,11 @@ describe("bookmark dashboard", () => {
 
     fetchSpy.mockRestore();
     vi.unstubAllGlobals();
-    vi.stubGlobal("innerWidth", 1024);
-    window.dispatchEvent(new Event("resize"));
+    stubDashboardViewport(1024);
   });
 
   it("shows folder, bookmark, and recommendation tabs on mobile with compact header actions", async () => {
-    vi.stubGlobal("innerWidth", 640);
-    window.dispatchEvent(new Event("resize"));
+    stubDashboardViewport(640);
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
@@ -5950,6 +5962,17 @@ describe("bookmark dashboard", () => {
   });
 
   it("renders mobile sidebar tabs and switches the visible panel", async () => {
+    const matchMediaSpy = vi.fn((query: string) => ({
+      matches: query.includes("max-width: 720px"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }));
+    vi.stubGlobal("matchMedia", matchMediaSpy);
     vi.stubGlobal("innerWidth", 640);
     window.dispatchEvent(new Event("resize"));
 
@@ -6123,17 +6146,41 @@ describe("bookmark dashboard", () => {
     expect(await screen.findByRole("region", { name: /bookmark-list/i })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /recommendation-list/i })).not.toBeInTheDocument();
 
-    fireEvent.click(recommendationTab);
+    vi.stubGlobal("innerWidth", 760);
+    fireEvent(window, new Event("resize"));
 
-    expect(recommendationTab).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => {
+      expect(
+        within(sidebar).getByRole("tablist", {
+          name: /mobile-sidebar-tabs/i
+        })
+      ).toBeInTheDocument();
+    });
+    const stableMobileTablist = within(sidebar).getByRole("tablist", {
+      name: /mobile-sidebar-tabs/i
+    });
+    const stableRecommendationTab = within(stableMobileTablist).getByRole("tab", {
+      name: /^추천$/i
+    });
+    expect(within(stableMobileTablist).getByRole("tab", { name: /^북마크$/i })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    expect(screen.getByRole("button", { name: /^북마크 등록$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("toolbar", { name: /quick-actions-toolbar/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /folder-overview/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: /bookmark-list/i })).toBeInTheDocument();
+
+    fireEvent.click(stableRecommendationTab);
+
+    expect(stableRecommendationTab).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByRole("tabpanel", { name: /^추천$/i })).toBeInTheDocument();
     expect(await screen.findByRole("region", { name: /recommendation-list/i })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /bookmark-list/i })).not.toBeInTheDocument();
   });
 
   it("shows hidden folder and bookmark toggles on mobile panels", async () => {
-    vi.stubGlobal("innerWidth", 640);
-    window.dispatchEvent(new Event("resize"));
+    stubDashboardViewport(640);
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
@@ -6342,8 +6389,7 @@ describe("bookmark dashboard", () => {
   });
 
   it("opens folder edit from the mobile folder panel", async () => {
-    vi.stubGlobal("innerWidth", 640);
-    window.dispatchEvent(new Event("resize"));
+    stubDashboardViewport(640);
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
@@ -6449,8 +6495,7 @@ describe("bookmark dashboard", () => {
   });
 
   it("renders compact bookmark cards on mobile", async () => {
-    vi.stubGlobal("innerWidth", 640);
-    window.dispatchEvent(new Event("resize"));
+    stubDashboardViewport(640);
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
@@ -6612,8 +6657,7 @@ describe("bookmark dashboard", () => {
   });
 
   it("applies bookmark sorting from the mobile bookmark header", async () => {
-    vi.stubGlobal("innerWidth", 640);
-    window.dispatchEvent(new Event("resize"));
+    stubDashboardViewport(640);
 
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
