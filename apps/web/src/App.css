@@ -2252,6 +2252,7 @@ img {
   display: flex;
   flex-direction: column;
   gap: 0.72rem;
+  min-width: 0;
   min-height: 0;
   max-height: calc(100vh - 1.7rem);
   overflow: hidden;
@@ -3259,6 +3260,8 @@ img {
 .recommendation-title-line strong {
   min-width: 0;
   flex: 1;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .bookmark-card-title-block strong {
@@ -5502,7 +5505,8 @@ img {
   }
 
   .dashboard-main-with-rail {
-    grid-template-columns: minmax(360px, 0.6fr) minmax(560px, 1fr);
+    grid-template-columns: minmax(300px, 0.6fr) minmax(560px, 1fr);
+    overflow: hidden;
   }
 
   .dashboard-main-board-only .result-primary-column {
@@ -5706,6 +5710,12 @@ img {
   }
 }
 
+@media (min-width: 1121px) and (max-width: 1240px) {
+  .dashboard-main-with-rail {
+    grid-template-columns: minmax(260px, 0.5fr) minmax(520px, 1fr);
+  }
+}
+
 .bookmark-list-table-view-list {
   display: flex;
   flex-direction: column;
@@ -5842,6 +5852,42 @@ img {
 .bookmark-list-table-view-moodboard .bookmark-card-title-block,
 .bookmark-list-table-view-title .bookmark-card-title-block {
   min-width: 0;
+}
+
+.dashboard-main-with-rail .bookmark-list-table-view-list .bookmark-list-row {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "main"
+    "meta"
+    "actions";
+  align-items: stretch;
+}
+
+.dashboard-main-with-rail .bookmark-list-table-view-list .bookmark-row-main {
+  grid-area: main;
+}
+
+.dashboard-main-with-rail .bookmark-list-table-view-list .bookmark-row-meta {
+  grid-area: meta;
+}
+
+.dashboard-main-with-rail .bookmark-list-table-view-list .bookmark-row-actions {
+  grid-area: actions;
+  width: 100%;
+  justify-self: stretch;
+}
+
+.dashboard-main-with-rail .bookmark-list-table-view-list .bookmark-list-row-has-cover {
+  grid-template-columns: 5rem minmax(0, 1fr);
+  grid-template-areas:
+    "cover main"
+    "meta meta"
+    "actions actions";
+  align-items: center;
+}
+
+.dashboard-main-with-rail .bookmark-list-table-view-list .bookmark-row-list-thumbnail {
+  grid-area: cover;
 }
 
 @media (max-width: 720px) {

@@ -93,6 +93,10 @@ function truncateText(value: string | null, maxLength: number) {
   return `${value.slice(0, maxLength).trim()}...`;
 }
 
+function toNullableText(value: string) {
+  return value.trim().length > 0 ? value : null;
+}
+
 export function extractBookmarkPreviewFromHtml(
   url: string,
   html: string
@@ -106,7 +110,7 @@ export function extractBookmarkPreviewFromHtml(
     "og:description",
     "twitter:description"
   ]);
-  const sourceContent = truncateText(stripHtml(extractPrimaryHtml(html)), 1600);
+  const sourceContent = toNullableText(stripHtml(extractPrimaryHtml(html)));
   const sourceSummary = truncateText(metaDescription ?? sourceContent, 280);
 
   return {
