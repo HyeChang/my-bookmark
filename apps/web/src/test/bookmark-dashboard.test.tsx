@@ -500,18 +500,27 @@ describe("bookmark dashboard", () => {
       name: /bookmark-list/i
     });
     const bookmarkListTable = bookmarkListRegion.querySelector(".bookmark-list-table");
-    expect(bookmarkListTable).toHaveClass("bookmark-list-table-view-card");
-    expect(await within(bookmarkListRegion).findByRole("img", { name: /업로드 이미지 1/i })).toBeInTheDocument();
+    expect(bookmarkListTable).toHaveClass("bookmark-list-table-view-list");
+    const listThumbnail = await within(bookmarkListRegion).findByRole("img", {
+      name: /업로드 이미지 1/i
+    });
+    expect(listThumbnail.closest(".bookmark-row-list-thumbnail")).toBeInTheDocument();
+    expect(listThumbnail.closest(".bookmark-list-row")).toHaveClass("bookmark-list-row-has-cover");
     expect(within(bookmarkListRegion).getByText(/^View settings title$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^View settings summary$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^design$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^미분류$/i)).toBeInTheDocument();
 
     fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /보기 설정/i }));
-    expect(screen.getByRole("menuitemradio", { name: /^카드$/i })).toHaveAttribute(
+    expect(screen.getByRole("menuitemradio", { name: /^리스트$/i })).toHaveAttribute(
       "aria-checked",
       "true"
     );
+    expect(screen.queryByLabelText(/커버 이미지 크기/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /^카드$/i }));
+    expect(bookmarkListTable).toHaveClass("bookmark-list-table-view-card");
+    expect(screen.getByLabelText(/커버 이미지 크기/i)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/커버 이미지 크기/i), {
       target: {
@@ -6574,6 +6583,12 @@ describe("bookmark dashboard", () => {
     expect(within(firstCard).queryByText(/^상태 배지$/i)).not.toBeInTheDocument();
     expect(within(firstCard).queryByText(/^빠른 조작$/i)).not.toBeInTheDocument();
     expect(within(firstCard).queryByText(/^색상$/i)).not.toBeInTheDocument();
+    expect(firstCard.querySelector(".bookmark-row-actions")).toHaveClass(
+      "bookmark-row-actions-mobile-compact"
+    );
+    expect(within(firstCard).getByRole("button", { name: /Manual title 열기/i })).toHaveClass(
+      "bookmark-row-primary-action"
+    );
     expect(
       within(firstCard)
         .getAllByRole("button")
@@ -8848,6 +8863,19 @@ describe("bookmark dashboard", () => {
     expect(within(detailRegion).getByText(/^저장된 자동 추출$/i)).toBeInTheDocument();
     expect(within(detailRegion).getByText(/^Source title$/i)).toBeInTheDocument();
     expect(detailPreviewRequestCount).toBe(1);
+
+    const previewFullscreenButton = within(detailRegion).getByRole("button", {
+      name: /미리보기 전체화면/i
+    });
+    expect(previewFullscreenButton).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(previewFullscreenButton);
+    expect(detailRegion).toHaveClass("bookmark-detail-card-preview-fullscreen");
+    const previewRestoreButton = within(detailRegion).getByRole("button", {
+      name: /미리보기 기본 크기/i
+    });
+    expect(previewRestoreButton).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(previewRestoreButton);
+    expect(detailRegion).not.toHaveClass("bookmark-detail-card-preview-fullscreen");
 
     fireEvent.click(within(detailRegion).getByRole("tab", { name: /^상세$/i }));
     fireEvent.click(within(detailRegion).getByRole("tab", { name: /^미리보기$/i }));

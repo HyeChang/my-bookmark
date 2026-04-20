@@ -157,6 +157,7 @@ type BookmarkCardDisplaySettings = {
 
 const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
 const BOOKMARK_VIEW_SETTINGS_STORAGE_KEY = "bookmark-view-settings:v1";
+const DEFAULT_BOOKMARK_VIEW_MODE: BookmarkViewMode = "list";
 
 const emptyBookmarkDraft: BookmarkDraft = {
   url: "",
@@ -594,7 +595,7 @@ function getBookmarkSortShortLabel(sort: BookmarkSortMode) {
 }
 
 function getBookmarkViewModeLabel(mode: BookmarkViewMode) {
-  return bookmarkViewModeOptions.find((option) => option.value === mode)?.label ?? "카드";
+  return bookmarkViewModeOptions.find((option) => option.value === mode)?.label ?? "리스트";
 }
 
 function clampBookmarkCoverSize(value: number) {
@@ -614,7 +615,7 @@ function loadStoredBookmarkViewSettings() {
     const storedSettings = globalThis.localStorage?.getItem(BOOKMARK_VIEW_SETTINGS_STORAGE_KEY);
     if (!storedSettings) {
       return {
-        mode: "card" as BookmarkViewMode,
+        mode: DEFAULT_BOOKMARK_VIEW_MODE,
         card: defaultBookmarkCardDisplaySettings
       };
     }
@@ -626,7 +627,9 @@ function loadStoredBookmarkViewSettings() {
     const parsedCardSettings = parsedSettings.card ?? {};
 
     return {
-      mode: isBookmarkViewMode(parsedSettings.mode) ? parsedSettings.mode : "card",
+      mode: isBookmarkViewMode(parsedSettings.mode)
+        ? parsedSettings.mode
+        : DEFAULT_BOOKMARK_VIEW_MODE,
       card: {
         coverImage:
           typeof parsedCardSettings.coverImage === "boolean"
@@ -655,7 +658,7 @@ function loadStoredBookmarkViewSettings() {
     };
   } catch {
     return {
-      mode: "card" as BookmarkViewMode,
+      mode: DEFAULT_BOOKMARK_VIEW_MODE,
       card: defaultBookmarkCardDisplaySettings
     };
   }
@@ -1398,6 +1401,7 @@ export default function App() {
   const [isLoadingSelectedBookmarkAssets, setIsLoadingSelectedBookmarkAssets] = useState(false);
   const [bookmarkDetailActiveTab, setBookmarkDetailActiveTab] =
     useState<BookmarkDetailTab>("detail");
+  const [isBookmarkPreviewFullscreen, setIsBookmarkPreviewFullscreen] = useState(false);
   const [selectedBookmarkLivePreview, setSelectedBookmarkLivePreview] =
     useState<BookmarkExtractPreview | null>(null);
   const [selectedBookmarkPreviewError, setSelectedBookmarkPreviewError] =
@@ -3181,9 +3185,16 @@ export default function App() {
 
   function selectBookmarkDetailTab(tab: BookmarkDetailTab, bookmarkId: string) {
     setBookmarkDetailActiveTab(tab);
+    if (tab !== "preview") {
+      setIsBookmarkPreviewFullscreen(false);
+    }
     if (tab === "preview") {
       void loadSelectedBookmarkPreview(bookmarkId);
     }
+  }
+
+  function toggleBookmarkPreviewFullscreen() {
+    setIsBookmarkPreviewFullscreen((currentState) => !currentState);
   }
 
   async function openBookmarkDetail(
@@ -3203,6 +3214,7 @@ export default function App() {
       setOpenBookmarkActionMenuId(null);
       setIsBookmarkDetailActionMenuOpen(false);
       setBookmarkDetailDisplayMode(displayMode);
+      setIsBookmarkPreviewFullscreen(false);
       resetBookmarkDetailPreviewState();
 
       if (knownBookmark) {
@@ -3304,6 +3316,7 @@ export default function App() {
     setIsBookmarkDetailActionMenuOpen(false);
     setBookmarkDetailDisplayMode("rail");
     setBookmarkDetailActiveTab("detail");
+    setIsBookmarkPreviewFullscreen(false);
     setIsLoadingSelectedBookmark(false);
     setIsLoadingSelectedBookmarkAssets(false);
     setIsLoadingSelectedBookmarkPreview(false);
@@ -4045,10 +4058,18 @@ export default function App() {
       return null;
     }
 
+    const isPreviewFullscreenActive =
+      bookmarkDetailActiveTab === "preview" && isBookmarkPreviewFullscreen;
+    const previewFullscreenLabel = isPreviewFullscreenActive
+      ? "미리보기 기본 크기"
+      : "미리보기 전체화면";
+
     return (
       <section
         aria-label="bookmark-detail"
-        className="surface-card panel-card bookmark-detail-card"
+        className={`surface-card panel-card bookmark-detail-card${
+          isPreviewFullscreenActive ? " bookmark-detail-card-preview-fullscreen" : ""
+        }`}
         aria-busy={
           isLoadingSelectedBookmark ||
           isLoadingSelectedBookmarkAssets ||
@@ -4066,14 +4087,28 @@ export default function App() {
         <header className="bookmark-detail-header">
           <div className="bookmark-detail-top-row">
             <p className="bookmark-detail-kicker">읽기 중심</p>
-            <button
-              type="button"
-              className="ghost-button bookmark-detail-close-button"
-              aria-label="상세 창 닫기"
-              onClick={() => closeBookmarkDetail()}
-            >
-              <span aria-hidden="true">×</span>
-            </button>
+            <div className="bookmark-detail-window-actions">
+              {bookmarkDetailActiveTab === "preview" ? (
+                <button
+                  type="button"
+                  className="ghost-button bookmark-detail-window-button bookmark-preview-fullscreen-button"
+                  aria-label={previewFullscreenLabel}
+                  aria-pressed={isPreviewFullscreenActive}
+                  title={previewFullscreenLabel}
+                  onClick={() => toggleBookmarkPreviewFullscreen()}
+                >
+                  <span aria-hidden="true">{isPreviewFullscreenActive ? "↙" : "↗"}</span>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="ghost-button bookmark-detail-close-button"
+                aria-label="상세 창 닫기"
+                onClick={() => closeBookmarkDetail()}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
           </div>
           {selectedBookmarkStatusMessage ? (
             <p className="bookmark-detail-loading-status" aria-live="polite">
@@ -4215,7 +4250,7 @@ export default function App() {
             role="tabpanel"
             id="bookmark-detail-panel-preview"
             aria-labelledby="bookmark-detail-tab-preview"
-            className="bookmark-detail-tab-panel"
+            className="bookmark-detail-tab-panel bookmark-detail-preview-panel"
           >
             {isLoadingSelectedBookmarkPreview ? (
               <p className="quiet-empty-state" aria-live="polite">
@@ -4517,6 +4552,8 @@ export default function App() {
 
   function renderBookmarkViewControl() {
     const activeViewLabel = getBookmarkViewModeLabel(bookmarkViewMode);
+    const shouldShowCardDisplayControls =
+      bookmarkViewMode === "card" || bookmarkViewMode === "moodboard";
 
     return (
       <div className="bookmark-view-menu-shell">
@@ -4564,6 +4601,7 @@ export default function App() {
                 </button>
               ))}
             </section>
+            {shouldShowCardDisplayControls ? (
             <section className="bookmark-view-menu-section">
               <p className="bookmark-view-menu-title">보기 in 카드</p>
               {[
@@ -4595,6 +4633,8 @@ export default function App() {
                 );
               })}
             </section>
+            ) : null}
+            {shouldShowCardDisplayControls ? (
             <section className="bookmark-view-menu-section bookmark-cover-size-section">
               <label className="bookmark-cover-size-label" htmlFor="bookmark-cover-size-input">
                 커버 이미지
@@ -4617,6 +4657,7 @@ export default function App() {
                 }}
               />
             </section>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -6467,6 +6508,8 @@ export default function App() {
                   appliesCardDisplaySettings &&
                   bookmarkCardDisplaySettings.coverImage &&
                   bookmarkAssets.length > 0;
+                const shouldShowListBookmarkCover =
+                  bookmarkViewMode === "list" && bookmarkAssets.length > 0;
                 const shouldShowBookmarkTitle =
                   !appliesCardDisplaySettings || bookmarkCardDisplaySettings.title;
                 const shouldShowBookmarkDescription =
@@ -6498,6 +6541,8 @@ export default function App() {
                   key={bookmark.id}
                   className={`bookmark-card bookmark-list-row bookmark-list-row-view-${bookmarkViewMode}${
                     isSelectedBookmarkCard ? " bookmark-list-row-selected" : ""
+                  }${
+                    shouldShowListBookmarkCover ? " bookmark-list-row-has-cover" : ""
                   }`}
                   style={
                     bookmark.bookmarkColor
@@ -6508,6 +6553,14 @@ export default function App() {
                       : undefined
                   }
                 >
+                  {shouldShowListBookmarkCover && bookmarkCoverAsset ? (
+                    <div className="asset-grid bookmark-row-assets bookmark-row-list-thumbnail">
+                      <img
+                        src={bookmarkCoverAsset.contentUrl}
+                        alt="업로드 이미지 1"
+                      />
+                    </div>
+                  ) : null}
                   <div
                     className={`bookmark-row-main${shouldUseCompactMobileCards ? "" : " bookmark-row-click-target"}`}
                     onClick={
@@ -6602,12 +6655,16 @@ export default function App() {
                       ) : null}
                     </div>
                   ) : null}
-                  <div className="action-row bookmark-card-actions bookmark-row-actions">
+                  <div
+                    className={`action-row bookmark-card-actions bookmark-row-actions${
+                      shouldUseCompactMobileCards ? " bookmark-row-actions-mobile-compact" : ""
+                    }`}
+                  >
                     {isTrashedBookmark ? (
                       <>
                         <button
                           type="button"
-                          className="primary-button"
+                          className="primary-button bookmark-row-primary-action"
                           aria-label={`${bookmark.displayTitle || bookmark.url} 복구`}
                           onClick={() => void handleBookmarkRestore(bookmark)}
                         >
@@ -6636,7 +6693,7 @@ export default function App() {
                       <>
                         <button
                           type="button"
-                          className="primary-button"
+                          className="primary-button bookmark-row-primary-action"
                           aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
                           onClick={() => void handleBookmarkOpen(bookmark)}
                         >
