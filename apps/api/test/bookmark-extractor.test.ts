@@ -48,4 +48,43 @@ describe("bookmark extractor", () => {
       "http://t1.daumcdn.net/brunch/service/user/2uV/image/cover.png"
     );
   });
+
+  it("preserves article paragraphs while removing Brunch navigation text", () => {
+    const preview = extractBookmarkPreviewFromHtml(
+      "https://brunch.co.kr/@pletalk/95",
+      `
+        <html>
+          <body>
+            <article>
+              페이지뷰" &gt; .wrap_related_article" &gt;
+              <h1>raindrop.io : 올인원 북마크 서비스</h1>
+              정보와 자료의 수집, 저장, 검색, 분류 그리고 관리를 한방에 by 커버 &gt; 작가명 클릭" &gt;onlino Jan 25. 2022
+              <p>최근에 여러 산업과 비즈니스에 대해서 자료를 리서치를 진행할 일들이 늘어나면서 기존에 사용하던 Evernote보다 편리하고 여러 기기 환경에서도 지원이 가능한 북마크 및 자료 관리 프로그램을 찾다가 생산성 관련 사이트를 통해 알게 된 raindrop.io 서비스를 사용하게 되었는데요.</p>
+              <p>실제 북마크를 위해 사용하고 있는 웹 브라우저의 확장 프로그램(Extension, Add-On)을 설치해야 합니다. 현재 널리 사용하고 있는 모든 브라우저들을 지원하고 있어서 편리하게 사용이 가능합니다.</p>
+              <p>raindrop의 가진 몇 가지 특징들을 살펴보면 다음과 같습니다.</p>
+              <p>풍부한 정렬 기능 - 저장된 날짜 순서 이외에 이름이나 사이트의 이름순으로 정렬이 가능합니다.</p>
+              <p>다양한 레이아웃 지원 - 본문에 들어있는 이미지를 좀 더 큼직하게 볼 수 있다면, 스크랩한 내용을 다시 들어가서 확인하지 않아도 될 텐데 말이죠.</p>
+              keyword 본문 하단 &gt; 키워드 클릭" &gt; 북마크 본문 하단 &gt; 키워드 클릭" &gt; 스크랩 본문 하단 &gt; 키워드 클릭" &gt; 생각정리 하단 고정 영역 &gt; 매거진 다른글 클릭" &gt; 매거진의 이전글 Tweek Calendar : 미니멀 주간 캘린더 Printfriendly : PDF로 웹사이트 출력하기 매거진의 다음글
+            </article>
+          </body>
+        </html>
+      `
+    );
+
+    expect(preview.sourceContent).toContain(
+      "최근에 여러 산업과 비즈니스에 대해서 자료를 리서치를 진행할 일들이 늘어나면서 기존에 사용하던 Evernote보다 편리하고 여러 기기 환경에서도 지원이 가능한 북마크 및 자료 관리 프로그램을 찾다가 생산성 관련 사이트를 통해 알게 된 raindrop.io 서비스를 사용하게 되었는데요.\n\n실제 북마크를 위해 사용하고 있는 웹 브라우저의 확장 프로그램"
+    );
+    expect(preview.sourceContent).toContain(
+      "raindrop의 가진 몇 가지 특징들을 살펴보면 다음과 같습니다.\n\n풍부한 정렬 기능 - 저장된 날짜 순서"
+    );
+    expect(preview.sourceContent).not.toContain("페이지뷰");
+    expect(preview.sourceContent).not.toContain(".wrap_related_article");
+    expect(preview.sourceContent).not.toContain("작가명 클릭");
+    expect(preview.sourceContent).not.toContain("본문 하단");
+    expect(preview.sourceContent).not.toContain("키워드 클릭");
+    expect(preview.sourceContent).not.toContain("하단 고정 영역");
+    expect(preview.sourceContent).not.toContain("매거진의 이전글");
+    expect(preview.sourceContent).not.toContain("매거진의 다음글");
+    expect(preview.sourceContent).not.toContain(">");
+  });
 });

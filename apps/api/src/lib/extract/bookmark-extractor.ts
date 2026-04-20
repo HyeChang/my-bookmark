@@ -98,6 +98,38 @@ function resolveExtractedUrl(baseUrl: string, value: string | null) {
   }
 }
 
+function removeExtractionNoise(value: string) {
+  return value
+    .replace(/페이지뷰"?\s*>\s*/g, "")
+    .replace(/\.[a-z][\w-]+"?\s*>\s*/gi, "")
+    .replace(/작가명\s*클릭"?\s*>\s*/g, " ")
+    .replace(/(?:북마크|스크랩|생각정리)?\s*본문 하단\s*>\s*키워드 클릭"?\s*>\s*/g, " ")
+    .replace(/keyword\s+본문 하단[\s\S]*$/i, "")
+    .replace(/하단 고정 영역\s*>\s*매거진 다른글 클릭"?\s*>[\s\S]*$/g, "")
+    .replace(/매거진의\s*(?:이전글|다음글)[\s\S]*$/g, "")
+    .replace(/\s*>\s*/g, " ");
+}
+
+function normalizeExtractedText(value: string) {
+  return value
+    .replace(/\u00a0/g, " ")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t\f\v]+/g, " ")
+    .replace(/[ \t]*\n[ \t]*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .split(/\n{2,}/)
+    .map((paragraph) =>
+      paragraph
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .join("\n")
+    )
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+}
+
 function stripHtml(html: string) {
   const blockStrippedHtml = html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
@@ -105,19 +137,25 @@ function stripHtml(html: string) {
     .replace(/<!--[\s\S]*?-->/g, " ");
   const decodedHtml = decodeHtmlEntities(blockStrippedHtml);
 
-  return decodeHtmlEntities(
+  const strippedHtml = decodeHtmlEntities(
     decodedHtml
       .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
       .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
       .replace(/<!--[\s\S]*?-->/g, " ")
-      .replace(/<br\s*\/?>/gi, " ")
-      .replace(/<\/(?:p|div|section|article|li|h[1-6])>/gi, " ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<li\b[^>]*>/gi, "\n- ")
+      .replace(/<\/li>/gi, "\n")
+      .replace(
+        /<\/?(?:address|article|aside|blockquote|dd|details|div|dl|dt|figcaption|figure|footer|form|h[1-6]|header|hr|main|nav|ol|p|pre|section|table|tbody|td|tfoot|th|thead|tr|ul)\b[^>]*>/gi,
+        "\n\n"
+      )
       .replace(/<[^>]+>/g, " ")
       .replace(/\b[a-z][\w:-]*\s*=\s*(?:"[^"]*"|'[^']*')/gi, " ")
       .replace(/\s\.[a-z][\w-]+(?=\s|$)/gi, " ")
-      .replace(/\s+/g, " ")
       .trim()
   );
+
+  return normalizeExtractedText(removeExtractionNoise(strippedHtml));
 }
 
 function truncateText(value: string | null, maxLength: number) {
