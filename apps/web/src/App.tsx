@@ -156,7 +156,7 @@ type BookmarkCardDisplaySettings = {
 };
 
 const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
-const BOOKMARK_VIEW_SETTINGS_STORAGE_KEY = "bookmark-view-settings:v1";
+const BOOKMARK_VIEW_SETTINGS_STORAGE_KEY = "bookmark-view-settings:v2";
 const DEFAULT_BOOKMARK_VIEW_MODE: BookmarkViewMode = "list";
 
 const emptyBookmarkDraft: BookmarkDraft = {

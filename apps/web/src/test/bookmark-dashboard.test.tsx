@@ -370,6 +370,21 @@ describe("bookmark dashboard", () => {
   });
 
   it("customizes bookmark view mode and card display fields", async () => {
+    globalThis.localStorage?.setItem(
+      "bookmark-view-settings:v1",
+      JSON.stringify({
+        mode: "card",
+        card: {
+          coverImage: true,
+          title: true,
+          description: true,
+          tags: true,
+          bookmarkInfo: true,
+          coverSize: 180
+        }
+      })
+    );
+
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
 
