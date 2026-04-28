@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const appCss = readFileSync(resolve(__dirname, "../App.css"), "utf8");
+const appCss = readFileSync(
+  resolve(__dirname, "../components/AuthenticatedDashboardApp.css"),
+  "utf8"
+);
 
 describe("bookmark mobile overflow css", () => {
   it("keeps long bookmark text from widening mobile bookmark rows", () => {

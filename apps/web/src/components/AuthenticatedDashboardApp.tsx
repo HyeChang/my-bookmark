@@ -13,7 +13,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode
 } from "react";
-import "../App.css";
+import "./AuthenticatedDashboardApp.css";
 
 import type {
   AuthenticatedUser,

@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const appCss = readFileSync(resolve(__dirname, "../App.css"), "utf8");
+const appCss = readFileSync(
+  resolve(__dirname, "../components/AuthenticatedDashboardApp.css"),
+  "utf8"
+);
 
 describe("bookmark detail layout css", () => {
   it("keeps the desktop detail rail wide and compacts list rows while the rail is open", () => {
