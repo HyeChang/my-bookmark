@@ -3,6 +3,7 @@ dist/
 coverage/
 .wrangler/
 .playwright-cli/
+output/
 .dev.vars
 .env
 .env.*

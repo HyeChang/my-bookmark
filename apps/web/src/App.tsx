@@ -3,6 +3,7 @@ import {
   Suspense,
   startTransition,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -5084,12 +5085,21 @@ export default function App() {
     globalThis.open(url, "_blank", "noopener,noreferrer");
   }
 
+  const foldersById = useMemo(
+    () => new Map(folders.map((folder) => [folder.id, folder] as const)),
+    [folders]
+  );
+  const tagsById = useMemo(
+    () => new Map(tags.map((tag) => [tag.id, tag] as const)),
+    [tags]
+  );
+
   function getFolder(folderId: string | null) {
     if (!folderId) {
       return null;
     }
 
-    return folders.find((folder) => folder.id === folderId) ?? null;
+    return foldersById.get(folderId) ?? null;
   }
 
   function getFolderName(folderId: string | null) {
@@ -5101,7 +5111,7 @@ export default function App() {
   }
 
   function getTag(tagId: string) {
-    return tags.find((tag) => tag.id === tagId) ?? null;
+    return tagsById.get(tagId) ?? null;
   }
 
   function getTagNames(tagIds: string[]) {
@@ -5134,10 +5144,13 @@ export default function App() {
   const shouldRenderTagManagerOverlay = isTagManagerOpen;
   const shouldShowMobileSearchSummary = isMobileSearchViewport && hasActiveBookmarkSearch(appliedBookmarkSearch);
   const shouldShowSearchPanelBody = !isMobileSearchViewport || isMobileSearchPanelOpen;
-  const extensionFolderIds = getExtensionFolderIds(folders);
-  const rawHiddenFolderIds = getHiddenFolderIds(folders);
-  const hiddenFolderIds = new Set(
-    Array.from(rawHiddenFolderIds).filter((folderId) => !extensionFolderIds.has(folderId))
+  const extensionFolderIds = useMemo(() => getExtensionFolderIds(folders), [folders]);
+  const rawHiddenFolderIds = useMemo(() => getHiddenFolderIds(folders), [folders]);
+  const hiddenFolderIds = useMemo(
+    () => new Set(
+      Array.from(rawHiddenFolderIds).filter((folderId) => !extensionFolderIds.has(folderId))
+    ),
+    [extensionFolderIds, rawHiddenFolderIds]
   );
   const activeBookmarkSearchSummaryItems = getBookmarkSearchSummaryItems(
     appliedBookmarkSearch,
@@ -5146,77 +5159,134 @@ export default function App() {
       getTagNames
     }
   );
-  const visibleFolders = showHiddenFolders
-    ? folders.filter((folder) => !extensionFolderIds.has(folder.id))
-    : folders.filter(
-        (folder) => !hiddenFolderIds.has(folder.id) && !extensionFolderIds.has(folder.id)
-      );
-  const visibleBookmarks = filterBookmarksByHiddenBookmarks(
-    filterBookmarksByHiddenFolders(bookmarks, hiddenFolderIds, showHiddenFolders),
-    showHiddenBookmarks
+  const visibleFolders = useMemo(
+    () =>
+      showHiddenFolders
+        ? folders.filter((folder) => !extensionFolderIds.has(folder.id))
+        : folders.filter(
+            (folder) => !hiddenFolderIds.has(folder.id) && !extensionFolderIds.has(folder.id)
+          ),
+    [extensionFolderIds, folders, hiddenFolderIds, showHiddenFolders]
+  );
+  const visibleBookmarks = useMemo(
+    () =>
+      filterBookmarksByHiddenBookmarks(
+        filterBookmarksByHiddenFolders(bookmarks, hiddenFolderIds, showHiddenFolders),
+        showHiddenBookmarks
+      ),
+    [bookmarks, hiddenFolderIds, showHiddenBookmarks, showHiddenFolders]
   );
   const hasServerBookmarkPagination = bookmarkListTotalCount !== null;
-  const visiblePagedBookmarks = hasServerBookmarkPagination
-    ? visibleBookmarks
-    : visibleBookmarks.slice(0, bookmarkListVisibleCount);
+  const visiblePagedBookmarks = useMemo(
+    () =>
+      hasServerBookmarkPagination
+        ? visibleBookmarks
+        : visibleBookmarks.slice(0, bookmarkListVisibleCount),
+    [bookmarkListVisibleCount, hasServerBookmarkPagination, visibleBookmarks]
+  );
   const visibleBookmarkTotalCount = bookmarkListTotalCount ?? visibleBookmarks.length;
   const hasMoreVisibleBookmarks =
     bookmarkListNextOffset !== null || visiblePagedBookmarks.length < visibleBookmarks.length;
-  const visibleBookmarkInventory = filterBookmarksByHiddenBookmarks(
-    filterBookmarksByHiddenFolders(bookmarkInventory, hiddenFolderIds, showHiddenFolders),
-    showHiddenBookmarks
+  const visibleBookmarkInventory = useMemo(
+    () =>
+      filterBookmarksByHiddenBookmarks(
+        filterBookmarksByHiddenFolders(bookmarkInventory, hiddenFolderIds, showHiddenFolders),
+        showHiddenBookmarks
+      ),
+    [bookmarkInventory, hiddenFolderIds, showHiddenBookmarks, showHiddenFolders]
   );
-  const rawHomeFavoriteBookmarks = homeFavoriteBookmarks ??
-    bookmarkInventory.filter((bookmark) => bookmark.isFavorite && bookmark.isTrashed !== true);
-  const visibleHomeFavoriteBookmarks = filterBookmarksByHiddenBookmarks(
-    filterBookmarksByHiddenFolders(rawHomeFavoriteBookmarks, hiddenFolderIds, showHiddenFolders),
-    showHiddenBookmarks
+  const rawHomeFavoriteBookmarks = useMemo(
+    () =>
+      homeFavoriteBookmarks ??
+      bookmarkInventory.filter((bookmark) => bookmark.isFavorite && bookmark.isTrashed !== true),
+    [bookmarkInventory, homeFavoriteBookmarks]
   );
-  const selectedBookmarkTagIdSet = new Set(bookmarkDraft.tagIds);
+  const visibleHomeFavoriteBookmarks = useMemo(
+    () =>
+      filterBookmarksByHiddenBookmarks(
+        filterBookmarksByHiddenFolders(rawHomeFavoriteBookmarks, hiddenFolderIds, showHiddenFolders),
+        showHiddenBookmarks
+      ),
+    [hiddenFolderIds, rawHomeFavoriteBookmarks, showHiddenBookmarks, showHiddenFolders]
+  );
+  const selectedBookmarkTagIdSet = useMemo(
+    () => new Set(bookmarkDraft.tagIds),
+    [bookmarkDraft.tagIds]
+  );
   const normalizedBookmarkTagSearchQuery = bookmarkTagSearchQuery.trim().toLocaleLowerCase();
-  const composerSelectedTagItems = getTagDisplayItems(bookmarkDraft.tagIds);
-  const filteredBookmarkComposerTags = [...tags]
-    .filter((tag) =>
-      normalizedBookmarkTagSearchQuery
-        ? tag.name.toLocaleLowerCase().includes(normalizedBookmarkTagSearchQuery)
-        : true
-    )
-    .sort((left, right) => {
-      const selectionWeightDifference =
-        Number(selectedBookmarkTagIdSet.has(right.id)) - Number(selectedBookmarkTagIdSet.has(left.id));
+  const composerSelectedTagItems = useMemo(
+    () => getTagDisplayItems(bookmarkDraft.tagIds),
+    [bookmarkDraft.tagIds, tagsById]
+  );
+  const filteredBookmarkComposerTags = useMemo(
+    () =>
+      [...tags]
+        .filter((tag) =>
+          normalizedBookmarkTagSearchQuery
+            ? tag.name.toLocaleLowerCase().includes(normalizedBookmarkTagSearchQuery)
+            : true
+        )
+        .sort((left, right) => {
+          const selectionWeightDifference =
+            Number(selectedBookmarkTagIdSet.has(right.id)) -
+            Number(selectedBookmarkTagIdSet.has(left.id));
 
-      if (selectionWeightDifference !== 0) {
-        return selectionWeightDifference;
-      }
+          if (selectionWeightDifference !== 0) {
+            return selectionWeightDifference;
+          }
 
-      return left.name.localeCompare(right.name, "ko");
-    });
-  const folderOverviewAllBookmarkCount =
-    hasLoadedFullBookmarkInventory || !bookmarkCounts
-      ? visibleBookmarkInventory.length
-      : countVisibleActiveBookmarksFromCounts(
-          bookmarkCounts,
-          hiddenFolderIds,
-          showHiddenFolders,
-          showHiddenBookmarks
-        );
-  const folderOverviewUnfiledBookmarkCount =
-    hasLoadedFullBookmarkInventory || !bookmarkCounts
-      ? visibleBookmarkInventory.filter(
-          (bookmark) => isBookmarkUnfiled(bookmark, extensionFolderIds)
-        ).length
-      : countUnfiledBookmarksFromCounts(
-          bookmarkCounts,
-          extensionFolderIds,
-          showHiddenBookmarks
-        );
-  const folderOverviewTrashBookmarkCount =
-    trashedBookmarks.length > 0 || !bookmarkCounts
-      ? filterBookmarksByHiddenBookmarks(
-          trashedBookmarks,
-          showHiddenBookmarks
-        ).length
-      : getBookmarkCountBucketValue(bookmarkCounts.trashed, showHiddenBookmarks);
+          return left.name.localeCompare(right.name, "ko");
+        }),
+    [normalizedBookmarkTagSearchQuery, selectedBookmarkTagIdSet, tags]
+  );
+  const folderOverviewAllBookmarkCount = useMemo(
+    () =>
+      hasLoadedFullBookmarkInventory || !bookmarkCounts
+        ? visibleBookmarkInventory.length
+        : countVisibleActiveBookmarksFromCounts(
+            bookmarkCounts,
+            hiddenFolderIds,
+            showHiddenFolders,
+            showHiddenBookmarks
+          ),
+    [
+      bookmarkCounts,
+      hasLoadedFullBookmarkInventory,
+      hiddenFolderIds,
+      showHiddenBookmarks,
+      showHiddenFolders,
+      visibleBookmarkInventory
+    ]
+  );
+  const folderOverviewUnfiledBookmarkCount = useMemo(
+    () =>
+      hasLoadedFullBookmarkInventory || !bookmarkCounts
+        ? visibleBookmarkInventory.filter(
+            (bookmark) => isBookmarkUnfiled(bookmark, extensionFolderIds)
+          ).length
+        : countUnfiledBookmarksFromCounts(
+            bookmarkCounts,
+            extensionFolderIds,
+            showHiddenBookmarks
+          ),
+    [
+      bookmarkCounts,
+      extensionFolderIds,
+      hasLoadedFullBookmarkInventory,
+      showHiddenBookmarks,
+      visibleBookmarkInventory
+    ]
+  );
+  const folderOverviewTrashBookmarkCount = useMemo(
+    () =>
+      trashedBookmarks.length > 0 || !bookmarkCounts
+        ? filterBookmarksByHiddenBookmarks(
+            trashedBookmarks,
+            showHiddenBookmarks
+          ).length
+        : getBookmarkCountBucketValue(bookmarkCounts.trashed, showHiddenBookmarks),
+    [bookmarkCounts, showHiddenBookmarks, trashedBookmarks]
+  );
   const homeFavoriteBookmarkCount = bookmarkCounts
     ? getBookmarkCountBucketValue(bookmarkCounts.favorite, showHiddenBookmarks)
     : visibleHomeFavoriteBookmarks.length;
@@ -5224,9 +5294,13 @@ export default function App() {
     folderOverviewSpecialFilter ??
     (!hasActiveBookmarkSearch(appliedBookmarkSearch) ? "all" : null);
   const isTrashBookmarkView = activeFolderOverviewSpecialFilter === "trash";
-  const visibleRecommendations = filterRecommendationsByHiddenBookmarks(
-    filterRecommendationsByHiddenFolders(recommendations, hiddenFolderIds, showHiddenFolders),
-    showHiddenBookmarks
+  const visibleRecommendations = useMemo(
+    () =>
+      filterRecommendationsByHiddenBookmarks(
+        filterRecommendationsByHiddenFolders(recommendations, hiddenFolderIds, showHiddenFolders),
+        showHiddenBookmarks
+      ),
+    [hiddenFolderIds, recommendations, showHiddenBookmarks, showHiddenFolders]
   );
   const visibleSelectedBookmark =
     selectedBookmark &&
@@ -5258,42 +5332,81 @@ export default function App() {
     setIsBookmarkDetailActionMenuOpen(false);
     setOpenBookmarkActionMenuId(null);
   }, [hiddenFolderIds, selectedBookmark, showHiddenBookmarks, showHiddenFolders]);
-  const disallowedParentFolderIds = editingFolderId
-    ? new Set([editingFolderId, ...getFolderDescendantIds(folders, editingFolderId)])
-    : new Set<string>();
-  const manageableFolders = folders.filter((folder) => !extensionFolderIds.has(folder.id));
-  const parentFolderOptions = getHierarchicalFolderOptions(
-    manageableFolders,
-    disallowedParentFolderIds
+  const disallowedParentFolderIds = useMemo(
+    () =>
+      editingFolderId
+        ? new Set([editingFolderId, ...getFolderDescendantIds(folders, editingFolderId)])
+        : new Set<string>(),
+    [editingFolderId, folders]
   );
-  const visibleFolderOptions = getHierarchicalFolderOptions(visibleFolders);
-  const quickFolderParentOptions = getHierarchicalFolderOptions(visibleFolders);
+  const manageableFolders = useMemo(
+    () => folders.filter((folder) => !extensionFolderIds.has(folder.id)),
+    [extensionFolderIds, folders]
+  );
+  const parentFolderOptions = useMemo(
+    () => getHierarchicalFolderOptions(
+      manageableFolders,
+      disallowedParentFolderIds
+    ),
+    [disallowedParentFolderIds, manageableFolders]
+  );
+  const visibleFolderOptions = useMemo(
+    () => getHierarchicalFolderOptions(visibleFolders),
+    [visibleFolders]
+  );
+  const quickFolderParentOptions = visibleFolderOptions;
   const isFolderOverviewSearchActive = Boolean(folderOverviewQuery.trim());
-  const folderOverviewVisibleFolderIds = getFolderVisibleIdsForQuery(
-    visibleFolders,
-    folderOverviewQuery
+  const folderOverviewVisibleFolderIds = useMemo(
+    () => getFolderVisibleIdsForQuery(
+      visibleFolders,
+      folderOverviewQuery
+    ),
+    [folderOverviewQuery, visibleFolders]
   );
-  const folderOverviewChildrenByParentId = getFoldersByParentId(
-    visibleFolders.filter((folder) => folderOverviewVisibleFolderIds.has(folder.id))
+  const folderOverviewChildrenByParentId = useMemo(
+    () => getFoldersByParentId(
+      visibleFolders.filter((folder) => folderOverviewVisibleFolderIds.has(folder.id))
+    ),
+    [folderOverviewVisibleFolderIds, visibleFolders]
   );
-  const selectedBookmarkUserDetailRows = visibleSelectedBookmark
-    ? getBookmarkDetailFieldRows(visibleSelectedBookmark, "user")
-    : [];
-  const selectedBookmarkSourceDetailRows = visibleSelectedBookmark
-    ? getBookmarkDetailFieldRows(visibleSelectedBookmark, "source")
-    : [];
-  const selectedBookmarkLivePreviewBlocks = getBookmarkPreviewArticleBlocks(
-    selectedBookmarkLivePreview
+  const selectedBookmarkUserDetailRows = useMemo(
+    () =>
+      visibleSelectedBookmark
+        ? getBookmarkDetailFieldRows(visibleSelectedBookmark, "user")
+        : [],
+    [visibleSelectedBookmark]
   );
-  const selectedBookmarkLivePreviewRows =
-    getBookmarkPreviewFieldRows(selectedBookmarkLivePreview);
+  const selectedBookmarkSourceDetailRows = useMemo(
+    () =>
+      visibleSelectedBookmark
+        ? getBookmarkDetailFieldRows(visibleSelectedBookmark, "source")
+        : [],
+    [visibleSelectedBookmark]
+  );
+  const selectedBookmarkLivePreviewBlocks = useMemo(
+    () => getBookmarkPreviewArticleBlocks(
+      selectedBookmarkLivePreview
+    ),
+    [selectedBookmarkLivePreview]
+  );
+  const selectedBookmarkLivePreviewRows = useMemo(
+    () => getBookmarkPreviewFieldRows(selectedBookmarkLivePreview),
+    [selectedBookmarkLivePreview]
+  );
   const selectedBookmarkAssetCount = visibleSelectedBookmark
     ? bookmarkAssetsByBookmarkId[visibleSelectedBookmark.id]?.length ?? 0
     : 0;
-  const selectedBookmarkTagItems = visibleSelectedBookmark
-    ? getTagDisplayItems(visibleSelectedBookmark.tagIds)
-    : [];
-  const selectedBookmarkVisibleTagItems = selectedBookmarkTagItems.slice(0, 4);
+  const selectedBookmarkTagItems = useMemo(
+    () =>
+      visibleSelectedBookmark
+        ? getTagDisplayItems(visibleSelectedBookmark.tagIds)
+        : [],
+    [tagsById, visibleSelectedBookmark]
+  );
+  const selectedBookmarkVisibleTagItems = useMemo(
+    () => selectedBookmarkTagItems.slice(0, 4),
+    [selectedBookmarkTagItems]
+  );
   const selectedBookmarkRemainingTagCount = Math.max(
     0,
     selectedBookmarkTagItems.length - selectedBookmarkVisibleTagItems.length
