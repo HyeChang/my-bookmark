@@ -11294,9 +11294,9 @@ describe("bookmark dashboard", () => {
     fireEvent.click(within(detailRegion).getByRole("tab", { name: /^미리보기$/i }));
 
     await waitFor(() => {
-      expect(within(detailRegion).getAllByText(/^Fresh preview title 2$/i).length).toBeGreaterThan(0);
+      expect(within(detailRegion).getAllByText(/^Fresh preview title 1$/i).length).toBeGreaterThan(0);
     });
-    expect(detailPreviewRequestCount).toBe(2);
+    expect(detailPreviewRequestCount).toBe(1);
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/bookmarks/bookmark-detail/preview",
       expect.objectContaining({

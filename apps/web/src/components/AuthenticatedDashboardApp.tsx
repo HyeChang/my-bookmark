@@ -92,6 +92,12 @@ type BookmarkExtensionRenderedPreviewAttempt =
       presence: BookmarkExtensionPresenceStatus;
     };
 
+type BookmarkDetailPreviewResult = {
+  preview: BookmarkExtractPreview;
+  notice: string | null;
+  extensionPresence: BookmarkExtensionPresenceStatus | null;
+};
+
 type TagDraft = {
   name: string;
   color: string;
@@ -1911,6 +1917,10 @@ export default function AuthenticatedDashboardApp() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const bookmarkDetailRequestIdRef = useRef(0);
   const bookmarkPreviewRequestIdRef = useRef(0);
+  const selectedBookmarkPreviewCacheRef =
+    useRef<Map<string, BookmarkDetailPreviewResult>>(new Map());
+  const selectedBookmarkPreviewPromiseRef =
+    useRef<Map<string, Promise<BookmarkDetailPreviewResult>>>(new Map());
   const recommendationRequestIdRef = useRef(0);
   const bookmarkListElementRef = useRef<HTMLUListElement | null>(null);
   const preloadingBookmarkAssetIdsRef = useRef<Set<string>>(new Set());
@@ -2677,6 +2687,7 @@ export default function AuthenticatedDashboardApp() {
     await logoutSession();
     await signOutFromGoogle().catch(() => undefined);
     recommendationRequestIdRef.current += 1;
+    invalidateSelectedBookmarkPreviewCache();
 
     startTransition(() => {
       setSessionState({ status: "anonymous" });
@@ -2753,6 +2764,7 @@ export default function AuthenticatedDashboardApp() {
           bookmarkColor: bookmarkDraft.bookmarkColor || null,
           urlColor: bookmarkDraft.urlColor || null
         });
+        invalidateSelectedBookmarkPreviewCache(updatedBookmark.id);
         const uploadedAssets = await uploadPendingAssets(editingBookmarkId);
         const isUpdatedBookmarkVisible = isBookmarkVisibleUnderHiddenRules(
           updatedBookmark,
@@ -4249,34 +4261,43 @@ export default function AuthenticatedDashboardApp() {
     setIsLoadingSelectedBookmarkPreview(false);
   }
 
-  async function loadSelectedBookmarkPreview(bookmarkId: string) {
-    const requestId = bookmarkPreviewRequestIdRef.current + 1;
-    bookmarkPreviewRequestIdRef.current = requestId;
+  function invalidateSelectedBookmarkPreviewCache(bookmarkId?: string) {
+    if (!bookmarkId) {
+      selectedBookmarkPreviewCacheRef.current.clear();
+      selectedBookmarkPreviewPromiseRef.current.clear();
+      return;
+    }
 
-    setIsLoadingSelectedBookmarkPreview(true);
-    setSelectedBookmarkLivePreview(null);
-    setSelectedBookmarkPreviewError(null);
-    setSelectedBookmarkPreviewNotice(null);
+    selectedBookmarkPreviewCacheRef.current.delete(bookmarkId);
+    selectedBookmarkPreviewPromiseRef.current.delete(bookmarkId);
+  }
 
-    try {
+  async function resolveSelectedBookmarkPreview(
+    bookmarkId: string,
+    onJsRequiredPreview?: () => void
+  ) {
+    const cachedPreview = selectedBookmarkPreviewCacheRef.current.get(bookmarkId);
+    if (cachedPreview) {
+      return cachedPreview;
+    }
+
+    const inFlightPreview = selectedBookmarkPreviewPromiseRef.current.get(bookmarkId);
+    if (inFlightPreview) {
+      return inFlightPreview;
+    }
+
+    const previewPromise = (async (): Promise<BookmarkDetailPreviewResult> => {
       const preview = await loadBookmarkPreview(bookmarkId);
-      if (bookmarkPreviewRequestIdRef.current !== requestId) {
-        return;
-      }
-
       let resolvedPreview = preview;
       let previewNotice: string | null = null;
+      let extensionPresence: BookmarkExtensionPresenceStatus | null = null;
 
       if (isJsRequiredBookmarkPreview(preview)) {
-        setBookmarkExtensionPresence("checking");
+        onJsRequiredPreview?.();
         const renderedPreview = await requestRenderedBookmarkPreview(
           preview.normalizedUrl || preview.url
         );
-        if (bookmarkPreviewRequestIdRef.current !== requestId) {
-          return;
-        }
-
-        setBookmarkExtensionPresence(renderedPreview.presence);
+        extensionPresence = renderedPreview.presence;
 
         if (renderedPreview.status === "success") {
           resolvedPreview = renderedPreview.preview;
@@ -4285,9 +4306,69 @@ export default function AuthenticatedDashboardApp() {
         }
       }
 
+      const previewResult = {
+        preview: resolvedPreview,
+        notice: previewNotice,
+        extensionPresence
+      };
+      return previewResult;
+    })();
+
+    selectedBookmarkPreviewPromiseRef.current.set(bookmarkId, previewPromise);
+
+    try {
+      const previewResult = await previewPromise;
+      if (selectedBookmarkPreviewPromiseRef.current.get(bookmarkId) === previewPromise) {
+        selectedBookmarkPreviewCacheRef.current.set(bookmarkId, previewResult);
+      }
+      return previewResult;
+    } finally {
+      if (selectedBookmarkPreviewPromiseRef.current.get(bookmarkId) === previewPromise) {
+        selectedBookmarkPreviewPromiseRef.current.delete(bookmarkId);
+      }
+    }
+  }
+
+  async function loadSelectedBookmarkPreview(bookmarkId: string) {
+    const requestId = bookmarkPreviewRequestIdRef.current + 1;
+    bookmarkPreviewRequestIdRef.current = requestId;
+
+    const cachedPreview = selectedBookmarkPreviewCacheRef.current.get(bookmarkId);
+    if (cachedPreview) {
+      if (cachedPreview.extensionPresence) {
+        setBookmarkExtensionPresence(cachedPreview.extensionPresence);
+      }
       startTransition(() => {
-        setSelectedBookmarkLivePreview(resolvedPreview);
-        setSelectedBookmarkPreviewNotice(previewNotice);
+        setSelectedBookmarkLivePreview(cachedPreview.preview);
+        setSelectedBookmarkPreviewNotice(cachedPreview.notice);
+        setSelectedBookmarkPreviewError(null);
+      });
+      setIsLoadingSelectedBookmarkPreview(false);
+      return;
+    }
+
+    setIsLoadingSelectedBookmarkPreview(true);
+    setSelectedBookmarkLivePreview(null);
+    setSelectedBookmarkPreviewError(null);
+    setSelectedBookmarkPreviewNotice(null);
+
+    try {
+      const previewResult = await resolveSelectedBookmarkPreview(bookmarkId, () => {
+        if (bookmarkPreviewRequestIdRef.current === requestId) {
+          setBookmarkExtensionPresence("checking");
+        }
+      });
+      if (bookmarkPreviewRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      if (previewResult.extensionPresence) {
+        setBookmarkExtensionPresence(previewResult.extensionPresence);
+      }
+
+      startTransition(() => {
+        setSelectedBookmarkLivePreview(previewResult.preview);
+        setSelectedBookmarkPreviewNotice(previewResult.notice);
       });
     } catch (error) {
       if (bookmarkPreviewRequestIdRef.current !== requestId) {
@@ -4465,6 +4546,7 @@ export default function AuthenticatedDashboardApp() {
   }
 
   function removeBookmarkState(bookmarkId: string) {
+    invalidateSelectedBookmarkPreviewCache(bookmarkId);
     setBookmarks((currentBookmarks) =>
       currentBookmarks.filter((bookmark) => bookmark.id !== bookmarkId)
     );
@@ -4918,6 +5000,7 @@ export default function AuthenticatedDashboardApp() {
       setErrorMessage(null);
       setIsBookmarkDetailActionMenuOpen(false);
       const nextBookmark = await reextractBookmark(bookmarkId);
+      invalidateSelectedBookmarkPreviewCache(bookmarkId);
       startTransition(() => {
         replaceBookmarkState(nextBookmark);
         showBookmarkDetailTab("extract");
@@ -4941,6 +5024,7 @@ export default function AuthenticatedDashboardApp() {
     try {
       setErrorMessage(null);
       await deleteBookmark(bookmark.id);
+      invalidateSelectedBookmarkPreviewCache(bookmark.id);
       const trashedBookmark: Bookmark = {
         ...bookmark,
         isTrashed: true,
@@ -5179,6 +5263,7 @@ export default function AuthenticatedDashboardApp() {
         sourceContent: null,
         sourceSummary: null
       });
+      invalidateSelectedBookmarkPreviewCache(bookmarkId);
 
       startTransition(() => {
         replaceBookmarkState(nextBookmark);
