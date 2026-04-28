@@ -1,3 +1,5 @@
+import "./ExtensionDialogs.css";
+
 type ExtensionDownloadDialogProps = {
   extensionDownloadPath: string;
   userscriptDownloadPath: string;

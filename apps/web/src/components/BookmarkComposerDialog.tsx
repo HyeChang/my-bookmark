@@ -19,6 +19,7 @@ import {
   renderBookmarkPreviewArticle,
   sanitizeExtractedDisplayText
 } from "./bookmark-preview-utils";
+import "./BookmarkComposerDialog.css";
 
 export type BookmarkComposerDraft = {
   url: string;

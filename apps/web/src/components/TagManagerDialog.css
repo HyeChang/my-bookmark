@@ -1,0 +1,91 @@
+.tag-manager-dialog-shell,
+.tag-manager-panel-readable,
+.tag-manager-editor-surface,
+.tag-manager-list-surface,
+.tag-list-item-readable {
+  color: #20242b;
+}
+
+.tag-manager-dialog-shell .overlay-dialog-title h2,
+.tag-manager-panel-readable .workspace-panel-heading-row h2,
+.tag-manager-panel-readable .manager-section-header h3,
+.tag-list-item-readable .tag-list-name {
+  color: #20242b;
+}
+
+.tag-manager-dialog-shell .workspace-panel-kicker,
+.tag-manager-panel-readable .workspace-panel-kicker,
+.tag-manager-panel-readable .manager-section-kicker {
+  color: #66707d;
+}
+
+.tag-manager-panel-readable .workspace-panel-summary {
+  background: rgba(22, 131, 232, 0.1);
+  color: #1683e8;
+}
+
+.tag-manager-panel-readable .manager-section-header p,
+.tag-manager-panel-readable .field-note,
+.tag-manager-panel-readable .color-select-trigger-value,
+.tag-manager-panel-readable .color-select-option-copy,
+.tag-manager-panel-readable .picker-chip-copy {
+  color: #66707d;
+}
+
+.tag-manager-panel-readable .stack-form label,
+.tag-manager-panel-readable .picker-fieldset legend {
+  color: #20242b;
+}
+
+.tag-manager-editor-surface,
+.tag-manager-list-surface,
+.tag-list-item-readable {
+  border-color: #dfe3e8;
+  background: #ffffff;
+}
+
+.tag-manager-panel-readable .stack-form input,
+.tag-manager-panel-readable .color-select-trigger,
+.tag-manager-panel-readable .color-select-option,
+.tag-manager-panel-readable .picker-chip {
+  border-color: #dfe3e8;
+  background: #ffffff;
+  color: #20242b;
+}
+
+.tag-manager-panel-readable .folder-action-trigger {
+  background: #f7f8fa;
+  border-color: #dfe3e8;
+  color: #20242b;
+}
+
+@media (max-width: 720px) {
+
+  .tag-manager-dialog-shell {
+    color: #20242b;
+  }
+
+  .tag-manager-panel-readable {
+    color: #20242b;
+  }
+
+  .tag-manager-panel-readable .manager-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tag-manager-panel-readable .manager-section-header h3,
+.tag-manager-dialog-shell .overlay-dialog-title h2,
+.tag-list-item-readable .tag-list-name {
+    color: #20242b;
+  }
+
+  .tag-manager-panel-readable .manager-section-header p,
+.tag-manager-panel-readable .color-select-trigger-value {
+    color: #66707d;
+  }
+
+  .tag-list-item-readable {
+    align-items: stretch;
+    gap: 0.62rem;
+  }
+}

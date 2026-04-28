@@ -7,6 +7,7 @@ import {
 import type { Tag } from "@bookmark/shared";
 
 import { colorPresets } from "../lib/folder-presets";
+import "./TagManagerDialog.css";
 
 export type TagManagerDraft = {
   name: string;

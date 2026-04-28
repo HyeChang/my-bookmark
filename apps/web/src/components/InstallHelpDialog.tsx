@@ -1,3 +1,5 @@
+import "./ExtensionDialogs.css";
+
 type InstallHelpDialogProps = {
   onClose: () => void;
 };

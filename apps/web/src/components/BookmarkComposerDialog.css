@@ -1,0 +1,189 @@
+.bookmark-composer-form {
+  gap: 1rem;
+}
+
+.bookmark-composer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.72rem;
+  align-items: start;
+}
+
+.bookmark-composer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.62rem;
+  padding: 0.74rem;
+  border: 1px solid rgba(31, 37, 51, 0.08);
+  border-radius: 13px;
+  background: rgba(252, 250, 246, 0.76);
+}
+
+.bookmark-composer-disclosure {
+  padding: 0.62rem;
+}
+
+.bookmark-composer-disclosure-trigger {
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bookmark-composer-disclosure-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.68rem;
+  padding-top: 0.42rem;
+}
+
+.bookmark-composer-footer {
+  position: sticky;
+  bottom: 0;
+  padding-top: 0.7rem;
+  margin-top: 0.1rem;
+  border-top: 1px solid rgba(31, 37, 51, 0.08);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0) 0%, rgba(255, 252, 246, 0.96) 28%);
+}
+
+.bookmark-composer-dialog-shell,
+.bookmark-composer-panel-readable,
+.bookmark-composer-panel-readable .bookmark-composer-section,
+.bookmark-composer-panel-readable .bookmark-preview-card,
+.bookmark-composer-panel-readable .bookmark-preview-fallback-card {
+  color: #20242b;
+}
+
+.bookmark-composer-dialog-shell .overlay-dialog-title h2,
+.bookmark-composer-panel-readable .workspace-panel-heading-row h2,
+.bookmark-composer-panel-readable .bookmark-composer-section-header h3,
+.bookmark-composer-panel-readable .bookmark-preview-card h3,
+.bookmark-composer-panel-readable .bookmark-preview-fallback-card h3 {
+  color: #20242b;
+}
+
+.bookmark-composer-dialog-shell .workspace-panel-kicker,
+.bookmark-composer-panel-readable .workspace-panel-kicker,
+.bookmark-composer-panel-readable .bookmark-composer-section-header p,
+.bookmark-composer-panel-readable .bookmark-preview-card p,
+.bookmark-composer-panel-readable .bookmark-preview-fallback-card p,
+.bookmark-composer-panel-readable .field-note,
+.bookmark-composer-panel-readable .color-select-trigger-value,
+.bookmark-composer-panel-readable .color-select-option-copy,
+.bookmark-composer-panel-readable .picker-chip-copy {
+  color: #66707d;
+}
+
+.bookmark-composer-panel-readable .workspace-panel-summary {
+  background: rgba(22, 131, 232, 0.1);
+  color: #1683e8;
+}
+
+.bookmark-composer-panel-readable .stack-form label,
+.bookmark-composer-panel-readable .tag-fieldset legend,
+.bookmark-composer-panel-readable .picker-fieldset legend {
+  color: #20242b;
+}
+
+.bookmark-composer-panel-readable .bookmark-composer-section,
+.bookmark-composer-panel-readable .bookmark-preview-card,
+.bookmark-composer-panel-readable .bookmark-preview-fallback-card,
+.bookmark-composer-panel-readable .inline-file-list li {
+  border-color: #dfe3e8;
+  background: #ffffff;
+}
+
+.bookmark-composer-panel-readable .bookmark-preview-fallback-card {
+  border-color: rgba(22, 131, 232, 0.24);
+  background: linear-gradient(180deg, rgba(248, 252, 255, 0.98) 0%, #ffffff 100%);
+}
+
+.bookmark-composer-panel-readable .stack-form input,
+.bookmark-composer-panel-readable .stack-form select,
+.bookmark-composer-panel-readable .stack-form textarea,
+.bookmark-composer-panel-readable .color-select-trigger,
+.bookmark-composer-panel-readable .color-select-option,
+.bookmark-composer-panel-readable .picker-chip,
+.bookmark-composer-panel-readable .pill-option,
+.bookmark-composer-panel-readable .bookmark-tag-selected-chip {
+  border-color: #dfe3e8;
+  background: #ffffff;
+  color: #20242b;
+}
+
+.bookmark-composer-panel-readable .stack-form input::placeholder,
+.bookmark-composer-panel-readable .stack-form textarea::placeholder {
+  color: #8a94a3;
+}
+
+.bookmark-composer-panel-readable .bookmark-tag-selected-summary,
+.bookmark-composer-panel-readable .bookmark-tag-search-summary {
+  color: #66707d;
+}
+
+.bookmark-composer-panel-readable .bookmark-tag-selected-chip-remove {
+  background: rgba(22, 131, 232, 0.1);
+  color: #1683e8;
+}
+
+.bookmark-composer-panel-readable button:not(.primary-button):not(.danger-button):not(
+    .inline-file-remove-button
+  ) {
+  border-color: #dfe3e8;
+  background: #f7f8fa;
+  color: #20242b;
+}
+
+.bookmark-composer-panel-readable button:not(.primary-button):not(.danger-button):not(
+    .inline-file-remove-button
+  ):hover {
+  border-color: #cbd3dd;
+  background: #eef2f6;
+}
+
+.bookmark-composer-panel-readable button:disabled {
+  color: #98a2ad;
+}
+
+.bookmark-composer-dialog-shell .bookmark-composer-footer {
+  border-color: #dfe3e8;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.96) 28%);
+}
+
+@media (max-width: 1120px) {
+
+  .bookmark-composer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bookmark-composer-section {
+  border-color: var(--border-soft);
+  background: var(--surface-raised);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+}
+
+.bookmark-composer-footer {
+  border-color: var(--border-soft);
+}
+
+.bookmark-composer-footer {
+  background: linear-gradient(180deg, rgba(10, 16, 25, 0) 0%, rgba(10, 16, 25, 0.96) 28%);
+}
+
+.bookmark-composer-section {
+  background: rgba(36, 44, 57, 0.78);
+}
+
+@media (min-width: 1121px) {
+
+  .bookmark-composer-section {
+    border-color: var(--desktop-border);
+    background: var(--desktop-panel);
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .bookmark-composer-footer {
+    border-color: var(--desktop-border);
+  }
+}

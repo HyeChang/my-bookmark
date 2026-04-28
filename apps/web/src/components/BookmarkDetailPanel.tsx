@@ -10,6 +10,7 @@ import {
   renderBookmarkPreviewArticle,
   renderHiddenBookmarkIndicator
 } from "./bookmark-preview-utils";
+import "./BookmarkDetailPanel.css";
 
 type BookmarkDetailTab = "detail" | "preview" | "extract";
 type MaybePromise = void | Promise<void>;
