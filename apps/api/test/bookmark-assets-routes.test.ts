@@ -127,6 +127,12 @@ function createInMemoryAssetRepository() {
         (asset) => asset.userId === userId && asset.bookmarkId === bookmarkId
       );
     },
+    async listByBookmarks(userId: string, bookmarkIds: string[]) {
+      const requestedBookmarkIds = new Set(bookmarkIds);
+      return Array.from(assets.values()).filter(
+        (asset) => asset.userId === userId && requestedBookmarkIds.has(asset.bookmarkId)
+      );
+    },
     async getById(userId: string, bookmarkId: string, assetId: string) {
       const asset = assets.get(assetId);
       if (!asset || asset.userId !== userId || asset.bookmarkId !== bookmarkId) {
@@ -282,6 +288,81 @@ describe("bookmark asset routes", () => {
     expect(contentRes.status).toBe(200);
     expect(contentRes.headers.get("content-type")).toContain("image/png");
     await expect(contentRes.text()).resolves.toBe("fake-image-data");
+  });
+
+  it("lists assets for multiple bookmarks in one request", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository(),
+      bookmarkAssetRepository: createInMemoryAssetRepository(),
+      assetStorage: createInMemoryAssetStorage()
+    } as Parameters<typeof createApp>[0]);
+
+    const firstCreateRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        url: "https://example.com/first",
+        userTitle: "First asset bookmark"
+      })
+    });
+    const firstCreated = (await firstCreateRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const secondCreateRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        url: "https://example.com/second",
+        userTitle: "Second asset bookmark"
+      })
+    });
+    const secondCreated = (await secondCreateRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    for (const bookmarkId of [firstCreated.bookmark.id, secondCreated.bookmark.id]) {
+      const formData = new FormData();
+      formData.set(
+        "file",
+        new File([`image-${bookmarkId}`], `${bookmarkId}.png`, { type: "image/png" })
+      );
+
+      const uploadRes = await authenticatedRequest(app, `/api/bookmarks/${bookmarkId}/assets`, {
+        method: "POST",
+        body: formData
+      });
+
+      expect(uploadRes.status).toBe(201);
+    }
+
+    const listRes = await authenticatedRequest(
+      app,
+      `/api/bookmarks/assets?bookmarkId=${firstCreated.bookmark.id}&bookmarkId=${secondCreated.bookmark.id}`
+    );
+
+    expect(listRes.status).toBe(200);
+    await expect(listRes.json()).resolves.toMatchObject({
+      assetsByBookmarkId: {
+        [firstCreated.bookmark.id]: [
+          {
+            bookmarkId: firstCreated.bookmark.id,
+            contentUrl: `/api/bookmarks/${firstCreated.bookmark.id}/assets/asset-1/content`
+          }
+        ],
+        [secondCreated.bookmark.id]: [
+          {
+            bookmarkId: secondCreated.bookmark.id,
+            contentUrl: `/api/bookmarks/${secondCreated.bookmark.id}/assets/asset-2/content`
+          }
+        ]
+      }
+    });
   });
 
   it("deletes a bookmark asset for the authenticated user", async () => {

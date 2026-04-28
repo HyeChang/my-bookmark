@@ -117,6 +117,63 @@ describe("extension storage", () => {
     });
   });
 
+  it("prefers local settings when sync storage is empty after browser restart", async () => {
+    const syncGetSpy = vi.fn().mockResolvedValue({});
+    const localGetSpy = vi.fn().mockResolvedValue({
+      extensionSettings: {
+        token: "local-token-after-restart"
+      }
+    });
+
+    vi.stubGlobal("chrome", {
+      storage: {
+        sync: {
+          get: syncGetSpy
+        },
+        local: {
+          get: localGetSpy
+        }
+      }
+    });
+
+    expect(await loadExtensionSettings()).toEqual({
+      ...defaultExtensionSettings,
+      token: "local-token-after-restart"
+    });
+    expect(localGetSpy).toHaveBeenCalledWith("extensionSettings");
+    expect(syncGetSpy).not.toHaveBeenCalled();
+  });
+
+  it("persists settings to local storage even when sync storage is available", async () => {
+    const syncSetSpy = vi.fn().mockResolvedValue(undefined);
+    const localSetSpy = vi.fn().mockResolvedValue(undefined);
+
+    vi.stubGlobal("chrome", {
+      storage: {
+        sync: {
+          set: syncSetSpy
+        },
+        local: {
+          set: localSetSpy
+        }
+      }
+    });
+
+    await saveExtensionSettings({
+      ...defaultExtensionSettings,
+      token: "persistent-token"
+    });
+
+    const expectedPayload = {
+      extensionSettings: {
+        ...defaultExtensionSettings,
+        token: "persistent-token"
+      }
+    };
+    expect(localSetSpy).toHaveBeenCalledWith(expectedPayload);
+    expect(syncSetSpy).toHaveBeenCalledWith(expectedPayload);
+  });
+
   it("parses comma separated default tag input", () => {
     expect(parseDefaultTagIdsInput("tag-1, tag-2  , ,tag-3")).toEqual([
       "tag-1",

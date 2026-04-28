@@ -110,6 +110,8 @@ function createInMemoryD1() {
 
           let index = 0;
           const columnOrder: Array<keyof BookmarkRow> = [
+            "url",
+            "normalized_url",
             "folder_id",
             "user_title",
             "source_title",
@@ -197,7 +199,383 @@ function createInMemoryD1() {
   } as unknown as D1Database;
 }
 
+function createRecordingD1() {
+  const preparedStatements: Array<{ sql: string; params: unknown[] }> = [];
+
+  function createStatement(sql: string) {
+    const normalizedSql = sql.replace(/\s+/g, " ").trim();
+    let params: unknown[] = [];
+
+    const statement = {
+      bind(...nextParams: unknown[]) {
+        params = nextParams;
+        preparedStatements.push({
+          sql: normalizedSql,
+          params: [...params]
+        });
+        return statement;
+      },
+      async run() {
+        return { success: true };
+      },
+      async first() {
+        return null;
+      },
+      async all() {
+        return { results: [] };
+      }
+    };
+
+    return statement;
+  }
+
+  return {
+    db: {
+      prepare(sql: string) {
+        return createStatement(sql);
+      },
+      async batch(statements: Array<{ run: () => Promise<unknown> }>) {
+        for (const statement of statements) {
+          await statement.run();
+        }
+        return [];
+      }
+    } as unknown as D1Database,
+    preparedStatements
+  };
+}
+
 describe("createBookmarkRepository", () => {
+  it("pushes scalar list filters into the bookmark SQL query", async () => {
+    const { db, preparedStatements } = createRecordingD1();
+    const repository = createBookmarkRepository(db);
+
+    await repository.listByUser("user-1", {
+      favoriteOnly: true,
+      folderId: "folder-1",
+      trashMode: "active",
+      bookmarkColor: "#FFAA00",
+      urlColor: "#112233",
+      summaryState: "with"
+    });
+
+    const listStatement = preparedStatements.find((statement) =>
+      statement.sql.includes("FROM bookmarks")
+    );
+
+    expect(listStatement?.sql).toContain("trashed_at IS NULL");
+    expect(listStatement?.sql).toContain("is_favorite = ?");
+    expect(listStatement?.sql).toContain("folder_id = ?");
+    expect(listStatement?.sql).toContain("LOWER(TRIM(COALESCE(bookmark_color, ''))) = ?");
+    expect(listStatement?.sql).toContain("LOWER(TRIM(COALESCE(url_color, ''))) = ?");
+    expect(listStatement?.sql).toContain("TRIM(COALESCE(user_summary, source_summary, '')) <> ''");
+    expect(listStatement?.params).toEqual([
+      "user-1",
+      1,
+      "folder-1",
+      "#ffaa00",
+      "#112233"
+    ]);
+  });
+
+  it("pushes tag intersection filters into the bookmark SQL query", async () => {
+    const { db, preparedStatements } = createRecordingD1();
+    const repository = createBookmarkRepository(db);
+
+    await repository.listByUser("user-1", {
+      tagIds: ["tag-a", " tag-b ", "tag-a"],
+      tagMode: "and"
+    });
+
+    const listStatement = preparedStatements.find((statement) =>
+      statement.sql.includes("FROM bookmarks")
+    );
+
+    expect(listStatement?.sql).toContain("COUNT(DISTINCT bt.tag_id)");
+    expect(listStatement?.sql).toContain("bt.tag_id IN (?, ?)");
+    expect(listStatement?.params).toEqual(["user-1", "user-1", "tag-a", "tag-b", 2]);
+  });
+
+  it("pushes all-mode search into the bookmark SQL query", async () => {
+    const { db, preparedStatements } = createRecordingD1();
+    const repository = createBookmarkRepository(db);
+
+    await repository.searchByUser("user-1", "Alpha", "all", {
+      favoriteOnly: true
+    });
+
+    const searchStatement = preparedStatements.find(
+      (statement) =>
+        statement.sql.includes("FROM bookmarks") &&
+        statement.sql.includes("ORDER BY created_at DESC")
+    );
+
+    expect(searchStatement?.sql).toContain("LOWER(COALESCE(NULLIF(TRIM(COALESCE(user_title, source_title, '')), ''), url)) LIKE ? ESCAPE '\\'");
+    expect(searchStatement?.sql).toContain("LOWER(url) LIKE ? ESCAPE '\\'");
+    expect(searchStatement?.sql).toContain("LOWER(COALESCE(user_content, source_content, '')) LIKE ? ESCAPE '\\'");
+    expect(searchStatement?.sql).toContain("LOWER(t.name) LIKE ? ESCAPE '\\'");
+    expect(searchStatement?.params).toEqual([
+      "user-1",
+      1,
+      "%alpha%",
+      "%alpha%",
+      "%alpha%",
+      "user-1",
+      "%alpha%"
+    ]);
+  });
+
+  it("pushes folder search into the bookmark SQL query", async () => {
+    const { db, preparedStatements } = createRecordingD1();
+    const repository = createBookmarkRepository(db);
+
+    await repository.searchByUser("user-1", "Work", "folder");
+
+    const searchStatement = preparedStatements.find(
+      (statement) =>
+        statement.sql.includes("FROM bookmarks") &&
+        statement.sql.includes("ORDER BY created_at DESC")
+    );
+
+    expect(searchStatement?.sql).toContain("FROM folders f");
+    expect(searchStatement?.sql).toContain("f.id = bookmarks.folder_id");
+    expect(searchStatement?.sql).toContain("LOWER(f.name) LIKE ? ESCAPE '\\'");
+    expect(searchStatement?.params).toEqual(["user-1", "user-1", "%work%"]);
+  });
+
+  it("pushes paginated search pages into SQL with a matching count query", async () => {
+    const { db, preparedStatements } = createRecordingD1();
+    const repository = createBookmarkRepository(db) as ReturnType<
+      typeof createBookmarkRepository
+    > & {
+      pageByUser(
+        userId: string,
+        filters: {
+          favoriteOnly?: boolean;
+        },
+        options: {
+          contentMode: "summary";
+          pagination: { limit: number; offset: number };
+          search: { query: string; mode: "all" };
+        }
+      ): Promise<{ bookmarks: unknown[]; total: number }>;
+    };
+
+    await repository.pageByUser(
+      "user-1",
+      {
+        favoriteOnly: true
+      },
+      {
+        contentMode: "summary",
+        pagination: {
+          limit: 20,
+          offset: 40
+        },
+        search: {
+          query: "Alpha",
+          mode: "all"
+        }
+      }
+    );
+
+    const pageStatement = preparedStatements.find(
+      (statement) =>
+        statement.sql.includes("FROM bookmarks") &&
+        statement.sql.includes("ORDER BY created_at DESC") &&
+        statement.sql.includes("LIMIT ? OFFSET ?")
+    );
+    const countStatement = preparedStatements.find((statement) =>
+      statement.sql.includes("COUNT(*) AS total")
+    );
+
+    expect(pageStatement?.sql).toContain("SUBSTR(source_content, 1, 320) AS source_content");
+    expect(pageStatement?.params).toEqual([
+      "user-1",
+      1,
+      "%alpha%",
+      "%alpha%",
+      "%alpha%",
+      "user-1",
+      "%alpha%",
+      20,
+      40
+    ]);
+    expect(countStatement?.sql).toContain("FROM bookmarks");
+    expect(countStatement?.sql).toContain("is_favorite = ?");
+    expect(countStatement?.sql).toContain("LOWER(url) LIKE ? ESCAPE '\\'");
+    expect(countStatement?.sql).not.toContain("ORDER BY created_at DESC");
+    expect(countStatement?.sql).not.toContain("LIMIT ? OFFSET ?");
+    expect(countStatement?.params).toEqual([
+      "user-1",
+      1,
+      "%alpha%",
+      "%alpha%",
+      "%alpha%",
+      "user-1",
+      "%alpha%"
+    ]);
+  });
+
+  it("pushes requested sort order into paginated SQL", async () => {
+    const { db, preparedStatements } = createRecordingD1();
+    const repository = createBookmarkRepository(db) as ReturnType<
+      typeof createBookmarkRepository
+    > & {
+      pageByUser(
+        userId: string,
+        filters: Record<string, never>,
+        options: {
+          contentMode: "summary";
+          pagination: { limit: number; offset: number };
+          sort: "created_asc" | "title_asc" | "title_desc" | "site_asc" | "site_desc";
+        }
+      ): Promise<{ bookmarks: unknown[]; total: number }>;
+    };
+
+    await repository.pageByUser("user-1", {}, {
+      contentMode: "summary",
+      pagination: {
+        limit: 20,
+        offset: 0
+      },
+      sort: "created_asc"
+    });
+    await repository.pageByUser("user-1", {}, {
+      contentMode: "summary",
+      pagination: {
+        limit: 20,
+        offset: 0
+      },
+      sort: "title_asc"
+    });
+    await repository.pageByUser("user-1", {}, {
+      contentMode: "summary",
+      pagination: {
+        limit: 20,
+        offset: 0
+      },
+      sort: "site_desc"
+    });
+
+    const pageStatements = preparedStatements.filter(
+      (statement) =>
+        statement.sql.includes("FROM bookmarks") &&
+        statement.sql.includes("LIMIT ? OFFSET ?")
+    );
+
+    expect(pageStatements[0]?.sql).toContain("ORDER BY created_at ASC");
+    expect(pageStatements[1]?.sql).toContain(
+      "ORDER BY LOWER(COALESCE(NULLIF(TRIM(COALESCE(user_title, source_title, '')), ''), url)) ASC"
+    );
+    expect(pageStatements[2]?.sql).toContain("ORDER BY LOWER(REPLACE(");
+    expect(pageStatements[2]?.sql).toContain("normalized_url");
+    expect(pageStatements[2]?.sql).toContain(") DESC");
+  });
+
+  it("pushes opened-desc pagination into SQL with activity stats", async () => {
+    const { db, preparedStatements } = createRecordingD1();
+    const repository = createBookmarkRepository(db) as ReturnType<
+      typeof createBookmarkRepository
+    > & {
+      pageByUser(
+        userId: string,
+        filters: Record<string, never>,
+        options: {
+          contentMode: "summary";
+          pagination: { limit: number; offset: number };
+          sort: "opened_desc";
+        }
+      ): Promise<{ bookmarks: unknown[]; total: number }>;
+    };
+
+    await repository.pageByUser("user-1", {}, {
+      contentMode: "summary",
+      pagination: {
+        limit: 20,
+        offset: 0
+      },
+      sort: "opened_desc"
+    });
+
+    const pageStatement = preparedStatements.find(
+      (statement) =>
+        statement.sql.includes("FROM bookmarks") &&
+        statement.sql.includes("bookmark_activity") &&
+        statement.sql.includes("LIMIT ? OFFSET ?")
+    );
+
+    expect(pageStatement?.sql).toContain("LEFT JOIN");
+    expect(pageStatement?.sql).toContain("COUNT(*) AS open_count");
+    expect(pageStatement?.sql).toContain("MAX(occurred_at) AS last_opened_at");
+    expect(pageStatement?.sql).toContain(
+      "ORDER BY CASE WHEN bookmark_open_stats.last_opened_at IS NULL THEN 1 ELSE 0 END ASC"
+    );
+    expect(pageStatement?.sql).toContain("bookmark_open_stats.last_opened_at DESC");
+    expect(pageStatement?.params).toEqual(["user-1", "user-1", 20, 0]);
+  });
+
+  it("loads recommendation sections with a ranked SQL query", async () => {
+    const { db, preparedStatements } = createRecordingD1();
+    const repository = createBookmarkRepository(db) as ReturnType<
+      typeof createBookmarkRepository
+    > & {
+      listRecommendationsByUser(
+        userId: string,
+        options: {
+          contentMode: "summary";
+          limit: number;
+        }
+      ): Promise<{ favorites: unknown[]; recent: unknown[]; frequent: unknown[] }>;
+    };
+
+    await repository.listRecommendationsByUser("user-1", {
+      contentMode: "summary",
+      limit: 5
+    });
+
+    const recommendationStatement = preparedStatements.find((statement) =>
+      statement.sql.includes("recommendation_section")
+    );
+
+    expect(recommendationStatement?.sql).toContain("WITH open_stats AS");
+    expect(recommendationStatement?.sql).toContain("FROM bookmark_activity");
+    expect(recommendationStatement?.sql).toContain("latest_context AS");
+    expect(recommendationStatement?.sql).toContain("ROW_NUMBER() OVER");
+    expect(recommendationStatement?.sql).toContain("favorites");
+    expect(recommendationStatement?.sql).toContain("recent");
+    expect(recommendationStatement?.sql).toContain("frequent");
+    expect(recommendationStatement?.sql).toContain("recommendation_rank <= ?");
+    expect(recommendationStatement?.sql).toContain("trashed_at IS NULL");
+    expect(recommendationStatement?.sql).toContain("SUBSTR(b.source_content, 1, 320) AS source_content");
+    expect(recommendationStatement?.params).toEqual([
+      "user-1",
+      "user-1",
+      "user-1",
+      5,
+      5,
+      5
+    ]);
+  });
+
+  it("uses aggregate SQL for bookmark count summaries", async () => {
+    const { db, preparedStatements } = createRecordingD1();
+    const repository = createBookmarkRepository(db);
+
+    await repository.countByUser("user-1");
+
+    const countStatement = preparedStatements.find((statement) =>
+      statement.sql.includes("COUNT(*) AS count")
+    );
+
+    expect(countStatement?.sql).toContain("folder_id");
+    expect(countStatement?.sql).toContain("is_hidden");
+    expect(countStatement?.sql).toContain("is_favorite");
+    expect(countStatement?.sql).toContain("CASE WHEN trashed_at IS NULL THEN 0 ELSE 1 END AS is_trashed");
+    expect(countStatement?.sql).toContain("GROUP BY folder_id, is_hidden, is_favorite, is_trashed");
+    expect(countStatement?.params).toEqual(["user-1"]);
+  });
+
   it("persists hidden state through create, get, list, and update", async () => {
     const repository = createBookmarkRepository(createInMemoryD1());
 
@@ -232,6 +610,29 @@ describe("createBookmarkRepository", () => {
 
     const fetchedAfterUpdate = await repository.getByUserAndId("user-1", created.id);
     expect(fetchedAfterUpdate?.isHidden).toBe(false);
+  });
+
+  it("persists URL changes through create, get, list, and update", async () => {
+    const repository = createBookmarkRepository(createInMemoryD1());
+
+    const created = await repository.create({
+      userId: "user-1",
+      normalizedUrl: "https://example.com/before",
+      url: "https://example.com/before",
+      isFavorite: false
+    });
+
+    const updated = await repository.update(created.id, "user-1", {
+      url: "https://example.com/after?utm_source=test"
+    });
+
+    expect(updated?.url).toBe("https://example.com/after?utm_source=test");
+
+    const fetched = await repository.getByUserAndId("user-1", created.id);
+    expect(fetched?.url).toBe("https://example.com/after?utm_source=test");
+
+    const listed = await repository.listByUser("user-1");
+    expect(listed[0]?.url).toBe("https://example.com/after?utm_source=test");
   });
 
   it("moves bookmarks to trash, restores them, and permanently deletes them", async () => {

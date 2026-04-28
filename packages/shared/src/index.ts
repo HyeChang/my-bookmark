@@ -52,6 +52,7 @@ export type Bookmark = {
   displayTitle: string;
   displayContent: string;
   displaySummary: string;
+  contentTruncated?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -73,6 +74,7 @@ export type CreateBookmarkRequest = {
 };
 
 export type UpdateBookmarkRequest = {
+  url?: string;
   folderId?: string | null;
   tagIds?: string[];
   userTitle?: string | null;
@@ -95,6 +97,29 @@ export type BookmarkRestoreResponse = BookmarkResponse;
 
 export type BookmarkListResponse = {
   bookmarks: Bookmark[];
+  pagination?: {
+    limit: number;
+    offset: number;
+    total: number;
+    hasMore: boolean;
+  };
+};
+
+export type BookmarkCountBucket = {
+  total: number;
+  visible: number;
+};
+
+export type BookmarkCounts = {
+  active: BookmarkCountBucket;
+  favorite: BookmarkCountBucket;
+  trashed: BookmarkCountBucket;
+  unfiled: BookmarkCountBucket;
+  byFolderId: Record<string, BookmarkCountBucket>;
+};
+
+export type BookmarkCountsResponse = {
+  counts: BookmarkCounts;
 };
 
 export type BookmarkRecommendationsResponse = {
@@ -134,6 +159,9 @@ export type BookmarkExtractPreview = {
   sourceSummary: string | null;
   sourceImageUrl?: string | null;
   sourceBlocks?: BookmarkExtractPreviewBlock[];
+  renderStatus?: "ready" | "js_required";
+  renderSource?: "worker" | "extension";
+  renderReason?: "spa_fallback" | "thin_content" | "missing_article";
 };
 
 export type BookmarkExtractResponse = {
@@ -163,6 +191,10 @@ export type BookmarkAssetResponse = {
 
 export type BookmarkAssetListResponse = {
   assets: BookmarkAsset[];
+};
+
+export type BookmarkAssetBatchListResponse = {
+  assetsByBookmarkId: Record<string, BookmarkAsset[]>;
 };
 
 export type Folder = {

@@ -318,7 +318,7 @@ describe("folder and tag dashboard", () => {
       within(folderItem).getByRole("button", { name: /reading 폴더 하위로 이동/i })
     ).toHaveTextContent("이동");
     expect(
-      within(folderItem).queryByRole("button", { name: /reading 폴더 수정 시작/i })
+      within(folderItem).queryByRole("button", { name: /reading 폴더 수정/i })
     ).not.toBeInTheDocument();
     expect(
       within(folderItem).queryByRole("button", { name: /reading 폴더 삭제/i })
@@ -326,12 +326,27 @@ describe("folder and tag dashboard", () => {
 
     openFolderActionMenu(folderManager, "Reading");
 
+    const readingFolderMenu = within(folderItem).getByRole("menu", {
+      name: /reading 폴더 메뉴/i
+    });
     expect(
-      within(folderItem).getByRole("button", { name: /reading 폴더 수정 시작/i })
+      within(readingFolderMenu)
+        .getAllByRole("button")
+        .map((button) => button.textContent?.trim())
+    ).toEqual(["추가", "수정", "삭제"]);
+    expect(
+      within(readingFolderMenu).getByRole("button", { name: /reading 하위 폴더 추가/i })
     ).toBeInTheDocument();
     expect(
-      within(folderItem).getByRole("button", { name: /reading 폴더 삭제/i })
+      within(readingFolderMenu).getByRole("button", { name: /reading 폴더 수정/i })
     ).toBeInTheDocument();
+    expect(
+      within(readingFolderMenu).getByRole("button", { name: /reading 폴더 삭제/i })
+    ).toBeInTheDocument();
+    fireEvent.pointerDown(document.body);
+    expect(
+      within(folderItem).queryByRole("menu", { name: /reading 폴더 메뉴/i })
+    ).not.toBeInTheDocument();
   });
 
   it("starts child folder creation from the folder tree quick action", async () => {
@@ -2006,7 +2021,7 @@ describe("folder and tag dashboard", () => {
 
     const folderManager = await openFolderManagerOverlay();
     openFolderActionMenu(folderManager, "Reading");
-    fireEvent.click(within(folderManager).getByRole("button", { name: /reading 폴더 수정 시작/i }));
+    fireEvent.click(within(folderManager).getByRole("button", { name: /reading 폴더 수정/i }));
     fireEvent.change(within(folderManager).getByLabelText(/폴더 이름/i), {
       target: { value: "Articles" }
     });

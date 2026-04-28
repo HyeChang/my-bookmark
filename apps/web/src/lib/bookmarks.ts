@@ -1,5 +1,7 @@
 import type {
   Bookmark,
+  BookmarkCounts,
+  BookmarkCountsResponse,
   BookmarkExtractPreview,
   BookmarkPermanentDeleteResponse,
   BookmarkPreviewResponse,
@@ -31,11 +33,54 @@ type LoadBookmarksOptions = {
   urlColor?: string;
   summaryState?: "all" | "with" | "without";
   trashMode?: BookmarkTrashMode;
+  limit?: number;
+  offset?: number;
 };
 
 type LoadBookmarkOptions = {
   includeTrashed?: boolean;
 };
+
+export type BookmarkPage = {
+  bookmarks: Bookmark[];
+  pagination: NonNullable<BookmarkListResponse["pagination"]> | null;
+};
+
+const emptyBookmarkCountBucket = {
+  total: 0,
+  visible: 0
+};
+
+function normalizeBookmarkCountBucket(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return { ...emptyBookmarkCountBucket };
+  }
+
+  const bucket = value as Partial<{ total: number; visible: number }>;
+  return {
+    total: Number.isFinite(bucket.total) ? Math.max(0, Math.trunc(bucket.total ?? 0)) : 0,
+    visible: Number.isFinite(bucket.visible) ? Math.max(0, Math.trunc(bucket.visible ?? 0)) : 0
+  };
+}
+
+function normalizeBookmarkCounts(counts: Partial<BookmarkCounts> | undefined): BookmarkCounts {
+  const byFolderId: BookmarkCounts["byFolderId"] = {};
+  const rawFolderCounts = counts?.byFolderId;
+
+  if (rawFolderCounts && typeof rawFolderCounts === "object") {
+    for (const [folderId, bucket] of Object.entries(rawFolderCounts)) {
+      byFolderId[folderId] = normalizeBookmarkCountBucket(bucket);
+    }
+  }
+
+  return {
+    active: normalizeBookmarkCountBucket(counts?.active),
+    favorite: normalizeBookmarkCountBucket(counts?.favorite),
+    trashed: normalizeBookmarkCountBucket(counts?.trashed),
+    unfiled: normalizeBookmarkCountBucket(counts?.unfiled),
+    byFolderId
+  };
+}
 
 function mapBookmarkErrorCode(errorCode: string) {
   switch (errorCode) {
@@ -58,7 +103,7 @@ function mapBookmarkErrorCode(errorCode: string) {
   }
 }
 
-export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
+function buildBookmarkListUrl(options: LoadBookmarksOptions = {}) {
   const searchParams = new URLSearchParams();
   const query = options.query?.trim();
 
@@ -112,8 +157,36 @@ export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
   } else if (options.trashMode === "all") {
     searchParams.set("trashed", "all");
   }
+  if (Number.isFinite(options.limit)) {
+    searchParams.set("limit", String(Math.max(1, Math.trunc(options.limit ?? 1))));
+    searchParams.set("offset", String(Math.max(0, Math.trunc(options.offset ?? 0))));
+  }
 
-  const url = searchParams.size > 0 ? `/api/bookmarks?${searchParams.toString()}` : "/api/bookmarks";
+  return searchParams.size > 0 ? `/api/bookmarks?${searchParams.toString()}` : "/api/bookmarks";
+}
+
+function normalizeBookmarkPagination(
+  pagination: Partial<NonNullable<BookmarkListResponse["pagination"]>> | undefined
+) {
+  if (
+    !pagination ||
+    !Number.isFinite(pagination.limit) ||
+    !Number.isFinite(pagination.offset) ||
+    !Number.isFinite(pagination.total)
+  ) {
+    return null;
+  }
+
+  return {
+    limit: Math.max(1, Math.trunc(pagination.limit ?? 1)),
+    offset: Math.max(0, Math.trunc(pagination.offset ?? 0)),
+    total: Math.max(0, Math.trunc(pagination.total ?? 0)),
+    hasMore: pagination.hasMore === true
+  };
+}
+
+export async function loadBookmarkPage(options: LoadBookmarksOptions = {}): Promise<BookmarkPage> {
+  const url = buildBookmarkListUrl(options);
   const data = await requestJson<Partial<BookmarkListResponse>>(
     url,
     {
@@ -124,7 +197,30 @@ export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
       mapErrorCode: mapBookmarkErrorCode
     }
   );
-  return Array.isArray(data.bookmarks) ? (data.bookmarks as Bookmark[]) : [];
+  return {
+    bookmarks: Array.isArray(data.bookmarks) ? (data.bookmarks as Bookmark[]) : [],
+    pagination: normalizeBookmarkPagination(data.pagination)
+  };
+}
+
+export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
+  const page = await loadBookmarkPage(options);
+  return page.bookmarks;
+}
+
+export async function loadBookmarkCounts() {
+  const data = await requestJson<Partial<BookmarkCountsResponse>>(
+    "/api/bookmarks/counts",
+    {
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "북마크 개수를 불러오지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
+
+  return normalizeBookmarkCounts(data.counts);
 }
 
 export async function loadBookmark(bookmarkId: string, options: LoadBookmarkOptions = {}) {

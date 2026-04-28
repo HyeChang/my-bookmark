@@ -4,6 +4,8 @@ import { createApp } from "../src/app";
 import { createSessionValue } from "../src/lib/auth/session";
 import type { BookmarkOpenStat } from "../src/lib/repositories/bookmark-activity";
 import type {
+  BookmarkListFilters,
+  BookmarkListOptions,
   BookmarkRecord,
   BookmarkRepository
 } from "../src/lib/repositories/bookmarks";
@@ -16,8 +18,19 @@ const fakeUser = {
   picture: "https://example.com/avatar.png"
 };
 
-function createInMemoryBookmarkRepository(): BookmarkRepository {
+function createInMemoryBookmarkRepository(): BookmarkRepository & {
+  getListCalls(): Array<{
+    userId: string;
+    filters: BookmarkListFilters;
+    options: BookmarkListOptions | undefined;
+  }>;
+} {
   const bookmarks = new Map<string, BookmarkRecord>();
+  const listCalls: Array<{
+    userId: string;
+    filters: BookmarkListFilters;
+    options: BookmarkListOptions | undefined;
+  }> = [];
 
   function createRecord(
     partial: Partial<BookmarkRecord> & {
@@ -75,6 +88,7 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
     normalizedUrl: "https://example.com/favorite-active",
     isFavorite: true,
     userTitle: "Favorite active link",
+    userContent: "Favorite active full content",
     updatedAt: "2026-04-14T03:00:00.000Z"
   });
   const passiveFavoriteBookmark = createRecord({
@@ -144,7 +158,8 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
   });
 
   return {
-    async listByUser(userId, filters = {}) {
+    async listByUser(userId, filters = {}, options) {
+      listCalls.push({ userId, filters, options });
       return Array.from(bookmarks.values()).filter((bookmark) => {
         if (bookmark.userId !== userId) {
           return false;
@@ -235,6 +250,9 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
     },
     async update() {
       throw new Error("not_implemented_for_test");
+    },
+    getListCalls() {
+      return listCalls;
     }
   };
 }
@@ -348,6 +366,79 @@ describe("recommendation routes", () => {
       ...payload.recent,
       ...payload.frequent
     ].map((bookmark) => bookmark.id)).not.toContain("bookmark-trashed-favorite");
+  });
+
+  it("returns compact recommendation payloads without full content", async () => {
+    const bookmarkRepository = createInMemoryBookmarkRepository();
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository,
+      bookmarkActivityRepository: createInMemoryActivityRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    const res = await authenticatedRequest(app, "/api/recommendations");
+
+    expect(res.status).toBe(200);
+    const payload = (await res.json()) as {
+      favorites: Array<{
+        id: string;
+        userContent: string | null;
+        displayContent: string;
+        contentTruncated?: boolean;
+      }>;
+    };
+
+    expect(bookmarkRepository.getListCalls()[0]).toMatchObject({
+      userId: fakeUser.uid,
+      filters: {},
+      options: {
+        contentMode: "summary"
+      }
+    });
+    expect(payload.favorites[0]).toMatchObject({
+      id: "bookmark-favorite-active",
+      userContent: null,
+      displayContent: "Favorite active full content",
+      contentTruncated: true
+    });
+  });
+
+  it("uses optimized recommendation repository results without loading every bookmark", async () => {
+    const baseRepository = createInMemoryBookmarkRepository();
+    const optimizedBookmark = await baseRepository.getByUserAndId(
+      fakeUser.uid,
+      "bookmark-favorite-active"
+    );
+    if (!optimizedBookmark) {
+      throw new Error("missing_test_bookmark");
+    }
+
+    const bookmarkRepository = {
+      ...baseRepository,
+      async listRecommendationsByUser(userId: string) {
+        expect(userId).toBe(fakeUser.uid);
+
+        return {
+          favorites: [optimizedBookmark],
+          recent: [optimizedBookmark],
+          frequent: [optimizedBookmark]
+        };
+      }
+    } as BookmarkRepository;
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository
+    } as Parameters<typeof createApp>[0]);
+
+    const res = await authenticatedRequest(app, "/api/recommendations");
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      favorites: [{ id: "bookmark-favorite-active" }],
+      recent: [{ id: "bookmark-favorite-active" }],
+      frequent: [{ id: "bookmark-favorite-active" }]
+    });
+    expect(baseRepository.getListCalls()).toHaveLength(0);
   });
 
   it("records bookmark open activity for the authenticated user", async () => {

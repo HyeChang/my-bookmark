@@ -25,6 +25,11 @@ export type ExtensionSettings = {
 
 const STORAGE_KEY = "extensionSettings";
 const PENDING_DRAFT_KEY = "extensionPendingBookmarkDraft";
+type ChromeStorageArea = {
+  get?: (key: string) => Promise<Record<string, unknown>>;
+  set?: (value: Record<string, unknown>) => Promise<void>;
+  remove?: (key: string) => Promise<void>;
+};
 
 export const defaultExtensionSettings: ExtensionSettings = {
   apiBaseUrl: "https://bookmark.keygenerator25.workers.dev",
@@ -35,23 +40,11 @@ export const defaultExtensionSettings: ExtensionSettings = {
 };
 
 function getChromeStorageLocal() {
-  return (globalThis as { chrome?: { storage?: { local?: {
-    get?: (key: string) => Promise<Record<string, unknown>>;
-    set?: (value: Record<string, unknown>) => Promise<void>;
-    remove?: (key: string) => Promise<void>;
-  } } } }).chrome?.storage?.local;
+  return (globalThis as { chrome?: { storage?: { local?: ChromeStorageArea } } }).chrome?.storage?.local;
 }
 
 function getChromeStorageSync() {
-  return (globalThis as { chrome?: { storage?: { sync?: {
-    get?: (key: string) => Promise<Record<string, unknown>>;
-    set?: (value: Record<string, unknown>) => Promise<void>;
-    remove?: (key: string) => Promise<void>;
-  } } } }).chrome?.storage?.sync;
-}
-
-function getChromeStorageForSettings() {
-  return getChromeStorageSync() ?? getChromeStorageLocal();
+  return (globalThis as { chrome?: { storage?: { sync?: ChromeStorageArea } } }).chrome?.storage?.sync;
 }
 
 function normalizeBaseUrl(value: string | null | undefined) {
@@ -136,24 +129,44 @@ export function formatDefaultTagIdsInput(tagIds: string[]) {
 }
 
 export async function loadExtensionSettings() {
-  const storage = getChromeStorageForSettings();
-  if (!storage?.get) {
-    return defaultExtensionSettings;
+  const localStorage = getChromeStorageLocal();
+  const syncStorage = getChromeStorageSync();
+
+  if (localStorage?.get) {
+    const localStored = await localStorage.get(STORAGE_KEY).catch(() => ({}));
+    if (Object.prototype.hasOwnProperty.call(localStored, STORAGE_KEY)) {
+      return normalizeSettings(localStored[STORAGE_KEY] as Partial<ExtensionSettings> | undefined);
+    }
   }
 
-  const stored = await storage.get(STORAGE_KEY).catch(() => ({}));
-  return normalizeSettings(stored[STORAGE_KEY] as Partial<ExtensionSettings> | undefined);
+  if (syncStorage?.get) {
+    const syncStored = await syncStorage.get(STORAGE_KEY).catch(() => ({}));
+    if (Object.prototype.hasOwnProperty.call(syncStored, STORAGE_KEY)) {
+      const settings = normalizeSettings(
+        syncStored[STORAGE_KEY] as Partial<ExtensionSettings> | undefined
+      );
+      await localStorage?.set?.({ [STORAGE_KEY]: settings }).catch(() => undefined);
+      return settings;
+    }
+  }
+
+  return defaultExtensionSettings;
 }
 
 export async function saveExtensionSettings(settings: ExtensionSettings) {
-  const storage = getChromeStorageForSettings();
-  if (!storage?.set) {
-    return;
-  }
+  const localStorage = getChromeStorageLocal();
+  const syncStorage = getChromeStorageSync();
+  const normalizedSettings = normalizeSettings(settings);
 
-  await storage.set({
-    [STORAGE_KEY]: normalizeSettings(settings)
-  });
+  const localWrite = localStorage?.set
+    ? localStorage.set({ [STORAGE_KEY]: normalizedSettings })
+    : Promise.resolve();
+  const syncWrite = syncStorage?.set
+    ? syncStorage.set({ [STORAGE_KEY]: normalizedSettings }).catch(() => undefined)
+    : Promise.resolve();
+
+  await localWrite;
+  await syncWrite;
 }
 
 export async function loadPendingBookmarkDraft() {

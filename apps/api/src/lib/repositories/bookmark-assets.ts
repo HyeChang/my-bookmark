@@ -34,6 +34,10 @@ export type CreateBookmarkAssetInput = {
 
 export type BookmarkAssetRepository = {
   listByBookmark(userId: string, bookmarkId: string): Promise<BookmarkAssetRecord[]>;
+  listByBookmarks?(
+    userId: string,
+    bookmarkIds: string[]
+  ): Promise<BookmarkAssetRecord[]>;
   getById(
     userId: string,
     bookmarkId: string,
@@ -64,6 +68,12 @@ function toBookmarkAssetRecord(row: BookmarkAssetRow): BookmarkAssetRecord {
   };
 }
 
+function normalizeBookmarkIds(bookmarkIds: string[]) {
+  return Array.from(
+    new Set(bookmarkIds.map((bookmarkId) => bookmarkId.trim()).filter(Boolean))
+  );
+}
+
 export function toBookmarkAssetResponse(
   asset: BookmarkAssetRecord,
   options?: BookmarkAssetResponseOptions
@@ -86,6 +96,37 @@ export function toBookmarkAssetResponse(
 }
 
 export function createBookmarkAssetRepository(db: D1Database): BookmarkAssetRepository {
+  async function listByBookmarks(userId: string, bookmarkIds: string[]) {
+    const normalizedBookmarkIds = normalizeBookmarkIds(bookmarkIds);
+    if (normalizedBookmarkIds.length === 0) {
+      return [];
+    }
+
+    const placeholders = normalizedBookmarkIds.map(() => "?").join(", ");
+    const result = await db
+      .prepare(
+        `SELECT
+          id,
+          bookmark_id,
+          user_id,
+          asset_type,
+          object_key,
+          mime_type,
+          width,
+          height,
+          sort_order,
+          created_at,
+          updated_at
+        FROM bookmark_assets
+        WHERE user_id = ? AND bookmark_id IN (${placeholders})
+        ORDER BY bookmark_id ASC, sort_order ASC, created_at ASC`
+      )
+      .bind(userId, ...normalizedBookmarkIds)
+      .all<BookmarkAssetRow>();
+
+    return result.results.map(toBookmarkAssetRecord);
+  }
+
   async function getById(userId: string, bookmarkId: string, assetId: string) {
     const row = await db
       .prepare(
@@ -112,29 +153,9 @@ export function createBookmarkAssetRepository(db: D1Database): BookmarkAssetRepo
 
   return {
     async listByBookmark(userId, bookmarkId) {
-      const result = await db
-        .prepare(
-          `SELECT
-            id,
-            bookmark_id,
-            user_id,
-            asset_type,
-            object_key,
-            mime_type,
-            width,
-            height,
-            sort_order,
-            created_at,
-            updated_at
-          FROM bookmark_assets
-          WHERE user_id = ? AND bookmark_id = ?
-          ORDER BY sort_order ASC, created_at ASC`
-        )
-        .bind(userId, bookmarkId)
-        .all<BookmarkAssetRow>();
-
-      return result.results.map(toBookmarkAssetRecord);
+      return listByBookmarks(userId, [bookmarkId]);
     },
+    listByBookmarks,
     getById,
     async create(input) {
       const assetId = crypto.randomUUID();

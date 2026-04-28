@@ -78,6 +78,10 @@ describe("pwa install", () => {
 
     const dialog = await screen.findByRole("dialog", { name: /install-help-dialog/i });
     expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveClass("install-help-dialog-shell");
+    expect(within(dialog).getAllByRole("heading", { level: 3 })[0]?.closest("section")).toHaveClass(
+      "extension-download-card-readable"
+    );
     expect(within(dialog).getByText(/iPhone \/ iPad Safari/i)).toBeInTheDocument();
     expect(within(dialog).getAllByText(/홈 화면에 추가/i).length).toBeGreaterThan(0);
   });

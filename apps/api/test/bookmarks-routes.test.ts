@@ -14,6 +14,7 @@ import type {
   BookmarkRecord,
   BookmarkRepository
 } from "../src/lib/repositories/bookmarks";
+import { normalizeBookmarkUrl } from "../src/lib/repositories/bookmarks";
 import type { BookmarkAssetStorage } from "../src/lib/storage/assets";
 
 const sessionSecret = "bookmark-test-secret";
@@ -23,6 +24,10 @@ const fakeUser = {
   name: "Bookmark Tester",
   picture: "https://example.com/avatar.png"
 };
+
+function isoDaysAgo(days: number) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
 
 function createInMemoryFolderRepository() {
   type FolderRecord = {
@@ -281,6 +286,9 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
 
       const updated = {
         ...bookmark,
+        url: input.url === undefined ? bookmark.url : normalizeBookmarkUrl(input.url),
+        normalizedUrl:
+          input.url === undefined ? bookmark.normalizedUrl : normalizeBookmarkUrl(input.url),
         folderId: input.folderId === undefined ? bookmark.folderId : input.folderId,
         isFavorite: input.isFavorite ?? bookmark.isFavorite,
         isHidden: "isHidden" in input ? (input.isHidden ?? false) : bookmark.isHidden,
@@ -667,6 +675,309 @@ describe("bookmark routes", () => {
     });
   });
 
+  it("paginates bookmark list responses with limit and offset metadata", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    for (let index = 1; index <= 25; index += 1) {
+      await authenticatedRequest(app, "/api/bookmarks", {
+        method: "POST",
+        body: JSON.stringify({
+          url: `https://example.com/page-${index}`,
+          userTitle: `Page ${index}`
+        })
+      });
+    }
+
+    const firstPageRes = await authenticatedRequest(app, "/api/bookmarks?limit=20&offset=0");
+    const secondPageRes = await authenticatedRequest(app, "/api/bookmarks?limit=20&offset=20");
+
+    expect(firstPageRes.status).toBe(200);
+    await expect(firstPageRes.json()).resolves.toMatchObject({
+      bookmarks: expect.arrayContaining([
+        expect.objectContaining({
+          userTitle: "Page 1"
+        })
+      ]),
+      pagination: {
+        limit: 20,
+        offset: 0,
+        total: 25,
+        hasMore: true
+      }
+    });
+
+    expect(secondPageRes.status).toBe(200);
+    const secondPagePayload = (await secondPageRes.json()) as {
+      bookmarks: Array<{ userTitle: string | null }>;
+      pagination: {
+        limit: number;
+        offset: number;
+        total: number;
+        hasMore: boolean;
+      };
+    };
+    expect(secondPagePayload.bookmarks).toHaveLength(5);
+    expect(secondPagePayload.pagination).toEqual({
+      limit: 20,
+      offset: 20,
+      total: 25,
+      hasMore: false
+    });
+  });
+
+  it("uses repository-level pagination for sorted list pages", async () => {
+    const baseRepository = createInMemoryBookmarkRepository();
+    const pageCalls: Array<{
+      userId: string;
+      filters: BookmarkListFilters;
+      pagination: { limit: number; offset: number };
+      search?: { query: string; mode: string };
+      sort?: string;
+    }> = [];
+    const repository = {
+      ...baseRepository,
+      async pageByUser(
+        userId: string,
+        filters: BookmarkListFilters = {},
+        options: {
+          contentMode?: "full" | "summary";
+          pagination: { limit: number; offset: number };
+          search?: { query: string; mode: string };
+          sort?: string;
+        }
+      ) {
+        pageCalls.push({
+          userId,
+          filters,
+          pagination: options.pagination,
+          search: options.search,
+          sort: options.sort
+        });
+
+        const bookmarks = options.search
+          ? await baseRepository.searchByUser(
+              userId,
+              options.search.query,
+              options.search.mode as never,
+              filters,
+              options
+            )
+          : await baseRepository.listByUser(userId, filters, options);
+
+        return {
+          bookmarks: bookmarks.slice(
+            options.pagination.offset,
+            options.pagination.offset + options.pagination.limit
+          ),
+          total: bookmarks.length
+        };
+      }
+    } as BookmarkRepository;
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    for (let index = 1; index <= 25; index += 1) {
+      await authenticatedRequest(app, "/api/bookmarks", {
+        method: "POST",
+        body: JSON.stringify({
+          url: `https://example.com/db-page-${index}`,
+          userTitle: `DB Page ${index}`
+        })
+      });
+    }
+
+    const res = await authenticatedRequest(
+      app,
+      "/api/bookmarks?limit=20&offset=20&sort=title_asc"
+    );
+
+    expect(res.status).toBe(200);
+    expect(pageCalls).toHaveLength(1);
+    expect(pageCalls[0]).toMatchObject({
+      userId: fakeUser.uid,
+      pagination: {
+        limit: 20,
+        offset: 20
+      },
+      search: undefined,
+      sort: "title_asc"
+    });
+    const payload = (await res.json()) as {
+      bookmarks: Array<{ userTitle: string | null }>;
+      pagination: {
+        limit: number;
+        offset: number;
+        total: number;
+        hasMore: boolean;
+      };
+    };
+    expect(payload.bookmarks).toHaveLength(5);
+    expect(payload.pagination).toEqual({
+      limit: 20,
+      offset: 20,
+      total: 25,
+      hasMore: false
+    });
+  });
+
+  it("uses repository-level pagination for opened-desc list pages", async () => {
+    const baseRepository = createInMemoryBookmarkRepository();
+    const pageCalls: Array<{
+      pagination: { limit: number; offset: number };
+      sort?: string;
+    }> = [];
+    const repository = {
+      ...baseRepository,
+      async pageByUser(
+        userId: string,
+        filters: BookmarkListFilters = {},
+        options: {
+          contentMode?: "full" | "summary";
+          pagination: { limit: number; offset: number };
+          sort?: string;
+        }
+      ) {
+        pageCalls.push({
+          pagination: options.pagination,
+          sort: options.sort
+        });
+        const bookmarks = await baseRepository.listByUser(userId, filters, options);
+
+        return {
+          bookmarks: bookmarks.slice(
+            options.pagination.offset,
+            options.pagination.offset + options.pagination.limit
+          ),
+          total: bookmarks.length
+        };
+      }
+    } as BookmarkRepository;
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/opened-page",
+        userTitle: "Opened page"
+      })
+    });
+
+    const res = await authenticatedRequest(
+      app,
+      "/api/bookmarks?sort=opened_desc&limit=20&offset=0"
+    );
+
+    expect(res.status).toBe(200);
+    expect(pageCalls).toEqual([
+      {
+        pagination: {
+          limit: 20,
+          offset: 0
+        },
+        sort: "opened_desc"
+      }
+    ]);
+    const payload = (await res.json()) as {
+      pagination: {
+        limit: number;
+        offset: number;
+        total: number;
+        hasMore: boolean;
+      };
+    };
+    expect(payload.pagination).toEqual({
+      limit: 20,
+      offset: 0,
+      total: 1,
+      hasMore: false
+    });
+  });
+
+  it("returns bookmark count summaries without loading full bookmark payloads", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/unfiled",
+        userTitle: "Unfiled"
+      })
+    });
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/folder",
+        userTitle: "Folder",
+        folderId: "folder-reading",
+        isFavorite: true
+      })
+    });
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/hidden",
+        userTitle: "Hidden",
+        folderId: "folder-reading",
+        isHidden: true
+      })
+    });
+    const trashedCreateRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/trash",
+        userTitle: "Trash",
+        folderId: "folder-archive"
+      })
+    });
+    const trashedPayload = (await trashedCreateRes.json()) as {
+      bookmark: { id: string };
+    };
+    await authenticatedRequest(app, `/api/bookmarks/${trashedPayload.bookmark.id}`, {
+      method: "DELETE"
+    });
+
+    const res = await authenticatedRequest(app, "/api/bookmarks/counts");
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      counts: {
+        active: {
+          total: 3,
+          visible: 2
+        },
+        favorite: {
+          total: 1,
+          visible: 1
+        },
+        trashed: {
+          total: 1,
+          visible: 1
+        },
+        unfiled: {
+          total: 1,
+          visible: 1
+        },
+        byFolderId: {
+          "folder-reading": {
+            total: 2,
+            visible: 1
+          }
+        }
+      }
+    });
+  });
+
   it("searches bookmarks by integrated mode and folder mode", async () => {
     const app = createApp({
       sessionSecret,
@@ -819,6 +1130,52 @@ describe("bookmark routes", () => {
           url: "https://example.com/paper"
         }
       ]
+    });
+  });
+
+  it("returns compact bookmark list payloads while preserving full content in detail responses", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+    const longContent = Array.from({ length: 60 }, (_, index) => `문단 ${index + 1}`).join(" ");
+
+    const createRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/long-content",
+        userTitle: "Long content bookmark",
+        userContent: longContent,
+        userSummary: null
+      })
+    });
+    const created = (await createRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const listRes = await authenticatedRequest(app, "/api/bookmarks");
+    const detailRes = await authenticatedRequest(app, `/api/bookmarks/${created.bookmark.id}`);
+
+    expect(listRes.status).toBe(200);
+    await expect(listRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        {
+          id: created.bookmark.id,
+          userContent: null,
+          sourceContent: null,
+          displayContent: expect.stringMatching(/^문단 1/),
+          contentTruncated: true
+        }
+      ]
+    });
+
+    expect(detailRes.status).toBe(200);
+    await expect(detailRes.json()).resolves.toMatchObject({
+      bookmark: {
+        id: created.bookmark.id,
+        userContent: longContent,
+        displayContent: longContent
+      }
     });
   });
 
@@ -1179,13 +1536,15 @@ describe("bookmark routes", () => {
         const created = await baseRepository.create(input);
 
         if (input.url.includes("recent-created")) {
-          created.createdAt = "2026-04-18T08:00:00.000Z";
-          created.updatedAt = "2026-04-18T08:00:00.000Z";
+          const recentDate = isoDaysAgo(2);
+          created.createdAt = recentDate;
+          created.updatedAt = recentDate;
         }
 
         if (input.url.includes("old-created")) {
-          created.createdAt = "2026-03-01T08:00:00.000Z";
-          created.updatedAt = "2026-03-01T08:00:00.000Z";
+          const oldDate = isoDaysAgo(40);
+          created.createdAt = oldDate;
+          created.updatedAt = oldDate;
         }
 
         return created;
@@ -1229,12 +1588,12 @@ describe("bookmark routes", () => {
         {
           bookmarkId: "bookmark-1",
           openCount: 2,
-          lastOpenedAt: "2026-04-13T08:00:00.000Z"
+          lastOpenedAt: isoDaysAgo(2)
         },
         {
           bookmarkId: "bookmark-2",
           openCount: 4,
-          lastOpenedAt: "2026-03-01T08:00:00.000Z"
+          lastOpenedAt: isoDaysAgo(40)
         }
       ])
     } as Parameters<typeof createApp>[0]);
@@ -1375,6 +1734,77 @@ describe("bookmark routes", () => {
         tagIds: ["tag-2", "tag-3"]
       }
     });
+  });
+
+  it("updates a bookmark URL for the authenticated user", async () => {
+    const repository = createInMemoryBookmarkRepository();
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/before",
+        userTitle: "Editable URL"
+      })
+    });
+    const created = (await createRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const res = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          url: "https://example.com/after?utm_source=test"
+        })
+      }
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      bookmark: {
+        id: created.bookmark.id,
+        url: "https://example.com/after?utm_source=test"
+      }
+    });
+  });
+
+  it("rejects an invalid bookmark URL update", async () => {
+    const repository = createInMemoryBookmarkRepository();
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: repository
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/before",
+        userTitle: "Invalid URL edit"
+      })
+    });
+    const created = (await createRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const res = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          url: "not a url"
+        })
+      }
+    );
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({ error: "invalid_url" });
   });
 
   it("updates hidden state for an existing bookmark", async () => {

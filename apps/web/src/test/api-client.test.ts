@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { requestJson } from "../lib/api";
+import { loadBookmarkAssetsByBookmarks } from "../lib/bookmark-assets";
 import { extractBookmarkPreview } from "../lib/bookmark-extract";
-import { loadBookmarkPreview } from "../lib/bookmarks";
+import { loadBookmarkCounts, loadBookmarkPage, loadBookmarkPreview } from "../lib/bookmarks";
 import { createTag } from "../lib/tags";
 
 afterEach(() => {
@@ -137,6 +138,203 @@ describe("api client", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/bookmarks/bookmark-preview/preview",
+      {
+        credentials: "include"
+      }
+    );
+  });
+
+  it("loads bookmark pages with server pagination metadata", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          bookmarks: [
+            {
+              id: "bookmark-page-21",
+              folderId: null,
+              tagIds: [],
+              url: "https://example.com/page-21",
+              isFavorite: false,
+              isHidden: false,
+              isTrashed: false,
+              trashedAt: null,
+              bookmarkColor: null,
+              urlColor: null,
+              sourceTitle: null,
+              sourceContent: null,
+              sourceSummary: null,
+              userTitle: "Paged bookmark 21",
+              userContent: null,
+              userSummary: null,
+              displayTitle: "Paged bookmark 21",
+              displayContent: "",
+              displaySummary: "",
+              createdAt: "2026-04-27T00:21:00.000Z",
+              updatedAt: "2026-04-27T00:21:00.000Z"
+            }
+          ],
+          pagination: {
+            limit: 20,
+            offset: 20,
+            total: 45,
+            hasMore: true
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      loadBookmarkPage({
+        sort: "title_asc",
+        limit: 20,
+        offset: 20
+      })
+    ).resolves.toMatchObject({
+      bookmarks: [
+        {
+          id: "bookmark-page-21",
+          displayTitle: "Paged bookmark 21"
+        }
+      ],
+      pagination: {
+        limit: 20,
+        offset: 20,
+        total: 45,
+        hasMore: true
+      }
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/bookmarks?sort=title_asc&limit=20&offset=20",
+      {
+        credentials: "include"
+      }
+    );
+  });
+
+  it("loads bookmark count summaries", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          counts: {
+            active: {
+              total: 12,
+              visible: 10
+            },
+            favorite: {
+              total: 3,
+              visible: 2
+            },
+            trashed: {
+              total: 1,
+              visible: 1
+            },
+            unfiled: {
+              total: 4,
+              visible: 4
+            },
+            byFolderId: {
+              "folder-1": {
+                total: 8,
+                visible: 6
+              }
+            }
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(loadBookmarkCounts()).resolves.toEqual({
+      active: {
+        total: 12,
+        visible: 10
+      },
+      favorite: {
+        total: 3,
+        visible: 2
+      },
+      trashed: {
+        total: 1,
+        visible: 1
+      },
+      unfiled: {
+        total: 4,
+        visible: 4
+      },
+      byFolderId: {
+        "folder-1": {
+          total: 8,
+          visible: 6
+        }
+      }
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/bookmarks/counts", {
+      credentials: "include"
+    });
+  });
+
+  it("loads assets for multiple bookmarks with one batch request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          assetsByBookmarkId: {
+            "bookmark-1": [
+              {
+                id: "asset-1",
+                bookmarkId: "bookmark-1",
+                assetType: "image",
+                mimeType: "image/png",
+                width: null,
+                height: null,
+                sortOrder: 0,
+                contentUrl: "/api/bookmarks/bookmark-1/assets/asset-1/content",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ],
+            "bookmark-2": []
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      loadBookmarkAssetsByBookmarks(["bookmark-1", "bookmark-2"])
+    ).resolves.toMatchObject({
+      "bookmark-1": [
+        {
+          id: "asset-1",
+          bookmarkId: "bookmark-1"
+        }
+      ],
+      "bookmark-2": []
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/bookmarks/assets?bookmarkId=bookmark-1&bookmarkId=bookmark-2",
       {
         credentials: "include"
       }

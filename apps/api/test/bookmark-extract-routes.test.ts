@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
 import { createSessionValue } from "../src/lib/auth/session";
+import { createBookmarkExtractor } from "../src/lib/extract/bookmark-extractor";
 import type {
   BookmarkRecord,
   BookmarkRepository
@@ -33,6 +34,58 @@ async function authenticatedRequest(
 }
 
 describe("bookmark extract routes", () => {
+  it("returns js-required worker previews for SPA fallback pages", async () => {
+    const fetchImplementation = vi.fn(async () => {
+      return new Response(
+        `
+          <html>
+            <head>
+              <title>SPA Article</title>
+              <meta name="description" content="SPA description">
+              <meta property="og:image" content="/cover.png">
+            </head>
+            <body>
+              <noscript>You need to enable JavaScript to run this app.</noscript>
+              <div id="root"></div>
+            </body>
+          </html>
+        `,
+        {
+          status: 200,
+          headers: {
+            "content-type": "text/html; charset=utf-8"
+          }
+        }
+      );
+    });
+    const app = createApp({
+      sessionSecret,
+      bookmarkExtractor: createBookmarkExtractor(fetchImplementation as typeof fetch)
+    });
+
+    const res = await authenticatedRequest(app, "/api/bookmarks/extract", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://spa.example/app"
+      })
+    });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      preview: {
+        url: "https://spa.example/app",
+        normalizedUrl: "https://spa.example/app",
+        sourceTitle: "SPA Article",
+        sourceSummary: "SPA description",
+        sourceContent: null,
+        sourceImageUrl: "https://spa.example/cover.png",
+        renderStatus: "js_required",
+        renderSource: "worker",
+        renderReason: "spa_fallback"
+      }
+    });
+  });
+
   it("extracts bookmark preview metadata for the authenticated user", async () => {
     const app = createApp({
       sessionSecret,

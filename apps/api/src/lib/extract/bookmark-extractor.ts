@@ -10,11 +10,21 @@ export type BookmarkExtractPreviewRecord = {
   sourceSummary: string | null;
   sourceImageUrl?: string | null;
   sourceBlocks?: BookmarkExtractPreviewBlock[];
+  renderStatus?: "ready" | "js_required";
+  renderSource?: "worker" | "extension";
+  renderReason?: "spa_fallback" | "thin_content" | "missing_article";
 };
 
 export type BookmarkExtractor = {
   extract(url: string): Promise<BookmarkExtractPreviewRecord>;
 };
+
+const SPA_FALLBACK_PATTERNS = [
+  /you need to enable javascript to run this app\.?/gi,
+  /please enable javascript(?: to continue)?\.?/gi,
+  /javascript is required(?: to run this app)?\.?/gi,
+  /this app works best with javascript enabled\.?/gi
+];
 
 function readAttribute(tag: string, attribute: string) {
   const match = tag.match(new RegExp(`${attribute}\\s*=\\s*["']([^"']*)["']`, "i"));
@@ -155,10 +165,35 @@ function normalizeExtractedText(value: string) {
     .trim();
 }
 
+function stripSpaFallbackText(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const cleanedValue = SPA_FALLBACK_PATTERNS.reduce((currentValue, pattern) => {
+    pattern.lastIndex = 0;
+    return currentValue.replace(pattern, " ");
+  }, value);
+
+  return toNullableText(normalizeExtractedText(cleanedValue));
+}
+
+function containsSpaFallbackText(value: string | null | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  return SPA_FALLBACK_PATTERNS.some((pattern) => {
+    pattern.lastIndex = 0;
+    return pattern.test(value);
+  });
+}
+
 function stripHtml(html: string) {
   const blockStrippedHtml = html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
     .replace(/<!--[\s\S]*?-->/g, " ");
   const decodedHtml = decodeHtmlEntities(blockStrippedHtml);
 
@@ -166,6 +201,7 @@ function stripHtml(html: string) {
     decodedHtml
       .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
       .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
       .replace(/<!--[\s\S]*?-->/g, " ")
       .replace(/<br\s*\/?>/gi, "\n")
       .replace(/<li\b[^>]*>/gi, "\n- ")
@@ -188,6 +224,7 @@ function preparePrimaryHtmlForExtraction(html: string) {
     html
       .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
       .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
       .replace(/<!--[\s\S]*?-->/g, " ")
   );
 }
@@ -333,9 +370,30 @@ export function extractBookmarkPreviewFromHtml(
       extractLinkHref(html, ["image_src"])
   );
   const primaryHtml = extractPrimaryHtml(html);
-  const sourceContent = toNullableText(stripHtml(primaryHtml));
-  const sourceSummary = truncateText(metaDescription ?? sourceContent, 280);
-  const sourceBlocks = extractPreviewBlocks(primaryHtml, normalizedUrl);
+  const rawSourceContent = toNullableText(stripHtml(primaryHtml));
+  const sourceContent = stripSpaFallbackText(rawSourceContent);
+  const sourceSummary = truncateText(stripSpaFallbackText(metaDescription ?? sourceContent), 280);
+  const sourceBlocks = extractPreviewBlocks(primaryHtml, normalizedUrl).flatMap((block) => {
+    if (block.type === "image") {
+      return [block];
+    }
+
+    const cleanedText = stripSpaFallbackText(block.text);
+    return cleanedText ? [{ ...block, text: cleanedText }] : [];
+  });
+  const hasSpaFallback = [
+    html,
+    rawSourceContent,
+    metaDescription,
+    ...sourceBlocks
+      .filter((block): block is Extract<BookmarkExtractPreviewBlock, { text: string }> => "text" in block)
+      .map((block) => block.text)
+  ].some((value) => containsSpaFallbackText(value));
+  const hasMeaningfulText = Boolean(sourceContent) || sourceBlocks.some((block) => block.type !== "image");
+  const renderStatus: BookmarkExtractPreviewRecord["renderStatus"] =
+    hasSpaFallback || !hasMeaningfulText ? "js_required" : "ready";
+  const renderReason: BookmarkExtractPreviewRecord["renderReason"] =
+    hasSpaFallback ? "spa_fallback" : !hasMeaningfulText ? "thin_content" : undefined;
 
   return {
     url,
@@ -344,7 +402,10 @@ export function extractBookmarkPreviewFromHtml(
     sourceContent,
     sourceSummary,
     sourceImageUrl,
-    sourceBlocks
+    sourceBlocks,
+    renderStatus,
+    renderSource: "worker",
+    renderReason
   };
 }
 

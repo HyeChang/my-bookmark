@@ -3,6 +3,33 @@ import { describe, expect, it } from "vitest";
 import { extractBookmarkPreviewFromHtml } from "../src/lib/extract/bookmark-extractor";
 
 describe("bookmark extractor", () => {
+  it("marks SPA fallback pages as js-required and removes noscript fallback text", () => {
+    const preview = extractBookmarkPreviewFromHtml(
+      "https://spa.example/app",
+      `
+        <html>
+          <head>
+            <title>SPA Article</title>
+            <meta name="description" content="SPA description">
+            <meta property="og:image" content="/cover.png">
+          </head>
+          <body>
+            <noscript>You need to enable JavaScript to run this app.</noscript>
+            <div id="root"></div>
+          </body>
+        </html>
+      `
+    );
+
+    expect(preview.sourceImageUrl).toBe("https://spa.example/cover.png");
+    expect(preview.sourceSummary).toBe("SPA description");
+    expect(preview.sourceContent).toBeNull();
+    expect(preview.sourceBlocks).toEqual([]);
+    expect(preview.renderStatus).toBe("js_required");
+    expect(preview.renderSource).toBe("worker");
+    expect(preview.renderReason).toBe("spa_fallback");
+  });
+
   it("keeps full extracted article text instead of replacing the tail with an ellipsis", () => {
     const paragraphs = Array.from({ length: 90 }, (_, index) => {
       return `<p>Paragraph ${index + 1} includes enough text to represent a saved article section.</p>`;

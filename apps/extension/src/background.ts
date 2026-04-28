@@ -1,6 +1,7 @@
 import { createFileFromImageUrl } from "./lib/capture";
 import { saveExtensionBookmark } from "./lib/api";
 import { CONTEXT_MENU_IDS, buildPendingBookmarkDraft, getContextMenuDefinitions } from "./lib/context-menus";
+import { extractRenderedPreviewInBackground } from "./lib/rendered-preview-session";
 import { captureVisibleTabImage, dataUrlToFile } from "./lib/screenshot";
 import {
   loadExtensionSettings,
@@ -162,4 +163,37 @@ if (getContextMenusApi()?.onClicked) {
       void showActionBadge("ERR", "#b91c1c");
     });
   });
+}
+
+if (chromeApi?.runtime?.onMessage) {
+  chromeApi.runtime.onMessage.addListener(
+    (
+      message: { type?: string; url?: string },
+      _sender: unknown,
+      sendResponse: (value: unknown) => void
+    ) => {
+      if (message.type !== "bookmark:extract-rendered-preview" || !message.url?.trim()) {
+        return false;
+      }
+
+      void extractRenderedPreviewInBackground(message.url.trim(), {
+        chromeApi
+      })
+        .then((preview) => {
+          sendResponse({
+            preview
+          });
+        })
+        .catch((error: unknown) => {
+          sendResponse({
+            error:
+              error instanceof Error
+                ? error.message
+                : "bookmark_rendered_preview_failed"
+          });
+        });
+
+      return true;
+    }
+  );
 }

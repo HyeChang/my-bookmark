@@ -10,7 +10,7 @@ import {
 } from "../lib/repositories/bookmark-activity";
 import {
   createBookmarkRepository,
-  toBookmarkResponse,
+  toBookmarkListResponse,
   type BookmarkRecord,
   type BookmarkRepository
 } from "../lib/repositories/bookmarks";
@@ -121,16 +121,34 @@ export function createRecommendationRoute(
     const bookmarkRepository =
       options.bookmarkRepository ??
       (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+
+    if (!bookmarkRepository) {
+      return c.json({ error: "recommendation_repository_unavailable" }, 500);
+    }
+
+    if (typeof bookmarkRepository.listRecommendationsByUser === "function") {
+      const recommendations = await bookmarkRepository.listRecommendationsByUser(user.uid, {
+        contentMode: "summary",
+        limit: 5
+      });
+
+      return c.json<BookmarkRecommendationsResponse>({
+        favorites: recommendations.favorites.map(toBookmarkListResponse),
+        recent: recommendations.recent.map(toBookmarkListResponse),
+        frequent: recommendations.frequent.map(toBookmarkListResponse)
+      });
+    }
+
     const bookmarkActivityRepository =
       options.bookmarkActivityRepository ??
       (c.env?.bookmark ? createBookmarkActivityRepository(c.env.bookmark) : null);
 
-    if (!bookmarkRepository || !bookmarkActivityRepository) {
+    if (!bookmarkActivityRepository) {
       return c.json({ error: "recommendation_repository_unavailable" }, 500);
     }
 
     const [allBookmarks, openStats] = await Promise.all([
-      bookmarkRepository.listByUser(user.uid),
+      bookmarkRepository.listByUser(user.uid, {}, { contentMode: "summary" }),
       bookmarkActivityRepository.listOpenStats(user.uid, 100)
     ]);
 
@@ -153,9 +171,9 @@ export function createRecommendationRoute(
       .map((entry) => entry.bookmark);
 
     return c.json<BookmarkRecommendationsResponse>({
-      favorites: favorites.map(toBookmarkResponse),
-      recent: recent.map(toBookmarkResponse),
-      frequent: frequent.map(toBookmarkResponse)
+      favorites: favorites.map(toBookmarkListResponse),
+      recent: recent.map(toBookmarkListResponse),
+      frequent: frequent.map(toBookmarkListResponse)
     });
   });
 }
