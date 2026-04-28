@@ -7151,6 +7151,22 @@ img {
   gap: 0.42rem;
 }
 
+.bookmark-list-table[data-virtualized-bookmark-list="true"] {
+  overflow-anchor: none;
+}
+
+.bookmark-virtual-spacer {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  margin: 0;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
+}
+
 .bookmark-list-table-view-title .bookmark-list-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

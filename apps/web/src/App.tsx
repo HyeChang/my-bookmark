@@ -292,6 +292,15 @@ const bookmarkViewModeOptions: Array<{ value: BookmarkViewMode; label: string; i
 ];
 const bookmarkPageSizeOptions: BookmarkPageSize[] = [20, 50, 100];
 const DEFAULT_BOOKMARK_PAGE_SIZE: BookmarkPageSize = 20;
+const BOOKMARK_VIRTUALIZATION_THRESHOLD = 60;
+const BOOKMARK_VIRTUAL_WINDOW_SIZE = 40;
+const BOOKMARK_VIRTUAL_OVERSCAN = 8;
+const bookmarkVirtualRowHeightByMode: Record<BookmarkViewMode, number> = {
+  list: 112,
+  title: 76,
+  card: 260,
+  moodboard: 320
+};
 
 const defaultBookmarkCardDisplaySettings: BookmarkCardDisplaySettings = {
   coverImage: true,
@@ -1748,6 +1757,7 @@ export default function App() {
     useState(DEFAULT_BOOKMARK_PAGE_SIZE);
   const [bookmarkListTotalCount, setBookmarkListTotalCount] = useState<number | null>(null);
   const [bookmarkListNextOffset, setBookmarkListNextOffset] = useState<number | null>(null);
+  const [bookmarkVirtualWindowStart, setBookmarkVirtualWindowStart] = useState(0);
   const [bookmarkListDisplaySettings, setBookmarkListDisplaySettings] =
     useState<BookmarkCardDisplaySettings>(() => loadStoredBookmarkViewSettings().list);
   const [bookmarkCardDisplaySettings, setBookmarkCardDisplaySettings] =
@@ -1792,6 +1802,7 @@ export default function App() {
   const bookmarkDetailRequestIdRef = useRef(0);
   const bookmarkPreviewRequestIdRef = useRef(0);
   const recommendationRequestIdRef = useRef(0);
+  const bookmarkListElementRef = useRef<HTMLUListElement | null>(null);
   const deferredBookmarkAssetPreloadTimerRef =
     useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
 
@@ -5187,6 +5198,42 @@ export default function App() {
   const visibleBookmarkTotalCount = bookmarkListTotalCount ?? visibleBookmarks.length;
   const hasMoreVisibleBookmarks =
     bookmarkListNextOffset !== null || visiblePagedBookmarks.length < visibleBookmarks.length;
+  const canVirtualizeBookmarkList =
+    (bookmarkViewMode === "list" || bookmarkViewMode === "title") &&
+    visiblePagedBookmarks.length > BOOKMARK_VIRTUALIZATION_THRESHOLD;
+  const bookmarkVirtualWindowSize = shouldUseCompactMobileCards ? 28 : BOOKMARK_VIRTUAL_WINDOW_SIZE;
+  const bookmarkVirtualRowHeight = bookmarkVirtualRowHeightByMode[bookmarkViewMode];
+  const bookmarkVirtualWindowStartMax = Math.max(
+    0,
+    visiblePagedBookmarks.length - bookmarkVirtualWindowSize
+  );
+  const normalizedBookmarkVirtualWindowStart = canVirtualizeBookmarkList
+    ? Math.min(bookmarkVirtualWindowStart, bookmarkVirtualWindowStartMax)
+    : 0;
+  const bookmarkVirtualWindowEnd = canVirtualizeBookmarkList
+    ? Math.min(
+        visiblePagedBookmarks.length,
+        normalizedBookmarkVirtualWindowStart + bookmarkVirtualWindowSize
+      )
+    : visiblePagedBookmarks.length;
+  const renderedPagedBookmarks = useMemo(
+    () =>
+      canVirtualizeBookmarkList
+        ? visiblePagedBookmarks.slice(normalizedBookmarkVirtualWindowStart, bookmarkVirtualWindowEnd)
+        : visiblePagedBookmarks,
+    [
+      bookmarkVirtualWindowEnd,
+      canVirtualizeBookmarkList,
+      normalizedBookmarkVirtualWindowStart,
+      visiblePagedBookmarks
+    ]
+  );
+  const bookmarkVirtualTopSpacerHeight = canVirtualizeBookmarkList
+    ? normalizedBookmarkVirtualWindowStart * bookmarkVirtualRowHeight
+    : 0;
+  const bookmarkVirtualBottomSpacerHeight = canVirtualizeBookmarkList
+    ? Math.max(0, visiblePagedBookmarks.length - bookmarkVirtualWindowEnd) * bookmarkVirtualRowHeight
+    : 0;
   const visibleBookmarkInventory = useMemo(
     () =>
       filterBookmarksByHiddenBookmarks(
@@ -5332,6 +5379,86 @@ export default function App() {
     setIsBookmarkDetailActionMenuOpen(false);
     setOpenBookmarkActionMenuId(null);
   }, [hiddenFolderIds, selectedBookmark, showHiddenBookmarks, showHiddenFolders]);
+
+  useEffect(() => {
+    setBookmarkVirtualWindowStart(0);
+  }, [activeDashboardView, appliedBookmarkSearch, bookmarkListPageSize, bookmarkViewMode]);
+
+  useEffect(() => {
+    if (!canVirtualizeBookmarkList) {
+      setBookmarkVirtualWindowStart(0);
+      return;
+    }
+
+    const listElement = bookmarkListElementRef.current;
+    if (!listElement) {
+      return;
+    }
+
+    const requestFrame =
+      typeof globalThis.requestAnimationFrame === "function"
+        ? globalThis.requestAnimationFrame.bind(globalThis)
+        : (callback: FrameRequestCallback) =>
+            globalThis.setTimeout(
+              () => callback(globalThis.performance?.now?.() ?? Date.now()),
+              16
+            ) as unknown as number;
+    const cancelFrame =
+      typeof globalThis.cancelAnimationFrame === "function"
+        ? globalThis.cancelAnimationFrame.bind(globalThis)
+        : (frameId: number) => globalThis.clearTimeout(frameId);
+    const scrollTargets: EventTarget[] = [globalThis];
+    const primaryColumn = listElement.closest(".result-primary-column");
+    if (primaryColumn) {
+      scrollTargets.push(primaryColumn);
+    }
+    let frameId: number | null = null;
+
+    function updateVirtualWindow() {
+      if (frameId !== null) {
+        return;
+      }
+
+      frameId = requestFrame(() => {
+        frameId = null;
+        const listTop = listElement.getBoundingClientRect().top;
+        const scrolledPastListTop = Math.max(0, -listTop);
+        const nextWindowStart = Math.max(
+          0,
+          Math.min(
+            bookmarkVirtualWindowStartMax,
+            Math.floor(scrolledPastListTop / bookmarkVirtualRowHeight) - BOOKMARK_VIRTUAL_OVERSCAN
+          )
+        );
+
+        setBookmarkVirtualWindowStart((currentStart) =>
+          currentStart === nextWindowStart ? currentStart : nextWindowStart
+        );
+      });
+    }
+
+    updateVirtualWindow();
+    for (const target of scrollTargets) {
+      target.addEventListener("scroll", updateVirtualWindow, { passive: true });
+    }
+    globalThis.addEventListener("resize", updateVirtualWindow);
+
+    return () => {
+      for (const target of scrollTargets) {
+        target.removeEventListener("scroll", updateVirtualWindow);
+      }
+      globalThis.removeEventListener("resize", updateVirtualWindow);
+      if (frameId !== null) {
+        cancelFrame(frameId);
+      }
+    };
+  }, [
+    bookmarkVirtualRowHeight,
+    bookmarkVirtualWindowStartMax,
+    canVirtualizeBookmarkList,
+    visiblePagedBookmarks.length
+  ]);
+
   const disallowedParentFolderIds = useMemo(
     () =>
       editingFolderId
@@ -7907,14 +8034,26 @@ export default function App() {
               <p className="quiet-empty-state bookmark-list-empty-state">보관한 북마크가 없습니다.</p>
             ) : null}
             <ul
+              ref={bookmarkListElementRef}
               className={`bookmark-grid bookmark-list-table bookmark-list-table-view-${bookmarkViewMode}`}
+              data-virtualized-bookmark-list={canVirtualizeBookmarkList ? "true" : undefined}
+              data-virtualized-bookmark-total={
+                canVirtualizeBookmarkList ? visiblePagedBookmarks.length : undefined
+              }
               style={
                 {
                   "--bookmark-cover-size": `${bookmarkCardDisplaySettings.coverSize}px`
                 } as CSSProperties
               }
             >
-              {visiblePagedBookmarks.map((bookmark) => {
+              {canVirtualizeBookmarkList && bookmarkVirtualTopSpacerHeight > 0 ? (
+                <li
+                  aria-hidden="true"
+                  className="bookmark-virtual-spacer"
+                  style={{ height: `${bookmarkVirtualTopSpacerHeight}px` }}
+                />
+              ) : null}
+              {renderedPagedBookmarks.map((bookmark) => {
                 const bookmarkAssets = bookmarkAssetsByBookmarkId[bookmark.id] ?? [];
                 const bookmarkTagItems = getTagDisplayItems(bookmark.tagIds);
                 const appliesItemDisplaySettings = bookmarkViewMode !== "title";
@@ -8175,6 +8314,13 @@ export default function App() {
                   </div>
                 </li>
               )})}
+              {canVirtualizeBookmarkList && bookmarkVirtualBottomSpacerHeight > 0 ? (
+                <li
+                  aria-hidden="true"
+                  className="bookmark-virtual-spacer"
+                  style={{ height: `${bookmarkVirtualBottomSpacerHeight}px` }}
+                />
+              ) : null}
             </ul>
             {!isLoadingDashboard && visibleBookmarks.length > 0 ? (
               <div className="bookmark-pagination-bar">

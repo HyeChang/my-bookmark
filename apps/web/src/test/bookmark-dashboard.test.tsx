@@ -1569,6 +1569,209 @@ describe("bookmark dashboard", () => {
     expect(within(bookmarkListRegion).getByText(/^Paged bookmark 25$/i)).toBeInTheDocument();
   });
 
+  it("virtualizes large bookmark pages instead of mounting every loaded row", async () => {
+    const bookmarkFixtures = Array.from({ length: 100 }, (_, index) => {
+      const number = index + 1;
+      return {
+        id: `virtual-bookmark-${number}`,
+        folderId: null,
+        tagIds: [],
+        url: `https://example.com/virtual-${number}`,
+        isFavorite: false,
+        isHidden: false,
+        isTrashed: false,
+        trashedAt: null,
+        bookmarkColor: null,
+        urlColor: null,
+        sourceTitle: null,
+        sourceContent: null,
+        sourceSummary: null,
+        userTitle: `Virtual bookmark ${number}`,
+        userContent: null,
+        userSummary: null,
+        displayTitle: `Virtual bookmark ${number}`,
+        displayContent: "",
+        displaySummary: "",
+        contentTruncated: false,
+        createdAt: `2026-04-27T01:${String(number).padStart(2, "0")}:00.000Z`,
+        updatedAt: `2026-04-27T01:${String(number).padStart(2, "0")}:00.000Z`
+      };
+    });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks?favorite=1&limit=20&offset=0" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [],
+            pagination: {
+              limit: 20,
+              offset: 0,
+              total: 0,
+              hasMore: false
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/counts" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            counts: {
+              active: { total: 100, visible: 100 },
+              favorite: { total: 0, visible: 0 },
+              trashed: { total: 0, visible: 0 },
+              unfiled: { total: 100, visible: 100 },
+              byFolderId: {}
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks?limit=20&offset=0" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: bookmarkFixtures.slice(0, 20),
+            pagination: {
+              limit: 20,
+              offset: 0,
+              total: bookmarkFixtures.length,
+              hasMore: true
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks?limit=100&offset=0" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: bookmarkFixtures,
+            pagination: {
+              limit: 100,
+              offset: 0,
+              total: bookmarkFixtures.length,
+              hasMore: false
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url.startsWith("/api/bookmarks/assets?") && !init?.method) {
+        const searchParams = new URLSearchParams(url.split("?")[1]);
+        return new Response(
+          JSON.stringify({
+            assetsByBookmarkId: Object.fromEntries(
+              searchParams.getAll("bookmarkId").map((bookmarkId) => [bookmarkId, []])
+            )
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(JSON.stringify({ favorites: [], recent: [], frequent: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const sidebar = await screen.findByRole("complementary", {
+      name: /dashboard-sidebar/i
+    });
+    fireEvent.click(
+      within(sidebar).getByRole("button", {
+        name: /모든 북마크 보기/i
+      })
+    );
+
+    const bookmarkListRegion = await screen.findByRole("region", {
+      name: /bookmark-list/i
+    });
+    const pageSizeSelect = within(bookmarkListRegion).getByLabelText(/^보기 개수$/i);
+    fireEvent.change(pageSizeSelect, { target: { value: "100" } });
+
+    const bookmarkListTable = bookmarkListRegion.querySelector(".bookmark-list-table");
+    await waitFor(() => {
+      expect(bookmarkListTable).toHaveAttribute("data-virtualized-bookmark-list", "true");
+    });
+    expect(bookmarkListRegion.querySelectorAll(".bookmark-list-row").length).toBeLessThan(100);
+    expect(within(bookmarkListRegion).getByText(/^Virtual bookmark 1$/i)).toBeInTheDocument();
+    expect(within(bookmarkListRegion).queryByText(/^Virtual bookmark 100$/i)).not.toBeInTheDocument();
+  });
+
   it("customizes bookmark view mode and card display fields", async () => {
     globalThis.localStorage?.setItem(
       "bookmark-view-settings:v1",
