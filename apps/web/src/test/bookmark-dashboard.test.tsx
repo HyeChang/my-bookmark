@@ -1008,15 +1008,15 @@ describe("bookmark dashboard", () => {
     });
 
     render(<App />);
-    const topBar = screen.getByRole("banner");
     const workspace = await screen.findByRole("region", { name: /dashboard-workspace/i });
     const sidebar = await screen.findByRole("complementary", {
       name: /dashboard-sidebar/i
     });
     const mainPanel = await screen.findByRole("region", { name: /dashboard-main/i });
-    const navigationSidebar = screen.getByRole("region", {
+    const navigationSidebar = await screen.findByRole("region", {
       name: /navigation-sidebar/i
     });
+    const topBar = navigationSidebar.closest("header");
     let folderOverview = within(sidebar).getByRole("region", {
       name: /folder-overview/i
     });
@@ -1037,6 +1037,7 @@ describe("bookmark dashboard", () => {
     expect(within(mainPanel).queryByRole("region", { name: /bookmark-reading-rail/i })).not.toBeInTheDocument();
     expect(within(mainPanel).queryByRole("region", { name: /bookmark-detail-shell/i })).not.toBeInTheDocument();
     expect(navigationSidebar).toBeInTheDocument();
+    expect(topBar).not.toBeNull();
     expect(topBar).toContainElement(navigationSidebar);
     expect(sidebar).not.toContainElement(navigationSidebar);
     expect(folderOverview).toBeInTheDocument();
@@ -10877,6 +10878,9 @@ describe("bookmark dashboard", () => {
     const recommendationRegion = await within(homePage).findByRole("region", {
       name: /home-recommendation-list/i
     });
+    expect(
+      await within(recommendationRegion).findByText(/^Favorite recommendation$/i)
+    ).toBeInTheDocument();
 
     expect(within(recommendationRegion).getByText(/^빠른 진입점$/i)).toBeInTheDocument();
     expect(
@@ -10889,9 +10893,6 @@ describe("bookmark dashboard", () => {
     expect(within(recommendationRegion).getByText(/^즐겨찾기$/i)).toBeInTheDocument();
     expect(within(recommendationRegion).getByText(/^최근$/i)).toBeInTheDocument();
     expect(within(recommendationRegion).getByText(/^반복$/i)).toBeInTheDocument();
-    expect(
-      await within(recommendationRegion).findByText(/^Favorite recommendation$/i)
-    ).toBeInTheDocument();
     expect(within(recommendationRegion).getByText(/^Recent recommendation$/i)).toBeInTheDocument();
     expect(within(recommendationRegion).getByText(/^Frequent recommendation$/i)).toBeInTheDocument();
     const favoriteRecommendationItem = within(recommendationRegion)
