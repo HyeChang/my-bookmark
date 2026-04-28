@@ -45,4 +45,27 @@ describe("bundle splitting", () => {
       );
     }
   });
+
+  it("shares bookmark preview rendering helpers instead of duplicating them", () => {
+    const helperSource = readFileSync(
+      join(process.cwd(), "src", "components", "bookmark-preview-utils.tsx"),
+      "utf8"
+    );
+    const componentPaths = [
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      join(process.cwd(), "src", "components", "BookmarkComposerDialog.tsx"),
+      join(process.cwd(), "src", "components", "BookmarkDetailPanel.tsx")
+    ];
+
+    expect(helperSource).toContain("export function renderBookmarkPreviewArticle");
+    expect(helperSource).toContain("export function getBookmarkPreviewArticleBlocks");
+
+    for (const componentPath of componentPaths) {
+      const componentSource = readFileSync(componentPath, "utf8");
+
+      expect(componentSource).not.toContain("function renderBookmarkPreviewArticle");
+      expect(componentSource).not.toContain("function getBookmarkPreviewArticleBlocks");
+      expect(componentSource).not.toContain("function sanitizeExtractedDisplayText");
+    }
+  });
 });

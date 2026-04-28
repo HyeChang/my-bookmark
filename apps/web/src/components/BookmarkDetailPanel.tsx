@@ -1,9 +1,15 @@
 import type {
   Bookmark,
   BookmarkAsset,
-  BookmarkExtractPreview,
-  BookmarkExtractPreviewBlock
+  BookmarkExtractPreview
 } from "@bookmark/shared";
+import {
+  getBookmarkPreviewArticleBlocks,
+  getBookmarkPreviewImageAlt,
+  hasBookmarkPreviewCoverImage,
+  renderBookmarkPreviewArticle,
+  renderHiddenBookmarkIndicator
+} from "./bookmark-preview-utils";
 
 type BookmarkDetailTab = "detail" | "preview" | "extract";
 type MaybePromise = void | Promise<void>;
@@ -52,147 +58,6 @@ export type BookmarkDetailPanelProps = {
   onResetUserContent: (bookmarkId: string) => MaybePromise;
   onBookmarkDelete: (bookmark: Bookmark) => MaybePromise;
 };
-
-function sanitizeExtractedDisplayText(value: string | null | undefined) {
-  return (value ?? "")
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<li\b[^>]*>/gi, "\n- ")
-    .replace(/<\/li>/gi, "\n")
-    .replace(
-      /<\/?(?:address|article|aside|blockquote|dd|details|div|dl|dt|figcaption|figure|footer|form|h[1-6]|header|hr|main|nav|ol|p|pre|section|table|tbody|td|tfoot|th|thead|tr|ul)\b[^>]*>/gi,
-      "\n\n"
-    )
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\b[a-z][\w:-]*\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function hasTextContent(value: string | null | undefined) {
-  return Boolean(value && sanitizeExtractedDisplayText(value).length > 0);
-}
-
-function getBookmarkPreviewArticleBlocks(preview: BookmarkExtractPreview | null) {
-  return (preview?.sourceBlocks ?? [])
-    .map((block) => {
-      if (block.type === "image") {
-        return {
-          ...block,
-          alt: sanitizeExtractedDisplayText(block.alt) || null
-        };
-      }
-
-      return {
-        ...block,
-        text: sanitizeExtractedDisplayText(block.text)
-      };
-    })
-    .filter((block) => {
-      if (block.type === "image") {
-        return hasTextContent(block.url);
-      }
-
-      return hasTextContent(block.text);
-    });
-}
-
-function getBookmarkPreviewArticleImageAlt(
-  preview: BookmarkExtractPreview,
-  block: Extract<BookmarkExtractPreviewBlock, { type: "image" }>,
-  index: number
-) {
-  return (
-    block.alt ??
-    `${sanitizeExtractedDisplayText(preview.sourceTitle) || preview.normalizedUrl || preview.url} 본문 이미지 ${index + 1}`
-  );
-}
-
-function getBookmarkPreviewImageAlt(preview: BookmarkExtractPreview) {
-  return `${sanitizeExtractedDisplayText(preview.sourceTitle) || preview.normalizedUrl || preview.url} 미리보기 이미지`;
-}
-
-function hasBookmarkPreviewCoverImage(preview: BookmarkExtractPreview | null) {
-  if (!preview?.sourceImageUrl) {
-    return false;
-  }
-
-  return !getBookmarkPreviewArticleBlocks(preview).some(
-    (block) => block.type === "image" && block.url === preview.sourceImageUrl
-  );
-}
-
-function renderBookmarkPreviewArticle(preview: BookmarkExtractPreview) {
-  const blocks = getBookmarkPreviewArticleBlocks(preview);
-  if (blocks.length === 0) {
-    return null;
-  }
-
-  let imageIndex = 0;
-  return (
-    <section className="bookmark-preview-article" aria-label="미리보기 본문">
-      {blocks.map((block, index) => {
-        const key =
-          block.type === "image"
-            ? `${block.type}-${block.url}-${index}`
-            : `${block.type}-${block.text.slice(0, 32)}-${index}`;
-
-        if (block.type === "image") {
-          const currentImageIndex = imageIndex;
-          imageIndex += 1;
-          return (
-            <figure key={key} className="bookmark-preview-article-figure">
-              <img
-                className="bookmark-preview-article-image"
-                src={block.url}
-                alt={getBookmarkPreviewArticleImageAlt(preview, block, currentImageIndex)}
-                loading="lazy"
-              />
-              {block.alt ? <figcaption>{block.alt}</figcaption> : null}
-            </figure>
-          );
-        }
-
-        if (block.type === "heading") {
-          return (
-            <h4 key={key} className="bookmark-preview-article-heading">
-              {block.text}
-            </h4>
-          );
-        }
-
-        if (block.type === "list-item") {
-          return (
-            <p key={key} className="bookmark-preview-article-list-item">
-              <span aria-hidden="true">•</span>
-              <span>{block.text}</span>
-            </p>
-          );
-        }
-
-        return (
-          <p key={key} className="bookmark-preview-article-paragraph">
-            {block.text}
-          </p>
-        );
-      })}
-    </section>
-  );
-}
-
-function renderHiddenBookmarkIndicator(isHidden: boolean) {
-  if (!isHidden) {
-    return null;
-  }
-
-  return (
-    <span className="folder-hidden-indicator bookmark-hidden-indicator" aria-hidden="true">
-      🔒
-    </span>
-  );
-}
 
 function BookmarkDetailPlaceholder() {
   return (
