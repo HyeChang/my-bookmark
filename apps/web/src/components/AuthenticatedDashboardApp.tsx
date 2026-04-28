@@ -1803,6 +1803,7 @@ export default function AuthenticatedDashboardApp() {
   const bookmarkPreviewRequestIdRef = useRef(0);
   const recommendationRequestIdRef = useRef(0);
   const bookmarkListElementRef = useRef<HTMLUListElement | null>(null);
+  const preloadingBookmarkAssetIdsRef = useRef<Set<string>>(new Set());
   const deferredBookmarkAssetPreloadTimerRef =
     useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
 
@@ -1857,29 +1858,59 @@ export default function AuthenticatedDashboardApp() {
     currentAssetsByBookmarkId: Record<string, BookmarkAsset[]>
   ) {
     const bookmarksMissingAssets = bookmarksToLoad.filter(
-      (bookmark) => currentAssetsByBookmarkId[bookmark.id] === undefined
+      (bookmark) =>
+        currentAssetsByBookmarkId[bookmark.id] === undefined &&
+        !preloadingBookmarkAssetIdsRef.current.has(bookmark.id)
     );
     if (bookmarksMissingAssets.length === 0) {
       return;
     }
 
-    const nextBookmarkAssetsByBookmarkId = await loadBookmarkAssetsByBookmark(bookmarksMissingAssets);
+    for (const bookmark of bookmarksMissingAssets) {
+      preloadingBookmarkAssetIdsRef.current.add(bookmark.id);
+    }
 
-    startTransition(() => {
-      setBookmarkAssetsByBookmarkId((latestAssetsByBookmarkId) => {
-        const missingAssetEntries = Object.entries(nextBookmarkAssetsByBookmarkId).filter(
-          ([bookmarkId]) => latestAssetsByBookmarkId[bookmarkId] === undefined
-        );
-        if (missingAssetEntries.length === 0) {
-          return latestAssetsByBookmarkId;
-        }
+    try {
+      const nextBookmarkAssetsByBookmarkId = await loadBookmarkAssetsByBookmark(bookmarksMissingAssets);
 
-        return {
-          ...latestAssetsByBookmarkId,
-          ...Object.fromEntries(missingAssetEntries)
-        };
+      startTransition(() => {
+        setBookmarkAssetsByBookmarkId((latestAssetsByBookmarkId) => {
+          const missingAssetEntries = Object.entries(nextBookmarkAssetsByBookmarkId).filter(
+            ([bookmarkId]) => latestAssetsByBookmarkId[bookmarkId] === undefined
+          );
+          if (missingAssetEntries.length === 0) {
+            return latestAssetsByBookmarkId;
+          }
+
+          return {
+            ...latestAssetsByBookmarkId,
+            ...Object.fromEntries(missingAssetEntries)
+          };
+        });
       });
-    });
+    } finally {
+      for (const bookmark of bookmarksMissingAssets) {
+        preloadingBookmarkAssetIdsRef.current.delete(bookmark.id);
+      }
+    }
+  }
+
+  function getBookmarkAssetPreloadCandidates(
+    bookmarksToLoad: Bookmark[],
+    dashboardView: DashboardView
+  ) {
+    if (
+      dashboardView === "bookmarks" &&
+      (bookmarkViewMode === "list" || bookmarkViewMode === "title") &&
+      bookmarksToLoad.length > BOOKMARK_VIRTUALIZATION_THRESHOLD
+    ) {
+      const visibleWindowSize = shouldUseCompactMobileCards
+        ? 28
+        : BOOKMARK_VIRTUAL_WINDOW_SIZE;
+      return bookmarksToLoad.slice(0, visibleWindowSize);
+    }
+
+    return bookmarksToLoad;
   }
 
   function queueBookmarkAssetPreload(
@@ -1887,15 +1918,27 @@ export default function AuthenticatedDashboardApp() {
     currentAssetsByBookmarkId: Record<string, BookmarkAsset[]>,
     dashboardView: DashboardView = activeDashboardView
   ) {
-    const batches = getBookmarkAssetPreloadBatches(bookmarksToLoad, {
-      dashboardView,
-      bookmarkViewMode
-    });
-
     if (deferredBookmarkAssetPreloadTimerRef.current) {
       globalThis.clearTimeout(deferredBookmarkAssetPreloadTimerRef.current);
       deferredBookmarkAssetPreloadTimerRef.current = null;
     }
+
+    const preloadCandidates = getBookmarkAssetPreloadCandidates(
+      bookmarksToLoad,
+      dashboardView
+    ).filter(
+      (bookmark) =>
+        currentAssetsByBookmarkId[bookmark.id] === undefined &&
+        !preloadingBookmarkAssetIdsRef.current.has(bookmark.id)
+    );
+    if (preloadCandidates.length === 0) {
+      return;
+    }
+
+    const batches = getBookmarkAssetPreloadBatches(preloadCandidates, {
+      dashboardView,
+      bookmarkViewMode
+    });
 
     if (batches.eager.length > 0) {
       void preloadBookmarkAssets(batches.eager, currentAssetsByBookmarkId);
@@ -5228,6 +5271,10 @@ export default function AuthenticatedDashboardApp() {
       visiblePagedBookmarks
     ]
   );
+  const renderedPagedBookmarkAssetPreloadKey = useMemo(
+    () => renderedPagedBookmarks.map((bookmark) => bookmark.id).join("|"),
+    [renderedPagedBookmarks]
+  );
   const bookmarkVirtualTopSpacerHeight = canVirtualizeBookmarkList
     ? normalizedBookmarkVirtualWindowStart * bookmarkVirtualRowHeight
     : 0;
@@ -5383,6 +5430,27 @@ export default function AuthenticatedDashboardApp() {
   useEffect(() => {
     setBookmarkVirtualWindowStart(0);
   }, [activeDashboardView, appliedBookmarkSearch, bookmarkListPageSize, bookmarkViewMode]);
+
+  useEffect(() => {
+    if (
+      activeDashboardView !== "bookmarks" ||
+      isLoadingDashboard ||
+      renderedPagedBookmarks.length === 0
+    ) {
+      return;
+    }
+
+    queueBookmarkAssetPreload(
+      renderedPagedBookmarks,
+      bookmarkAssetsByBookmarkId,
+      "bookmarks"
+    );
+  }, [
+    activeDashboardView,
+    bookmarkViewMode,
+    isLoadingDashboard,
+    renderedPagedBookmarkAssetPreloadKey
+  ]);
 
   useEffect(() => {
     if (!canVirtualizeBookmarkList) {

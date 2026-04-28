@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
@@ -1571,6 +1571,7 @@ describe("bookmark dashboard", () => {
   });
 
   it("virtualizes large bookmark pages instead of mounting every loaded row", async () => {
+    const assetBatchBookmarkIds: string[][] = [];
     const bookmarkFixtures = Array.from({ length: 100 }, (_, index) => {
       const number = index + 1;
       return {
@@ -1702,6 +1703,7 @@ describe("bookmark dashboard", () => {
 
       if (url.startsWith("/api/bookmarks/assets?") && !init?.method) {
         const searchParams = new URLSearchParams(url.split("?")[1]);
+        assetBatchBookmarkIds.push(searchParams.getAll("bookmarkId"));
         return new Response(
           JSON.stringify({
             assetsByBookmarkId: Object.fromEntries(
@@ -1771,6 +1773,15 @@ describe("bookmark dashboard", () => {
     expect(bookmarkListRegion.querySelectorAll(".bookmark-list-row").length).toBeLessThan(100);
     expect(within(bookmarkListRegion).getByText(/^Virtual bookmark 1$/i)).toBeInTheDocument();
     expect(within(bookmarkListRegion).queryByText(/^Virtual bookmark 100$/i)).not.toBeInTheDocument();
+
+    await act(async () => {
+      await new Promise((resolve) => {
+        globalThis.setTimeout(resolve, 700);
+      });
+    });
+    const preloadedAssetBookmarkIds = new Set(assetBatchBookmarkIds.flat());
+    expect(preloadedAssetBookmarkIds.has("virtual-bookmark-1")).toBe(true);
+    expect(preloadedAssetBookmarkIds.has("virtual-bookmark-100")).toBe(false);
   });
 
   it("customizes bookmark view mode and card display fields", async () => {
