@@ -160,6 +160,31 @@ type BookmarkCardDisplaySettings = {
   coverSize: number;
 };
 
+type BookmarkListRowTagItem = {
+  id: string;
+  name: string;
+  color: string | null;
+};
+
+type BookmarkListRowViewModel = {
+  bookmark: Bookmark;
+  assets: BookmarkAsset[];
+  assetCount: number;
+  coverAsset: BookmarkAsset | null;
+  folderName: string;
+  previewText: string;
+  summaryStateLabel: string;
+  visibleTagItems: BookmarkListRowTagItem[];
+  remainingTagCount: number;
+  isTrashed: boolean;
+  shouldShowCover: boolean;
+  shouldShowListCover: boolean;
+  shouldShowTitle: boolean;
+  shouldShowDescription: boolean;
+  shouldShowTags: boolean;
+  shouldShowInfo: boolean;
+};
+
 const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
 const USERSCRIPT_DOWNLOAD_PATH = "/downloads/bookmark-saver.user.js?v=0.1.11";
 const BOOKMARK_VIEW_SETTINGS_STORAGE_KEY = "bookmark-view-settings:v2";
@@ -5584,6 +5609,78 @@ export default function AuthenticatedDashboardApp() {
     folderOverviewSpecialFilter ??
     (!hasActiveBookmarkSearch(appliedBookmarkSearch) ? "all" : null);
   const isTrashBookmarkView = activeFolderOverviewSpecialFilter === "trash";
+  const bookmarkListRows = useMemo<BookmarkListRowViewModel[]>(
+    () =>
+      renderedPagedBookmarks.map((bookmark) => {
+        const assets = bookmarkAssetsByBookmarkId[bookmark.id] ?? [];
+        const tagItems = bookmark.tagIds.map((tagId) => {
+          const tag = tagsById.get(tagId);
+          return {
+            id: tagId,
+            name: tag?.name ?? tagId,
+            color: tag?.color ?? null
+          };
+        });
+        const displaySettings =
+          bookmarkViewMode === "list"
+            ? bookmarkListDisplaySettings
+            : bookmarkCardDisplaySettings;
+        const appliesDisplaySettings = bookmarkViewMode !== "title";
+        const shouldShowCover =
+          (bookmarkViewMode === "card" || bookmarkViewMode === "moodboard") &&
+          displaySettings.coverImage &&
+          assets.length > 0;
+        const shouldShowListCover =
+          bookmarkViewMode === "list" &&
+          displaySettings.coverImage &&
+          assets.length > 0;
+        const shouldShowTitle =
+          !appliesDisplaySettings || displaySettings.title;
+        const shouldShowDescription =
+          bookmarkViewMode !== "title" &&
+          (!appliesDisplaySettings || displaySettings.description);
+        const shouldShowTags =
+          !appliesDisplaySettings || displaySettings.tags;
+        const shouldShowInfo =
+          bookmarkViewMode !== "title" &&
+          (!appliesDisplaySettings || displaySettings.bookmarkInfo);
+        const visibleTagItems = tagItems.slice(0, shouldUseCompactMobileCards ? 1 : 2);
+
+        return {
+          bookmark,
+          assets,
+          assetCount: assets.length,
+          coverAsset: assets[0] ?? null,
+          folderName:
+            !bookmark.folderId || extensionFolderIds.has(bookmark.folderId)
+              ? "미분류"
+              : foldersById.get(bookmark.folderId)?.name ?? bookmark.folderId,
+          previewText: getBookmarkPreviewText(bookmark),
+          summaryStateLabel: getBookmarkSummaryStateLabel(bookmark),
+          visibleTagItems,
+          remainingTagCount: Math.max(0, tagItems.length - visibleTagItems.length),
+          isTrashed: bookmark.isTrashed || isTrashBookmarkView,
+          shouldShowCover,
+          shouldShowListCover,
+          shouldShowTitle,
+          shouldShowDescription,
+          shouldShowTags,
+          shouldShowInfo
+        };
+      }),
+    [
+      bookmarkAssetsByBookmarkId,
+      bookmarkCardDisplaySettings,
+      bookmarkListDisplaySettings,
+      bookmarkViewMode,
+      extensionFolderIds,
+      foldersById,
+      isTrashBookmarkView,
+      renderedPagedBookmarks,
+      shouldUseCompactMobileCards,
+      tagsById
+    ]
+  );
   const visibleRecommendations = useMemo(
     () =>
       filterRecommendationsByHiddenBookmarks(
@@ -8305,43 +8402,24 @@ export default function AuthenticatedDashboardApp() {
                   style={{ height: `${bookmarkVirtualTopSpacerHeight}px` }}
                 />
               ) : null}
-              {renderedPagedBookmarks.map((bookmark) => {
-                const bookmarkAssets = bookmarkAssetsByBookmarkId[bookmark.id] ?? [];
-                const bookmarkTagItems = getTagDisplayItems(bookmark.tagIds);
-                const appliesItemDisplaySettings = bookmarkViewMode !== "title";
-                const bookmarkDisplaySettings =
-                  bookmarkViewMode === "list"
-                    ? bookmarkListDisplaySettings
-                    : bookmarkCardDisplaySettings;
-                const shouldShowBookmarkCover =
-                  (bookmarkViewMode === "card" || bookmarkViewMode === "moodboard") &&
-                  bookmarkDisplaySettings.coverImage &&
-                  bookmarkAssets.length > 0;
-                const shouldShowListBookmarkCover =
-                  bookmarkViewMode === "list" &&
-                  bookmarkDisplaySettings.coverImage &&
-                  bookmarkAssets.length > 0;
-                const shouldShowBookmarkTitle =
-                  !appliesItemDisplaySettings || bookmarkDisplaySettings.title;
-                const shouldShowBookmarkDescription =
-                  bookmarkViewMode !== "title" &&
-                  (!appliesItemDisplaySettings || bookmarkDisplaySettings.description);
-                const shouldShowBookmarkTags =
-                  !appliesItemDisplaySettings || bookmarkDisplaySettings.tags;
-                const shouldShowBookmarkInfo =
-                  bookmarkViewMode !== "title" &&
-                  (!appliesItemDisplaySettings || bookmarkDisplaySettings.bookmarkInfo);
-                const visibleBookmarkTagItems = bookmarkTagItems.slice(
-                  0,
-                  shouldUseCompactMobileCards ? 1 : 2
-                );
-                const remainingBookmarkTagCount = Math.max(
-                  0,
-                  bookmarkTagItems.length - visibleBookmarkTagItems.length
-                );
-                const bookmarkAssetCount = bookmarkAssets.length;
-                const bookmarkCoverAsset = bookmarkAssets[0] ?? null;
-                const isTrashedBookmark = bookmark.isTrashed || isTrashBookmarkView;
+              {bookmarkListRows.map((bookmarkRow) => {
+                const {
+                  bookmark,
+                  assetCount,
+                  coverAsset,
+                  folderName,
+                  previewText,
+                  summaryStateLabel,
+                  visibleTagItems,
+                  remainingTagCount,
+                  isTrashed,
+                  shouldShowCover,
+                  shouldShowListCover,
+                  shouldShowTitle,
+                  shouldShowDescription,
+                  shouldShowTags,
+                  shouldShowInfo
+                } = bookmarkRow;
                 const isSelectedBookmarkCard =
                   !shouldUseCompactMobileCards &&
                   bookmarkDetailDisplayMode === "rail" &&
@@ -8353,7 +8431,7 @@ export default function AuthenticatedDashboardApp() {
                   className={`bookmark-card bookmark-list-row bookmark-list-row-view-${bookmarkViewMode}${
                     isSelectedBookmarkCard ? " bookmark-list-row-selected" : ""
                   }${
-                    shouldShowListBookmarkCover ? " bookmark-list-row-has-cover" : ""
+                    shouldShowListCover ? " bookmark-list-row-has-cover" : ""
                   }`}
                   style={
                     bookmark.bookmarkColor
@@ -8364,10 +8442,10 @@ export default function AuthenticatedDashboardApp() {
                       : undefined
                   }
                 >
-                  {shouldShowListBookmarkCover && bookmarkCoverAsset ? (
+                  {shouldShowListCover && coverAsset ? (
                     <div className="asset-grid bookmark-row-assets bookmark-row-list-thumbnail">
                       <img
-                        src={bookmarkCoverAsset.contentUrl}
+                        src={coverAsset.contentUrl}
                         alt="업로드 이미지 1"
                       />
                     </div>
@@ -8380,23 +8458,23 @@ export default function AuthenticatedDashboardApp() {
                         : () => toggleBookmarkDetailFromCard(bookmark)
                     }
                   >
-                    {shouldShowBookmarkCover && bookmarkCoverAsset ? (
+                    {shouldShowCover && coverAsset ? (
                       <div className="asset-grid bookmark-row-assets">
                         <img
-                          src={bookmarkCoverAsset.contentUrl}
+                          src={coverAsset.contentUrl}
                           alt="업로드 이미지 1"
                         />
                       </div>
                     ) : null}
                     <div className="bookmark-card-header">
                       <div className="bookmark-card-title-block">
-                        {shouldShowBookmarkTitle ? (
+                        {shouldShowTitle ? (
                           <div className="bookmark-title-line">
                             <strong>{bookmark.displayTitle || bookmark.url}</strong>
                             {renderHiddenBookmarkIndicator(bookmark.isHidden === true)}
                           </div>
                         ) : null}
-                        {shouldShowBookmarkInfo && !shouldUseCompactMobileCards ? (
+                        {shouldShowInfo && !shouldUseCompactMobileCards ? (
                           <p
                             className="muted-text bookmark-row-url"
                             title={bookmark.url}
@@ -8407,19 +8485,19 @@ export default function AuthenticatedDashboardApp() {
                         ) : null}
                       </div>
                     </div>
-                    {shouldShowBookmarkDescription && hasTextContent(getBookmarkPreviewText(bookmark)) ? (
+                    {shouldShowDescription && hasTextContent(previewText) ? (
                       <p
                         className={`bookmark-row-summary${
                           shouldUseCompactMobileCards ? " bookmark-card-summary" : ""
                         }`}
                       >
-                        {getBookmarkPreviewText(bookmark)}
+                        {previewText}
                       </p>
-                    ) : shouldShowBookmarkDescription && shouldUseCompactMobileCards ? (
+                    ) : shouldShowDescription && shouldUseCompactMobileCards ? (
                       <p className="bookmark-row-summary bookmark-card-summary">{bookmark.url}</p>
                     ) : null}
                   </div>
-                  {shouldShowBookmarkInfo || shouldShowBookmarkTags ? (
+                  {shouldShowInfo || shouldShowTags ? (
                     <div
                       className={`bookmark-row-meta${shouldUseCompactMobileCards ? "" : " bookmark-row-click-target"}`}
                       onClick={
@@ -8428,26 +8506,26 @@ export default function AuthenticatedDashboardApp() {
                           : () => toggleBookmarkDetailFromCard(bookmark)
                       }
                     >
-                      {shouldShowBookmarkInfo ? (
+                      {shouldShowInfo ? (
                         <div className="bookmark-row-meta-line bookmark-row-meta-primary">
-                          <span className="bookmark-row-meta-item">{getFolderName(bookmark.folderId)}</span>
+                          <span className="bookmark-row-meta-item">{folderName}</span>
                           {bookmark.isFavorite ? (
                             <span className="bookmark-row-meta-item">즐겨찾기</span>
                           ) : null}
-                          {isTrashedBookmark ? (
+                          {isTrashed ? (
                             <span className="bookmark-row-meta-item">휴지통</span>
                           ) : null}
                         </div>
                       ) : null}
                       {!shouldUseCompactMobileCards ? (
                       <div className="bookmark-row-meta-line bookmark-row-meta-secondary">
-                        {shouldShowBookmarkInfo ? (
+                        {shouldShowInfo ? (
                           <span className="bookmark-row-meta-item">
-                            {getBookmarkSummaryStateLabel(bookmark)}
+                            {summaryStateLabel}
                           </span>
                         ) : null}
-                        {shouldShowBookmarkTags
-                          ? visibleBookmarkTagItems.map((tag) => (
+                        {shouldShowTags
+                          ? visibleTagItems.map((tag) => (
                               <span
                                 key={`${bookmark.id}-${tag.id}`}
                                 className="bookmark-row-meta-item"
@@ -8456,11 +8534,11 @@ export default function AuthenticatedDashboardApp() {
                               </span>
                             ))
                           : null}
-                        {shouldShowBookmarkTags && remainingBookmarkTagCount > 0 ? (
-                          <span className="bookmark-row-meta-item">+{remainingBookmarkTagCount}</span>
+                        {shouldShowTags && remainingTagCount > 0 ? (
+                          <span className="bookmark-row-meta-item">+{remainingTagCount}</span>
                         ) : null}
-                        {shouldShowBookmarkInfo && bookmarkAssetCount > 0 ? (
-                          <span className="bookmark-row-meta-item">이미지 {bookmarkAssetCount}</span>
+                        {shouldShowInfo && assetCount > 0 ? (
+                          <span className="bookmark-row-meta-item">이미지 {assetCount}</span>
                         ) : null}
                       </div>
                       ) : null}
@@ -8471,7 +8549,7 @@ export default function AuthenticatedDashboardApp() {
                       shouldUseCompactMobileCards ? " bookmark-row-actions-mobile-compact" : ""
                     }`}
                   >
-                    {isTrashedBookmark ? (
+                    {isTrashed ? (
                       <>
                         <button
                           type="button"

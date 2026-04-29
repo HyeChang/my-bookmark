@@ -68,4 +68,18 @@ describe("bundle splitting", () => {
       expect(componentSource).not.toContain("function sanitizeExtractedDisplayText");
     }
   });
+
+  it("memoizes bookmark list row view models before rendering rows", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+
+    expect(dashboardSource).toMatch(
+      /const bookmarkListRows = useMemo(?:<BookmarkListRowViewModel\[\]>)?\(/
+    );
+    expect(dashboardSource).toContain("renderedPagedBookmarks.map((bookmark) => {");
+    expect(dashboardSource).toContain("{bookmarkListRows.map((bookmarkRow) => {");
+    expect(dashboardSource).not.toContain("{renderedPagedBookmarks.map((bookmark) => {");
+  });
 });
