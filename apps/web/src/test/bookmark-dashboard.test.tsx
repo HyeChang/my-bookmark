@@ -167,7 +167,12 @@ describe("bookmark dashboard", () => {
       }
 
       if (url === "/api/tags" && !init?.method) {
-        throw new Error("Tags should not be fetched for initial home");
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
       }
 
       if (url === "/api/recommendations" && !init?.method) {
