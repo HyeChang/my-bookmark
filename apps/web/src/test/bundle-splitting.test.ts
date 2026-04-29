@@ -136,22 +136,26 @@ describe("bundle splitting", () => {
     expect(homeSectionSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
   });
 
-  it("renders recommendations through memoized recommendation cards", () => {
+  it("loads recommendations through a lazy panel chunk with memoized cards", () => {
     const dashboardSource = readFileSync(
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
-    const recommendationColumnSource = dashboardSource.slice(
-      dashboardSource.indexOf("function renderRecommendationColumn("),
-      dashboardSource.indexOf("function renderRecommendationSection(")
+    const recommendationSource = readFileSync(
+      join(process.cwd(), "src", "components", "RecommendationPanel.tsx"),
+      "utf8"
     );
 
-    expect(dashboardSource).toContain("type RecommendationCardViewModel =");
-    expect(dashboardSource).toContain("const MemoizedRecommendationCard = memo(RecommendationCard);");
+    expect(dashboardSource).toContain("RecommendationCardViewModel");
+    expect(dashboardSource).toContain('lazy(() => import("./RecommendationPanel"))');
     expect(dashboardSource).toContain("const recommendationCardsByKind = useMemo<Record<RecommendationKind, RecommendationCardViewModel[]>>(");
-    expect(dashboardSource).toContain("<MemoizedRecommendationCard");
-    expect(recommendationColumnSource).not.toContain("recommendationBookmarks.map((bookmark) => (");
-    expect(recommendationColumnSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
+    expect(dashboardSource).toContain("<LazyRecommendationPanel");
+    expect(dashboardSource).not.toContain("function renderRecommendationColumn(");
+    expect(dashboardSource).not.toContain("const MemoizedRecommendationCard = memo(RecommendationCard);");
+    expect(recommendationSource).toContain('import "./RecommendationPanel.css";');
+    expect(recommendationSource).toContain("export type RecommendationCardViewModel =");
+    expect(recommendationSource).toContain("const MemoizedRecommendationCard = memo(RecommendationCard);");
+    expect(recommendationSource).not.toContain("recommendationBookmarks.map((bookmark) => (");
   });
 
   it("memoizes search panel derived values", () => {
@@ -184,7 +188,7 @@ describe("bundle splitting", () => {
     );
     const folderOverviewSource = dashboardSource.slice(
       dashboardSource.indexOf("const folderOverviewSection = ("),
-      dashboardSource.indexOf("function renderRecommendationLoadingCard()")
+      dashboardSource.indexOf("function renderLazyRecommendationPanel(")
     );
 
     expect(dashboardSource).toContain("type FolderOverviewNodeViewModel =");

@@ -29,6 +29,7 @@ describe("CSS budget", () => {
       "ExtensionDialogs.css",
       "FolderManagerDialog.css",
       "ManagerDialog.css",
+      "RecommendationPanel.css",
       "TagManagerDialog.css",
     ];
 
@@ -39,6 +40,8 @@ describe("CSS budget", () => {
     expect(dashboardCss).not.toContain(".folder-tree");
     expect(dashboardCss).not.toContain(".inline-folder-create");
     expect(dashboardCss).not.toContain(".manager-");
+    expect(dashboardCss).not.toContain(".recommendation-panel-card");
+    expect(dashboardCss).not.toContain(".recommendation-loading-card");
     expect(dashboardCss).not.toContain(".tag-manager-dialog-shell");
 
     for (const fileName of lazyCssFiles) {

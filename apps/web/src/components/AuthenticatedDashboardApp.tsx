@@ -50,6 +50,10 @@ import {
   renderHiddenBookmarkIndicator,
   sanitizeExtractedDisplayText
 } from "./bookmark-preview-utils";
+import type {
+  RecommendationCardViewModel,
+  RecommendationPanelActions
+} from "./RecommendationPanel";
 
 type SessionState =
   | { status: "loading" }
@@ -251,25 +255,12 @@ type HomeFavoriteCardProps = {
   actions: BookmarkListRowActions;
 };
 
-type RecommendationCardViewModel = {
-  itemKey: string;
-  bookmark: Bookmark;
-  reasonLabel: string;
-  folderName: string;
-  summaryText: string;
-};
-
 type RecommendationCardCacheEntry = {
   card: RecommendationCardViewModel;
   bookmark: Bookmark;
   reasonLabel: string;
   folderName: string;
   summaryText: string;
-};
-
-type RecommendationCardProps = {
-  card: RecommendationCardViewModel;
-  actions: BookmarkListRowActions;
 };
 
 type FolderOverviewNodeViewModel = {
@@ -1467,6 +1458,7 @@ const LazyBookmarkDetailPanel = lazy(() => import("./BookmarkDetailPanel"));
 const LazyBookmarkComposerDialog = lazy(() => import("./BookmarkComposerDialog"));
 const LazyFolderManagerDialog = lazy(() => import("./FolderManagerDialog"));
 const LazyTagManagerDialog = lazy(() => import("./TagManagerDialog"));
+const LazyRecommendationPanel = lazy(() => import("./RecommendationPanel"));
 
 type BookmarkAssetsModule = typeof import("../lib/bookmark-assets");
 type BookmarkExtractModule = typeof import("../lib/bookmark-extract");
@@ -2283,36 +2275,6 @@ function HomeFavoriteCard({
 }
 
 const MemoizedHomeFavoriteCard = memo(HomeFavoriteCard);
-
-function RecommendationCard({ card, actions }: RecommendationCardProps) {
-  const { bookmark, reasonLabel, folderName, summaryText } = card;
-  const cardTitle = bookmark.displayTitle || bookmark.url;
-
-  return (
-    <li className="recommendation-item">
-      <div className="recommendation-copy">
-        <div className="recommendation-title-line">
-          <strong>{cardTitle}</strong>
-          {renderHiddenBookmarkIndicator(bookmark.isHidden === true)}
-        </div>
-        <p className="recommendation-meta-line">
-          {reasonLabel} · {folderName}
-        </p>
-        <p className="muted-text">{summaryText}</p>
-      </div>
-      <button
-        type="button"
-        className="ghost-button recommendation-action-button"
-        aria-label={`${cardTitle} 열기`}
-        onClick={() => void actions.onOpen(bookmark)}
-      >
-        열기
-      </button>
-    </li>
-  );
-}
-
-const MemoizedRecommendationCard = memo(RecommendationCard);
 
 function renderFolderOverviewNodeLabel(folder: Folder) {
   const folderIconGlyph = getFolderIconGlyph(folder.icon);
@@ -6470,6 +6432,12 @@ export default function AuthenticatedDashboardApp() {
     }),
     []
   );
+  const recommendationPanelActions = useMemo<RecommendationPanelActions>(
+    () => ({
+      onOpen: (bookmark) => bookmarkListRowActions.onOpen(bookmark)
+    }),
+    [bookmarkListRowActions]
+  );
   const bookmarkListRows = useMemo<BookmarkListRowViewModel[]>(
     () => {
       const previousBookmarkListRowCache = bookmarkListRowCacheRef.current;
@@ -8324,85 +8292,28 @@ export default function AuthenticatedDashboardApp() {
     </section>
   );
 
-  function renderRecommendationLoadingCard() {
-    return (
-      <div className="recommendation-loading-card" aria-hidden="true">
-        <span className="recommendation-loading-orb" />
-        <div className="recommendation-loading-copy">
-          <span className="recommendation-loading-line recommendation-loading-line-strong" />
-          <span className="recommendation-loading-line recommendation-loading-line-soft" />
-        </div>
-        <span className="recommendation-loading-action" />
-      </div>
-    );
-  }
-
-  function renderRecommendationColumn(
-    kind: RecommendationKind,
-    label: string,
-    recommendationCards: RecommendationCardViewModel[]
-  ) {
-    return (
-      <div className="recommendation-column">
-        <h3>{label}</h3>
-        {isRecommendationSectionLoading ? renderRecommendationLoadingCard() : null}
-        {!isRecommendationSectionLoading && recommendationCards.length === 0 ? (
-          <p className="quiet-empty-state recommendation-empty-state">없음</p>
-        ) : null}
-        {!isRecommendationSectionLoading ? (
-          <ul className="recommendation-list">
-            {recommendationCards.map((card) => (
-              <MemoizedRecommendationCard
-                key={card.itemKey}
-                card={card}
-                actions={bookmarkListRowActions}
-              />
-            ))}
-          </ul>
-        ) : null}
-      </div>
-    );
-  }
-
-  function renderRecommendationSection(options?: {
+  function renderLazyRecommendationPanel(options?: {
     ariaLabel?: string;
     className?: string;
     isEmbedded?: boolean;
     isHidden?: boolean;
   }) {
-    const sectionClassName = `${
-      options?.isEmbedded ? "recommendation-panel-card" : "surface-card panel-card recommendation-panel-card"
-    }${
-      isRecommendationSectionLoading ? " recommendation-panel-card-loading" : ""
-    }${options?.className ? ` ${options.className}` : ""}${
-      options?.isHidden ? " dashboard-panel-visually-hidden" : ""
-    }`;
-
     return (
-      <section
-        aria-label={options?.ariaLabel ?? "recommendation-list"}
-        className={sectionClassName}
-        aria-busy={isRecommendationSectionLoading}
-      >
-        <header className="recommendation-panel-header">
-          <p className="recommendation-panel-kicker">빠른 진입점</p>
-          <div className="recommendation-panel-title-row">
-            <h2>추천</h2>
-            <p className="recommendation-panel-helper" aria-live="polite">
-              {isRecommendationSectionLoading ? "추천을 준비하는 중" : "자주 여는 링크"}
-            </p>
-          </div>
-        </header>
-        <div className="recommendation-grid">
-          {renderRecommendationColumn("favorites", "즐겨찾기", recommendationCardsByKind.favorites)}
-          {renderRecommendationColumn("recent", "최근", recommendationCardsByKind.recent)}
-          {renderRecommendationColumn("frequent", "반복", recommendationCardsByKind.frequent)}
-        </div>
-      </section>
+      <Suspense fallback={null}>
+        <LazyRecommendationPanel
+          ariaLabel={options?.ariaLabel}
+          className={options?.className}
+          isEmbedded={options?.isEmbedded}
+          isHidden={options?.isHidden}
+          isLoading={isRecommendationSectionLoading}
+          cardsByKind={recommendationCardsByKind}
+          actions={recommendationPanelActions}
+        />
+      </Suspense>
     );
   }
 
-  const recommendationSection = renderRecommendationSection({
+  const recommendationSection = renderLazyRecommendationPanel({
     isHidden: isHomeDashboardView
   });
 
@@ -8459,7 +8370,7 @@ export default function AuthenticatedDashboardApp() {
         </ul>
       ) : null}
       {isHomeRecommendationOpen
-        ? renderRecommendationSection({
+        ? renderLazyRecommendationPanel({
             ariaLabel: "home-recommendation-list",
             className: "home-recommendation-panel",
             isEmbedded: true
