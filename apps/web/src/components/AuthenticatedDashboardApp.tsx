@@ -1,5 +1,6 @@
 import {
   lazy,
+  memo,
   Suspense,
   startTransition,
   useEffect,
@@ -183,6 +184,29 @@ type BookmarkListRowViewModel = {
   shouldShowDescription: boolean;
   shouldShowTags: boolean;
   shouldShowInfo: boolean;
+};
+
+type BookmarkListRowActionResult = void | Promise<void>;
+
+type BookmarkListRowActions = {
+  onToggleDetail: (bookmark: Bookmark) => BookmarkListRowActionResult;
+  onOpen: (bookmark: Bookmark) => BookmarkListRowActionResult;
+  onOpenDetailDialog: (bookmark: Bookmark) => BookmarkListRowActionResult;
+  onCopyUrl: (bookmark: Bookmark) => BookmarkListRowActionResult;
+  onToggleActionMenu: (bookmarkId: string) => BookmarkListRowActionResult;
+  onEdit: (bookmark: Bookmark) => BookmarkListRowActionResult;
+  onDelete: (bookmark: Bookmark) => BookmarkListRowActionResult;
+  onRestore: (bookmark: Bookmark) => BookmarkListRowActionResult;
+  onPermanentDelete: (bookmark: Bookmark) => BookmarkListRowActionResult;
+};
+
+type BookmarkListRowProps = {
+  row: BookmarkListRowViewModel;
+  bookmarkViewMode: BookmarkViewMode;
+  shouldUseCompactMobileCards: boolean;
+  isSelected: boolean;
+  isActionMenuOpen: boolean;
+  actions: BookmarkListRowActions;
 };
 
 const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
@@ -1809,6 +1833,247 @@ function renderSearchModeSegmentedControl(
     </div>
   );
 }
+
+function BookmarkListRow({
+  row,
+  bookmarkViewMode,
+  shouldUseCompactMobileCards,
+  isSelected,
+  isActionMenuOpen,
+  actions
+}: BookmarkListRowProps) {
+  const {
+    bookmark,
+    assetCount,
+    coverAsset,
+    folderName,
+    previewText,
+    summaryStateLabel,
+    visibleTagItems,
+    remainingTagCount,
+    isTrashed,
+    shouldShowCover,
+    shouldShowListCover,
+    shouldShowTitle,
+    shouldShowDescription,
+    shouldShowTags,
+    shouldShowInfo
+  } = row;
+  const rowTitle = bookmark.displayTitle || bookmark.url;
+
+  return (
+    <li
+      className={`bookmark-card bookmark-list-row bookmark-list-row-view-${bookmarkViewMode}${
+        isSelected ? " bookmark-list-row-selected" : ""
+      }${shouldShowListCover ? " bookmark-list-row-has-cover" : ""}`}
+      style={
+        bookmark.bookmarkColor
+          ? {
+              borderLeftColor: bookmark.bookmarkColor,
+              borderLeftWidth: "3px"
+            }
+          : undefined
+      }
+    >
+      {shouldShowListCover && coverAsset ? (
+        <div className="asset-grid bookmark-row-assets bookmark-row-list-thumbnail">
+          <img src={coverAsset.contentUrl} alt="업로드 이미지 1" />
+        </div>
+      ) : null}
+      <div
+        className={`bookmark-row-main${
+          shouldUseCompactMobileCards ? "" : " bookmark-row-click-target"
+        }`}
+        onClick={
+          shouldUseCompactMobileCards
+            ? undefined
+            : () => actions.onToggleDetail(bookmark)
+        }
+      >
+        {shouldShowCover && coverAsset ? (
+          <div className="asset-grid bookmark-row-assets">
+            <img src={coverAsset.contentUrl} alt="업로드 이미지 1" />
+          </div>
+        ) : null}
+        <div className="bookmark-card-header">
+          <div className="bookmark-card-title-block">
+            {shouldShowTitle ? (
+              <div className="bookmark-title-line">
+                <strong>{rowTitle}</strong>
+                {renderHiddenBookmarkIndicator(bookmark.isHidden === true)}
+              </div>
+            ) : null}
+            {shouldShowInfo && !shouldUseCompactMobileCards ? (
+              <p
+                className="muted-text bookmark-row-url"
+                title={bookmark.url}
+                style={bookmark.urlColor ? { color: bookmark.urlColor } : undefined}
+              >
+                {bookmark.url}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        {shouldShowDescription && hasTextContent(previewText) ? (
+          <p
+            className={`bookmark-row-summary${
+              shouldUseCompactMobileCards ? " bookmark-card-summary" : ""
+            }`}
+          >
+            {previewText}
+          </p>
+        ) : shouldShowDescription && shouldUseCompactMobileCards ? (
+          <p className="bookmark-row-summary bookmark-card-summary">{bookmark.url}</p>
+        ) : null}
+      </div>
+      {shouldShowInfo || shouldShowTags ? (
+        <div
+          className={`bookmark-row-meta${
+            shouldUseCompactMobileCards ? "" : " bookmark-row-click-target"
+          }`}
+          onClick={
+            shouldUseCompactMobileCards
+              ? undefined
+              : () => actions.onToggleDetail(bookmark)
+          }
+        >
+          {shouldShowInfo ? (
+            <div className="bookmark-row-meta-line bookmark-row-meta-primary">
+              <span className="bookmark-row-meta-item">{folderName}</span>
+              {bookmark.isFavorite ? (
+                <span className="bookmark-row-meta-item">즐겨찾기</span>
+              ) : null}
+              {isTrashed ? (
+                <span className="bookmark-row-meta-item">휴지통</span>
+              ) : null}
+            </div>
+          ) : null}
+          {!shouldUseCompactMobileCards ? (
+            <div className="bookmark-row-meta-line bookmark-row-meta-secondary">
+              {shouldShowInfo ? (
+                <span className="bookmark-row-meta-item">{summaryStateLabel}</span>
+              ) : null}
+              {shouldShowTags
+                ? visibleTagItems.map((tag) => (
+                    <span
+                      key={`${bookmark.id}-${tag.id}`}
+                      className="bookmark-row-meta-item"
+                    >
+                      {tag.name}
+                    </span>
+                  ))
+                : null}
+              {shouldShowTags && remainingTagCount > 0 ? (
+                <span className="bookmark-row-meta-item">+{remainingTagCount}</span>
+              ) : null}
+              {shouldShowInfo && assetCount > 0 ? (
+                <span className="bookmark-row-meta-item">이미지 {assetCount}</span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      <div
+        className={`action-row bookmark-card-actions bookmark-row-actions${
+          shouldUseCompactMobileCards ? " bookmark-row-actions-mobile-compact" : ""
+        }`}
+      >
+        {isTrashed ? (
+          <>
+            <button
+              type="button"
+              className="primary-button bookmark-row-primary-action"
+              aria-label={`${rowTitle} 복구`}
+              onClick={() => void actions.onRestore(bookmark)}
+            >
+              복구
+            </button>
+            <div className="bookmark-card-secondary-actions">
+              <button
+                type="button"
+                className="danger-button"
+                aria-label={`${rowTitle} 영구 삭제`}
+                onClick={() => void actions.onPermanentDelete(bookmark)}
+              >
+                영구 삭제
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="primary-button bookmark-row-primary-action"
+              aria-label={`${rowTitle} 열기`}
+              onClick={() => void actions.onOpen(bookmark)}
+            >
+              열기
+            </button>
+            <div className="bookmark-card-secondary-actions">
+              {shouldUseCompactMobileCards ? (
+                <button
+                  type="button"
+                  className="secondary-button bookmark-row-detail-action"
+                  aria-label={`${rowTitle} 상세 보기`}
+                  onClick={() => void actions.onOpenDetailDialog(bookmark)}
+                >
+                  상세
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="ghost-button folder-action-trigger bookmark-url-copy-button"
+                aria-label={`${rowTitle} URL 복사`}
+                title="URL 복사"
+                onClick={() => void actions.onCopyUrl(bookmark)}
+              >
+                <span className="bookmark-url-copy-icon" aria-hidden="true" />
+              </button>
+              <div
+                className="folder-action-menu-shell bookmark-card-menu-shell"
+                data-open-menu-shell={isActionMenuOpen ? "true" : undefined}
+              >
+                <button
+                  type="button"
+                  className="ghost-button folder-action-trigger overflow-trigger"
+                  aria-label={`${rowTitle} 북마크 더보기`}
+                  aria-expanded={isActionMenuOpen}
+                  onClick={() => actions.onToggleActionMenu(bookmark.id)}
+                >
+                  ...
+                </button>
+                {isActionMenuOpen ? (
+                  <div
+                    role="menu"
+                    aria-label={`${rowTitle} 북마크 메뉴`}
+                    className="folder-action-menu bookmark-card-action-menu"
+                  >
+                    <button
+                      type="button"
+                      className="secondary-button folder-action-menu-item bookmark-card-action-menu-item"
+                      onClick={() => void actions.onEdit(bookmark)}
+                    >
+                      수정
+                    </button>
+                    <button
+                      type="button"
+                      className="danger-button folder-action-menu-item bookmark-card-action-menu-item"
+                      onClick={() => void actions.onDelete(bookmark)}
+                    >
+                      삭제
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </li>
+  );
+}
+
+const MemoizedBookmarkListRow = memo(BookmarkListRow);
 
 export default function AuthenticatedDashboardApp() {
   const [sessionState, setSessionState] = useState<SessionState>({
@@ -5609,6 +5874,41 @@ export default function AuthenticatedDashboardApp() {
     folderOverviewSpecialFilter ??
     (!hasActiveBookmarkSearch(appliedBookmarkSearch) ? "all" : null);
   const isTrashBookmarkView = activeFolderOverviewSpecialFilter === "trash";
+  const bookmarkListRowActionsRef = useRef<BookmarkListRowActions | null>(null);
+  bookmarkListRowActionsRef.current = {
+    onToggleDetail: toggleBookmarkDetailFromCard,
+    onOpen: handleBookmarkOpen,
+    onOpenDetailDialog: (bookmark) => openBookmarkDetail(bookmark.id, bookmark, "dialog"),
+    onCopyUrl: handleBookmarkUrlCopy,
+    onToggleActionMenu: toggleBookmarkActionMenu,
+    onEdit: beginBookmarkEdit,
+    onDelete: handleBookmarkDelete,
+    onRestore: handleBookmarkRestore,
+    onPermanentDelete: handleBookmarkPermanentDelete
+  };
+  const bookmarkListRowActions = useMemo<BookmarkListRowActions>(
+    () => ({
+      onToggleDetail: (bookmark) =>
+        bookmarkListRowActionsRef.current?.onToggleDetail(bookmark),
+      onOpen: (bookmark) =>
+        bookmarkListRowActionsRef.current?.onOpen(bookmark),
+      onOpenDetailDialog: (bookmark) =>
+        bookmarkListRowActionsRef.current?.onOpenDetailDialog(bookmark),
+      onCopyUrl: (bookmark) =>
+        bookmarkListRowActionsRef.current?.onCopyUrl(bookmark),
+      onToggleActionMenu: (bookmarkId) =>
+        bookmarkListRowActionsRef.current?.onToggleActionMenu(bookmarkId),
+      onEdit: (bookmark) =>
+        bookmarkListRowActionsRef.current?.onEdit(bookmark),
+      onDelete: (bookmark) =>
+        bookmarkListRowActionsRef.current?.onDelete(bookmark),
+      onRestore: (bookmark) =>
+        bookmarkListRowActionsRef.current?.onRestore(bookmark),
+      onPermanentDelete: (bookmark) =>
+        bookmarkListRowActionsRef.current?.onPermanentDelete(bookmark)
+    }),
+    []
+  );
   const bookmarkListRows = useMemo<BookmarkListRowViewModel[]>(
     () =>
       renderedPagedBookmarks.map((bookmark) => {
@@ -8403,247 +8703,24 @@ export default function AuthenticatedDashboardApp() {
                 />
               ) : null}
               {bookmarkListRows.map((bookmarkRow) => {
-                const {
-                  bookmark,
-                  assetCount,
-                  coverAsset,
-                  folderName,
-                  previewText,
-                  summaryStateLabel,
-                  visibleTagItems,
-                  remainingTagCount,
-                  isTrashed,
-                  shouldShowCover,
-                  shouldShowListCover,
-                  shouldShowTitle,
-                  shouldShowDescription,
-                  shouldShowTags,
-                  shouldShowInfo
-                } = bookmarkRow;
-                const isSelectedBookmarkCard =
-                  !shouldUseCompactMobileCards &&
-                  bookmarkDetailDisplayMode === "rail" &&
-                  visibleSelectedBookmark?.id === bookmark.id;
+                const bookmarkId = bookmarkRow.bookmark.id;
 
                 return (
-                <li
-                  key={bookmark.id}
-                  className={`bookmark-card bookmark-list-row bookmark-list-row-view-${bookmarkViewMode}${
-                    isSelectedBookmarkCard ? " bookmark-list-row-selected" : ""
-                  }${
-                    shouldShowListCover ? " bookmark-list-row-has-cover" : ""
-                  }`}
-                  style={
-                    bookmark.bookmarkColor
-                      ? {
-                          borderLeftColor: bookmark.bookmarkColor,
-                          borderLeftWidth: "3px"
-                        }
-                      : undefined
-                  }
-                >
-                  {shouldShowListCover && coverAsset ? (
-                    <div className="asset-grid bookmark-row-assets bookmark-row-list-thumbnail">
-                      <img
-                        src={coverAsset.contentUrl}
-                        alt="업로드 이미지 1"
-                      />
-                    </div>
-                  ) : null}
-                  <div
-                    className={`bookmark-row-main${shouldUseCompactMobileCards ? "" : " bookmark-row-click-target"}`}
-                    onClick={
-                      shouldUseCompactMobileCards
-                        ? undefined
-                        : () => toggleBookmarkDetailFromCard(bookmark)
+                  <MemoizedBookmarkListRow
+                    key={bookmarkId}
+                    row={bookmarkRow}
+                    bookmarkViewMode={bookmarkViewMode}
+                    shouldUseCompactMobileCards={shouldUseCompactMobileCards}
+                    isSelected={
+                      !shouldUseCompactMobileCards &&
+                      bookmarkDetailDisplayMode === "rail" &&
+                      visibleSelectedBookmark?.id === bookmarkId
                     }
-                  >
-                    {shouldShowCover && coverAsset ? (
-                      <div className="asset-grid bookmark-row-assets">
-                        <img
-                          src={coverAsset.contentUrl}
-                          alt="업로드 이미지 1"
-                        />
-                      </div>
-                    ) : null}
-                    <div className="bookmark-card-header">
-                      <div className="bookmark-card-title-block">
-                        {shouldShowTitle ? (
-                          <div className="bookmark-title-line">
-                            <strong>{bookmark.displayTitle || bookmark.url}</strong>
-                            {renderHiddenBookmarkIndicator(bookmark.isHidden === true)}
-                          </div>
-                        ) : null}
-                        {shouldShowInfo && !shouldUseCompactMobileCards ? (
-                          <p
-                            className="muted-text bookmark-row-url"
-                            title={bookmark.url}
-                            style={bookmark.urlColor ? { color: bookmark.urlColor } : undefined}
-                          >
-                            {bookmark.url}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                    {shouldShowDescription && hasTextContent(previewText) ? (
-                      <p
-                        className={`bookmark-row-summary${
-                          shouldUseCompactMobileCards ? " bookmark-card-summary" : ""
-                        }`}
-                      >
-                        {previewText}
-                      </p>
-                    ) : shouldShowDescription && shouldUseCompactMobileCards ? (
-                      <p className="bookmark-row-summary bookmark-card-summary">{bookmark.url}</p>
-                    ) : null}
-                  </div>
-                  {shouldShowInfo || shouldShowTags ? (
-                    <div
-                      className={`bookmark-row-meta${shouldUseCompactMobileCards ? "" : " bookmark-row-click-target"}`}
-                      onClick={
-                        shouldUseCompactMobileCards
-                          ? undefined
-                          : () => toggleBookmarkDetailFromCard(bookmark)
-                      }
-                    >
-                      {shouldShowInfo ? (
-                        <div className="bookmark-row-meta-line bookmark-row-meta-primary">
-                          <span className="bookmark-row-meta-item">{folderName}</span>
-                          {bookmark.isFavorite ? (
-                            <span className="bookmark-row-meta-item">즐겨찾기</span>
-                          ) : null}
-                          {isTrashed ? (
-                            <span className="bookmark-row-meta-item">휴지통</span>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      {!shouldUseCompactMobileCards ? (
-                      <div className="bookmark-row-meta-line bookmark-row-meta-secondary">
-                        {shouldShowInfo ? (
-                          <span className="bookmark-row-meta-item">
-                            {summaryStateLabel}
-                          </span>
-                        ) : null}
-                        {shouldShowTags
-                          ? visibleTagItems.map((tag) => (
-                              <span
-                                key={`${bookmark.id}-${tag.id}`}
-                                className="bookmark-row-meta-item"
-                              >
-                                {tag.name}
-                              </span>
-                            ))
-                          : null}
-                        {shouldShowTags && remainingTagCount > 0 ? (
-                          <span className="bookmark-row-meta-item">+{remainingTagCount}</span>
-                        ) : null}
-                        {shouldShowInfo && assetCount > 0 ? (
-                          <span className="bookmark-row-meta-item">이미지 {assetCount}</span>
-                        ) : null}
-                      </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <div
-                    className={`action-row bookmark-card-actions bookmark-row-actions${
-                      shouldUseCompactMobileCards ? " bookmark-row-actions-mobile-compact" : ""
-                    }`}
-                  >
-                    {isTrashed ? (
-                      <>
-                        <button
-                          type="button"
-                          className="primary-button bookmark-row-primary-action"
-                          aria-label={`${bookmark.displayTitle || bookmark.url} 복구`}
-                          onClick={() => void handleBookmarkRestore(bookmark)}
-                        >
-                          복구
-                        </button>
-                        <div className="bookmark-card-secondary-actions">
-                          <button
-                            type="button"
-                            className="danger-button"
-                            aria-label={`${bookmark.displayTitle || bookmark.url} 영구 삭제`}
-                            onClick={() => void handleBookmarkPermanentDelete(bookmark)}
-                          >
-                            영구 삭제
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="primary-button bookmark-row-primary-action"
-                          aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
-                          onClick={() => void handleBookmarkOpen(bookmark)}
-                        >
-                          열기
-                        </button>
-                        <div className="bookmark-card-secondary-actions">
-                          {shouldUseCompactMobileCards ? (
-                            <button
-                              type="button"
-                              className="secondary-button bookmark-row-detail-action"
-                              aria-label={`${bookmark.displayTitle || bookmark.url} 상세 보기`}
-                              onClick={() => void openBookmarkDetail(bookmark.id, bookmark, "dialog")}
-                            >
-                              상세
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            className="ghost-button folder-action-trigger bookmark-url-copy-button"
-                            aria-label={`${bookmark.displayTitle || bookmark.url} URL 복사`}
-                            title="URL 복사"
-                            onClick={() => void handleBookmarkUrlCopy(bookmark)}
-                          >
-                            <span className="bookmark-url-copy-icon" aria-hidden="true" />
-                          </button>
-                          <div
-                            className="folder-action-menu-shell bookmark-card-menu-shell"
-                            data-open-menu-shell={
-                              openBookmarkActionMenuId === bookmark.id ? "true" : undefined
-                            }
-                          >
-                            <button
-                              type="button"
-                              className="ghost-button folder-action-trigger overflow-trigger"
-                              aria-label={`${bookmark.displayTitle || bookmark.url} 북마크 더보기`}
-                              aria-expanded={openBookmarkActionMenuId === bookmark.id}
-                              onClick={() => toggleBookmarkActionMenu(bookmark.id)}
-                            >
-                              ...
-                            </button>
-                            {openBookmarkActionMenuId === bookmark.id ? (
-                              <div
-                                role="menu"
-                                aria-label={`${bookmark.displayTitle || bookmark.url} 북마크 메뉴`}
-                                className="folder-action-menu bookmark-card-action-menu"
-                              >
-                                <button
-                                  type="button"
-                                  className="secondary-button folder-action-menu-item bookmark-card-action-menu-item"
-                                  onClick={() => beginBookmarkEdit(bookmark)}
-                                >
-                                  수정
-                                </button>
-                                <button
-                                  type="button"
-                                  className="danger-button folder-action-menu-item bookmark-card-action-menu-item"
-                                  onClick={() => void handleBookmarkDelete(bookmark)}
-                                >
-                                  삭제
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </li>
-              )})}
+                    isActionMenuOpen={openBookmarkActionMenuId === bookmarkId}
+                    actions={bookmarkListRowActions}
+                  />
+                );
+              })}
               {canVirtualizeBookmarkList && bookmarkVirtualBottomSpacerHeight > 0 ? (
                 <li
                   aria-hidden="true"

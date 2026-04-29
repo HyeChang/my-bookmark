@@ -82,4 +82,24 @@ describe("bundle splitting", () => {
     expect(dashboardSource).toContain("{bookmarkListRows.map((bookmarkRow) => {");
     expect(dashboardSource).not.toContain("{renderedPagedBookmarks.map((bookmark) => {");
   });
+
+  it("renders bookmark list rows through a memoized row component", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const bookmarkListSource = dashboardSource.slice(
+      dashboardSource.indexOf("bookmark-list-table"),
+      dashboardSource.indexOf("bookmark-pagination-bar")
+    );
+
+    expect(dashboardSource).toContain("type BookmarkListRowActions =");
+    expect(dashboardSource).toContain("const MemoizedBookmarkListRow = memo(BookmarkListRow);");
+    expect(dashboardSource).toContain(
+      "const bookmarkListRowActionsRef = useRef<BookmarkListRowActions | null>(null);"
+    );
+    expect(dashboardSource).toContain("const bookmarkListRowActions = useMemo<BookmarkListRowActions>(");
+    expect(dashboardSource).toContain("<MemoizedBookmarkListRow");
+    expect(bookmarkListSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
+  });
 });
