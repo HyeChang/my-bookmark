@@ -254,4 +254,27 @@ describe("bundle splitting", () => {
     expect(dashboardSource).not.toContain("function renderFolderOverviewNodes(");
     expect(folderOverviewSource).not.toContain("{renderFolderOverviewNodes(null)}");
   });
+
+  it("loads folder overview styles with the lazy folder overview panel", () => {
+    const dashboardCss = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.css"),
+      "utf8"
+    );
+    const folderOverviewSource = readFileSync(
+      join(process.cwd(), "src", "components", "FolderOverviewPanel.tsx"),
+      "utf8"
+    );
+    const folderOverviewCss = readFileSync(
+      join(process.cwd(), "src", "components", "FolderOverviewPanel.css"),
+      "utf8"
+    );
+
+    expect(folderOverviewSource).toContain('import "./FolderOverviewPanel.css";');
+    expect(folderOverviewCss).toContain(".folder-overview-card");
+    expect(folderOverviewCss).toContain(".folder-overview-trigger");
+    expect(folderOverviewCss).toContain(".sidebar-segment-tab");
+    expect(dashboardCss).not.toContain(".folder-overview-card");
+    expect(dashboardCss).not.toContain(".folder-overview-trigger");
+    expect(dashboardCss).not.toContain(".sidebar-segment-tab");
+  });
 });
