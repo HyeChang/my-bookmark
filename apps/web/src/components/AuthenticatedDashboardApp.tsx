@@ -59,6 +59,11 @@ type SessionState =
   | { status: "anonymous" }
   | { status: "authenticated"; user: AuthenticatedUser };
 
+type AuthenticatedDashboardAppProps = {
+  initialUser?: AuthenticatedUser;
+  onSessionEnd?: () => void;
+};
+
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
@@ -2226,7 +2231,10 @@ function FolderOverviewNode({
 
 const MemoizedFolderOverviewNode = memo(FolderOverviewNode);
 
-export default function AuthenticatedDashboardApp() {
+export default function AuthenticatedDashboardApp({
+  initialUser,
+  onSessionEnd
+}: AuthenticatedDashboardAppProps = {}) {
   const [sessionState, setSessionState] = useState<SessionState>({
     status: "loading"
   });
@@ -2907,6 +2915,26 @@ export default function AuthenticatedDashboardApp() {
   useEffect(() => {
     let cancelled = false;
 
+    if (initialUser) {
+      preloadDashboardCoreServiceModules();
+      void refreshDashboardData().finally(() => {
+        if (cancelled) {
+          return;
+        }
+
+        startTransition(() => {
+          setSessionState({
+            status: "authenticated",
+            user: initialUser
+          });
+        });
+      });
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
     void loadSession()
       .then(async (user) => {
         if (cancelled) {
@@ -3174,6 +3202,7 @@ export default function AuthenticatedDashboardApp() {
       setIsQuickTagOpen(false);
       setQuickTagDraft(emptyTagDraft);
     });
+    onSessionEnd?.();
   }
 
   async function handlePwaInstall() {
@@ -5840,6 +5869,8 @@ export default function AuthenticatedDashboardApp() {
     shouldUseMobileSidebarPanels && mobileSidebarPanel === "recommendation";
   const shouldRenderBookmarkResultsPanel =
     !isHomeDashboardView && (!shouldUseMobileSidebarPanels || shouldRenderMobileBookmarkTab);
+  const isInitialDashboardBootstrapping =
+    sessionState.status === "loading" && Boolean(initialUser);
   const shouldRenderBookmarkComposerOverlay = isBookmarkComposerOpen;
   const shouldRenderFolderManagerOverlay = isFolderManagerOpen;
   const shouldRenderTagManagerOverlay = isTagManagerOpen;
@@ -8384,6 +8415,14 @@ export default function AuthenticatedDashboardApp() {
           ) : null}
         </div>
       </header>
+      {isInitialDashboardBootstrapping ? (
+        <section aria-label="dashboard-loading" className="dashboard-workspace">
+          <div className="bookmark-loading-state" role="status" aria-live="polite">
+            <span className="bookmark-loading-spinner" aria-hidden="true" />
+            <span>대시보드를 불러오는 중입니다.</span>
+          </div>
+        </section>
+      ) : null}
       {sessionState.status === "authenticated" ? (
         <section aria-label="dashboard-workspace" className="dashboard-workspace">
           <div className="dashboard-layout">

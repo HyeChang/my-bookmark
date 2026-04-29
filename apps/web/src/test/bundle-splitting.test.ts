@@ -3,14 +3,24 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("bundle splitting", () => {
-  it("loads the authenticated dashboard through a lazy chunk", () => {
+  it("loads the auth gate first and keeps the authenticated dashboard behind it", () => {
     const appSource = readFileSync(join(process.cwd(), "src", "App.tsx"), "utf8");
+    const authGateSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthGate.tsx"),
+      "utf8"
+    );
 
     expect(appSource).toContain(
-      'lazy(() => import("./components/AuthenticatedDashboardApp"))'
+      'lazy(() => import("./components/AuthGate"))'
     );
     expect(appSource).not.toContain(
       'from "./components/AuthenticatedDashboardApp"'
+    );
+    expect(appSource).not.toContain(
+      'import("./components/AuthenticatedDashboardApp")'
+    );
+    expect(authGateSource).toContain(
+      'lazy(() => import("./AuthenticatedDashboardApp"))'
     );
   });
 

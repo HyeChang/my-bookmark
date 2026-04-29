@@ -105,22 +105,15 @@ describe("bookmark dashboard", () => {
 
     render(<App />);
 
-    const recommendationRegion = await screen.findByRole("region", {
-      name: /recommendation-list/i
-    });
-    const bookmarkListRegion = await screen.findByRole("region", {
-      name: /bookmark-list/i
+    const loadingRegion = await screen.findByRole("region", {
+      name: /dashboard-loading/i
     });
 
-    expect(recommendationRegion).toHaveAttribute("aria-busy", "true");
     expect(
-      within(recommendationRegion).getByText(/^추천을 준비하는 중$/i)
+      within(loadingRegion).getByText(/^대시보드를 불러오는 중입니다\.$/i)
     ).toBeInTheDocument();
-    expect(
-      recommendationRegion.querySelectorAll(".recommendation-loading-card")
-    ).toHaveLength(3);
-    expect(within(recommendationRegion).queryByText(/^없음$/i)).not.toBeInTheDocument();
-    expect(within(bookmarkListRegion).queryByText(/보관한 북마크가 없습니다\./i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^없음$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/보관한 북마크가 없습니다\./i)).not.toBeInTheDocument();
   });
 
   it("uses modern empty-state hooks after empty dashboard data loads", async () => {
@@ -146,7 +139,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -422,7 +415,7 @@ describe("bookmark dashboard", () => {
     await waitFor(() => {
       expect(screen.queryByRole("region", { name: /home-page/i })).not.toBeInTheDocument();
     });
-    expect(screen.getByRole("region", { name: /bookmark-list/i })).not.toHaveClass(
+    expect(await screen.findByRole("region", { name: /bookmark-list/i })).not.toHaveClass(
       "dashboard-panel-visually-hidden"
     );
 
@@ -1118,10 +1111,10 @@ describe("bookmark dashboard", () => {
     });
 
     render(<App />);
-    const workspace = await screen.findByRole("region", { name: /dashboard-workspace/i });
     const sidebar = await screen.findByRole("complementary", {
       name: /dashboard-sidebar/i
     });
+    const workspace = sidebar.closest(".dashboard-workspace");
     const mainPanel = await screen.findByRole("region", { name: /dashboard-main/i });
     const navigationSidebar = await screen.findByRole("region", {
       name: /navigation-sidebar/i
@@ -1141,6 +1134,7 @@ describe("bookmark dashboard", () => {
     expect(
       screen.queryByText(/^Save, search, and organize links from anywhere\.$/i)
     ).not.toBeInTheDocument();
+    expect(workspace).not.toBeNull();
     expect(workspace).toContainElement(sidebar);
     expect(workspace).toContainElement(mainPanel);
     expect(mainPanel).toContainElement(resultPrimaryColumn);
@@ -2386,7 +2380,32 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if (url === "/api/bookmarks/counts" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            counts: {
+              active: { total: 0, visible: 0 },
+              favorite: { total: 0, visible: 0 },
+              trashed: { total: 0, visible: 0 },
+              unfiled: { total: 0, visible: 0 },
+              byFolderId: {}
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (
+        (url === "/api/bookmarks" ||
+          url === "/api/bookmarks?limit=20&offset=0" ||
+          url === "/api/bookmarks?favorite=1&limit=20&offset=0") &&
+        !init?.method
+      ) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -2434,6 +2453,9 @@ describe("bookmark dashboard", () => {
 
     render(<App />);
 
+    fireEvent.click(await screen.findByRole("button", { name: /모든 북마크 보기/i }));
+    const searchPanel = await screen.findByRole("region", { name: /search-panel/i });
+
     fireEvent.click(await screen.findByRole("button", { name: /^새 북마크$/i }));
     const dialog = await screen.findByRole("dialog", {
       name: /bookmark-composer-dialog/i
@@ -2453,7 +2475,6 @@ describe("bookmark dashboard", () => {
     expect(hiddenCheckbox).toHaveClass("checkbox-field-input");
     expect(hiddenCheckbox.closest("label")).toHaveClass("checkbox-field");
 
-    const searchPanel = screen.getByRole("region", { name: /search-panel/i });
     fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터 열기/i }));
 
     const favoriteOnlyCheckbox = within(searchPanel).getByRole("checkbox", { name: /즐겨찾기만/i });
@@ -2483,7 +2504,32 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if (url === "/api/bookmarks/counts" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            counts: {
+              active: { total: 0, visible: 0 },
+              favorite: { total: 0, visible: 0 },
+              trashed: { total: 0, visible: 0 },
+              unfiled: { total: 0, visible: 0 },
+              byFolderId: {}
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (
+        (url === "/api/bookmarks" ||
+          url === "/api/bookmarks?limit=20&offset=0" ||
+          url === "/api/bookmarks?favorite=1&limit=20&offset=0") &&
+        !init?.method
+      ) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -4204,7 +4250,32 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if (url === "/api/bookmarks/counts" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            counts: {
+              active: { total: 0, visible: 0 },
+              favorite: { total: 0, visible: 0 },
+              trashed: { total: 0, visible: 0 },
+              unfiled: { total: 0, visible: 0 },
+              byFolderId: {}
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (
+        (url === "/api/bookmarks" ||
+          url === "/api/bookmarks?limit=20&offset=0" ||
+          url === "/api/bookmarks?favorite=1&limit=20&offset=0") &&
+        !init?.method
+      ) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {

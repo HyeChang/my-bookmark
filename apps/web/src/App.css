@@ -129,7 +129,8 @@ img {
   grid-area: quick;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
   min-width: 0;
   padding: 0.62rem 0.75rem;
   border: 1px solid rgba(148, 163, 184, 0.2);
@@ -159,6 +160,51 @@ img {
   font-weight: 850;
   line-height: 1.25;
   white-space: nowrap;
+}
+
+.auth-gate-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 2.12rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 0.42rem 0.68rem;
+  font-weight: 650;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.primary-button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.primary-button {
+  background: #14213d;
+  color: #fffdf8;
+  box-shadow: 0 6px 14px rgba(20, 33, 61, 0.1);
+}
+
+.secondary-button {
+  background: #f6f1e8;
+  color: #21314d;
+  border-color: rgba(20, 33, 61, 0.1);
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.hero-install-button {
+  min-width: 4.9rem;
 }
 
 .dashboard-workspace {
@@ -219,6 +265,15 @@ img {
   z-index: 1;
 }
 
+.error-banner {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(163, 58, 43, 0.12);
+  border-radius: 18px;
+  background: #fff1ec;
+  color: #a33a2b;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     padding: 0.65rem 0.7rem 1.5rem;
@@ -249,6 +304,11 @@ img {
 
   .hero-command-summary {
     white-space: normal;
+  }
+
+  .auth-gate-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .dashboard-workspace {

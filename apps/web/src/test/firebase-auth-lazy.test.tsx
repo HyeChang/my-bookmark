@@ -16,6 +16,12 @@ vi.mock("../lib/firebase", () => {
   };
 });
 
+vi.mock("../components/AuthenticatedDashboardApp", () => ({
+  default: ({ initialUser }: { initialUser?: { email: string } }) => (
+    <section aria-label="mock-dashboard">{initialUser?.email}</section>
+  )
+}));
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -58,53 +64,6 @@ describe("firebase auth lazy loading", () => {
         );
       }
 
-      if (url === "/api/bookmarks/counts" && !init?.method) {
-        return new Response(
-          JSON.stringify({
-            counts: {
-              active: { total: 0, visible: 0 },
-              favorite: { total: 0, visible: 0 },
-              trashed: { total: 0, visible: 0 },
-              unfiled: { total: 0, visible: 0 },
-              byFolderId: {}
-            }
-          }),
-          {
-            status: 200,
-            headers: {
-              "content-type": "application/json"
-            }
-          }
-        );
-      }
-
-      if (url === "/api/bookmarks?favorite=1&limit=20&offset=0" && !init?.method) {
-        return new Response(JSON.stringify({ bookmarks: [] }), {
-          status: 200,
-          headers: {
-            "content-type": "application/json"
-          }
-        });
-      }
-
-      if (url === "/api/folders" && !init?.method) {
-        return new Response(JSON.stringify({ folders: [] }), {
-          status: 200,
-          headers: {
-            "content-type": "application/json"
-          }
-        });
-      }
-
-      if (url === "/api/tags" && !init?.method) {
-        return new Response(JSON.stringify({ tags: [] }), {
-          status: 200,
-          headers: {
-            "content-type": "application/json"
-          }
-        });
-      }
-
       throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -123,5 +82,6 @@ describe("firebase auth lazy loading", () => {
       expect(firebaseAuthMock.signInWithGoogle).toHaveBeenCalledTimes(1);
     });
     expect(firebaseAuthMock.moduleLoadCount).toBe(1);
+    expect(await screen.findByRole("region", { name: /mock-dashboard/i })).toBeInTheDocument();
   });
 });

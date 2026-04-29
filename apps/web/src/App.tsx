@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react";
 import "./App.css";
 
-const LazyAuthenticatedDashboardApp = lazy(() => import("./components/AuthenticatedDashboardApp"));
+const LazyAuthGate = lazy(() => import("./components/AuthGate"));
 
 function renderAppFallback() {
   return (
@@ -18,7 +18,7 @@ function renderAppFallback() {
           </div>
         </section>
       </header>
-      <section aria-label="dashboard-workspace" className="dashboard-workspace">
+      <section aria-label="dashboard-loading" className="dashboard-workspace">
         <div className="bookmark-loading-state" role="status" aria-live="polite">
           <span className="bookmark-loading-spinner" aria-hidden="true" />
           <span>대시보드를 불러오는 중입니다.</span>
@@ -31,7 +31,7 @@ function renderAppFallback() {
 export default function App() {
   return (
     <Suspense fallback={renderAppFallback()}>
-      <LazyAuthenticatedDashboardApp />
+      <LazyAuthGate />
     </Suspense>
   );
 }
