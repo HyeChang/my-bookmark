@@ -135,4 +135,22 @@ describe("bundle splitting", () => {
     expect(homeSectionSource).not.toContain("visibleHomeFavoriteBookmarks.map((bookmark) => {");
     expect(homeSectionSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
   });
+
+  it("renders recommendations through memoized recommendation cards", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const recommendationColumnSource = dashboardSource.slice(
+      dashboardSource.indexOf("function renderRecommendationColumn("),
+      dashboardSource.indexOf("function renderRecommendationSection(")
+    );
+
+    expect(dashboardSource).toContain("type RecommendationCardViewModel =");
+    expect(dashboardSource).toContain("const MemoizedRecommendationCard = memo(RecommendationCard);");
+    expect(dashboardSource).toContain("const recommendationCardsByKind = useMemo<Record<RecommendationKind, RecommendationCardViewModel[]>>(");
+    expect(dashboardSource).toContain("<MemoizedRecommendationCard");
+    expect(recommendationColumnSource).not.toContain("recommendationBookmarks.map((bookmark) => (");
+    expect(recommendationColumnSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
+  });
 });

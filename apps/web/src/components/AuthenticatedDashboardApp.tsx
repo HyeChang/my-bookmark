@@ -251,6 +251,27 @@ type HomeFavoriteCardProps = {
   actions: BookmarkListRowActions;
 };
 
+type RecommendationCardViewModel = {
+  itemKey: string;
+  bookmark: Bookmark;
+  reasonLabel: string;
+  folderName: string;
+  summaryText: string;
+};
+
+type RecommendationCardCacheEntry = {
+  card: RecommendationCardViewModel;
+  bookmark: Bookmark;
+  reasonLabel: string;
+  folderName: string;
+  summaryText: string;
+};
+
+type RecommendationCardProps = {
+  card: RecommendationCardViewModel;
+  actions: BookmarkListRowActions;
+};
+
 const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
 const USERSCRIPT_DOWNLOAD_PATH = "/downloads/bookmark-saver.user.js?v=0.1.11";
 const BOOKMARK_VIEW_SETTINGS_STORAGE_KEY = "bookmark-view-settings:v2";
@@ -2246,6 +2267,36 @@ function HomeFavoriteCard({
 }
 
 const MemoizedHomeFavoriteCard = memo(HomeFavoriteCard);
+
+function RecommendationCard({ card, actions }: RecommendationCardProps) {
+  const { bookmark, reasonLabel, folderName, summaryText } = card;
+  const cardTitle = bookmark.displayTitle || bookmark.url;
+
+  return (
+    <li className="recommendation-item">
+      <div className="recommendation-copy">
+        <div className="recommendation-title-line">
+          <strong>{cardTitle}</strong>
+          {renderHiddenBookmarkIndicator(bookmark.isHidden === true)}
+        </div>
+        <p className="recommendation-meta-line">
+          {reasonLabel} · {folderName}
+        </p>
+        <p className="muted-text">{summaryText}</p>
+      </div>
+      <button
+        type="button"
+        className="ghost-button recommendation-action-button"
+        aria-label={`${cardTitle} 열기`}
+        onClick={() => void actions.onOpen(bookmark)}
+      >
+        열기
+      </button>
+    </li>
+  );
+}
+
+const MemoizedRecommendationCard = memo(RecommendationCard);
 
 export default function AuthenticatedDashboardApp() {
   const [sessionState, setSessionState] = useState<SessionState>({
@@ -6287,6 +6338,70 @@ export default function AuthenticatedDashboardApp() {
       ),
     [hiddenFolderIds, recommendations, showHiddenBookmarks, showHiddenFolders]
   );
+  const recommendationCardCacheRef = useRef(new Map<string, RecommendationCardCacheEntry>());
+  const recommendationCardsByKind = useMemo<Record<RecommendationKind, RecommendationCardViewModel[]>>(
+    () => {
+      const previousRecommendationCardCache = recommendationCardCacheRef.current;
+      const nextRecommendationCardCache = new Map<string, RecommendationCardCacheEntry>();
+
+      function createRecommendationCards(
+        kind: RecommendationKind,
+        recommendationBookmarks: Bookmark[]
+      ) {
+        const reasonLabel = getRecommendationReasonLabel(kind);
+
+        return recommendationBookmarks.map((bookmark) => {
+          const itemKey = `${kind}-${bookmark.id}`;
+          const folderName =
+            !bookmark.folderId || extensionFolderIds.has(bookmark.folderId)
+              ? "미분류"
+              : foldersById.get(bookmark.folderId)?.name ?? bookmark.folderId;
+          const previewText = getBookmarkPreviewText(bookmark);
+          const summaryText = hasTextContent(previewText) ? previewText : "요약 없음";
+          const previousCardEntry = previousRecommendationCardCache.get(itemKey);
+
+          if (
+            previousCardEntry &&
+            previousCardEntry.bookmark === bookmark &&
+            previousCardEntry.reasonLabel === reasonLabel &&
+            previousCardEntry.folderName === folderName &&
+            previousCardEntry.summaryText === summaryText
+          ) {
+            nextRecommendationCardCache.set(itemKey, previousCardEntry);
+            return previousCardEntry.card;
+          }
+
+          const card = {
+            itemKey,
+            bookmark,
+            reasonLabel,
+            folderName,
+            summaryText
+          };
+          const nextCardEntry = {
+            card,
+            bookmark,
+            reasonLabel,
+            folderName,
+            summaryText
+          };
+
+          nextRecommendationCardCache.set(itemKey, nextCardEntry);
+          return card;
+        });
+      }
+
+      const cardsByKind = {
+        favorites: createRecommendationCards("favorites", visibleRecommendations.favorites),
+        recent: createRecommendationCards("recent", visibleRecommendations.recent),
+        frequent: createRecommendationCards("frequent", visibleRecommendations.frequent)
+      };
+
+      recommendationCardCacheRef.current = nextRecommendationCardCache;
+      return cardsByKind;
+    },
+    [extensionFolderIds, foldersById, visibleRecommendations]
+  );
   const visibleSelectedBookmark =
     selectedBookmark &&
     isBookmarkVisibleUnderHiddenRules(
@@ -7976,42 +8091,23 @@ export default function AuthenticatedDashboardApp() {
   function renderRecommendationColumn(
     kind: RecommendationKind,
     label: string,
-    recommendationBookmarks: Bookmark[]
+    recommendationCards: RecommendationCardViewModel[]
   ) {
     return (
       <div className="recommendation-column">
         <h3>{label}</h3>
         {isRecommendationSectionLoading ? renderRecommendationLoadingCard() : null}
-        {!isRecommendationSectionLoading && recommendationBookmarks.length === 0 ? (
+        {!isRecommendationSectionLoading && recommendationCards.length === 0 ? (
           <p className="quiet-empty-state recommendation-empty-state">없음</p>
         ) : null}
         {!isRecommendationSectionLoading ? (
           <ul className="recommendation-list">
-            {recommendationBookmarks.map((bookmark) => (
-              <li key={`${kind}-${bookmark.id}`} className="recommendation-item">
-                <div className="recommendation-copy">
-                  <div className="recommendation-title-line">
-                    <strong>{bookmark.displayTitle || bookmark.url}</strong>
-                    {renderHiddenBookmarkIndicator(bookmark.isHidden === true)}
-                  </div>
-                  <p className="recommendation-meta-line">
-                    {getRecommendationReasonLabel(kind)} · {getFolderName(bookmark.folderId)}
-                  </p>
-                  <p className="muted-text">
-                    {hasTextContent(getBookmarkPreviewText(bookmark))
-                      ? getBookmarkPreviewText(bookmark)
-                      : "요약 없음"}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="ghost-button recommendation-action-button"
-                  aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
-                  onClick={() => void handleBookmarkOpen(bookmark)}
-                >
-                  열기
-                </button>
-              </li>
+            {recommendationCards.map((card) => (
+              <MemoizedRecommendationCard
+                key={card.itemKey}
+                card={card}
+                actions={bookmarkListRowActions}
+              />
             ))}
           </ul>
         ) : null}
@@ -8049,9 +8145,9 @@ export default function AuthenticatedDashboardApp() {
           </div>
         </header>
         <div className="recommendation-grid">
-          {renderRecommendationColumn("favorites", "즐겨찾기", visibleRecommendations.favorites)}
-          {renderRecommendationColumn("recent", "최근", visibleRecommendations.recent)}
-          {renderRecommendationColumn("frequent", "반복", visibleRecommendations.frequent)}
+          {renderRecommendationColumn("favorites", "즐겨찾기", recommendationCardsByKind.favorites)}
+          {renderRecommendationColumn("recent", "최근", recommendationCardsByKind.recent)}
+          {renderRecommendationColumn("frequent", "반복", recommendationCardsByKind.frequent)}
         </div>
       </section>
     );
