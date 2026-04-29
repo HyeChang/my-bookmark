@@ -150,11 +150,6 @@ type BookmarkResultsPanelProps = {
   handleToggleHiddenBookmarks: () => BookmarkListRowActionResult;
   renderBookmarkSortControl: () => ReactNode;
   renderBookmarkViewControl: () => ReactNode;
-  renderMobileVisibilityIconButton: (options: {
-    ariaLabel: string;
-    isActive: boolean;
-    onClick: () => void;
-  }) => ReactNode;
   renderSearchColorSelect: (
     label: string,
     selectedColor: string,
@@ -173,6 +168,29 @@ function renderColorSwatch(color: string, className = "color-swatch") {
       style={{ backgroundColor: color }}
       aria-hidden="true"
     />
+  );
+}
+
+function renderMobileVisibilityIconButton(options: {
+  ariaLabel: string;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`ghost-button mobile-visibility-icon-button${
+        options.isActive ? " mobile-visibility-icon-button-active" : ""
+      }`}
+      aria-label={options.ariaLabel}
+      aria-pressed={options.isActive}
+      title={options.ariaLabel}
+      onClick={options.onClick}
+    >
+      <span aria-hidden="true" className="mobile-visibility-icon-glyph">
+        {options.isActive ? "🔓" : "🔒"}
+      </span>
+    </button>
   );
 }
 
@@ -503,7 +521,6 @@ export default function BookmarkResultsPanel({
   handleToggleHiddenBookmarks,
   renderBookmarkSortControl,
   renderBookmarkViewControl,
-  renderMobileVisibilityIconButton,
   renderSearchColorSelect,
   setIsAdvancedBookmarkSearchOpen,
   setIsMobileSearchPanelOpen,

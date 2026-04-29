@@ -231,17 +231,26 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
-    const folderOverviewSource = dashboardSource.slice(
-      dashboardSource.indexOf("const folderOverviewSection = ("),
-      dashboardSource.indexOf("function renderLazyRecommendationPanel(")
+    const folderOverviewSource = readFileSync(
+      join(process.cwd(), "src", "components", "FolderOverviewPanel.tsx"),
+      "utf8"
     );
 
-    expect(dashboardSource).toContain("type FolderOverviewNodeViewModel =");
-    expect(dashboardSource).toContain("type FolderOverviewNodeActions =");
-    expect(dashboardSource).toContain("const MemoizedFolderOverviewNode = memo(FolderOverviewNode);");
+    expect(dashboardSource).toContain('import("./FolderOverviewPanel")');
+    expect(dashboardSource).not.toContain("function FolderOverviewNode(");
+    expect(dashboardSource).not.toContain("const MemoizedFolderOverviewNode = memo(FolderOverviewNode);");
+    expect(dashboardSource).not.toContain("function renderFolderOverviewSystemItem");
+    expect(dashboardSource).not.toContain("const folderOverviewSection = (");
+    expect(dashboardSource).not.toContain("function renderMobileSidebarTabButton");
+    expect(dashboardSource).not.toContain("function renderMobileVisibilityIconButton");
+    expect(folderOverviewSource).toContain("export type FolderOverviewNodeViewModel =");
+    expect(folderOverviewSource).toContain("export type FolderOverviewNodeActions =");
+    expect(folderOverviewSource).toContain("const MemoizedFolderOverviewNode = memo(FolderOverviewNode);");
+    expect(folderOverviewSource).toContain("function renderFolderOverviewSystemItem");
+    expect(folderOverviewSource).toContain("export function MobileSidebarTabs");
     expect(dashboardSource).toContain("const expandedFolderOverviewIdSet = useMemo(");
     expect(dashboardSource).toContain("const folderOverviewNodes = useMemo<FolderOverviewNodeViewModel[]>(");
-    expect(dashboardSource).toContain("<MemoizedFolderOverviewNode");
+    expect(folderOverviewSource).toContain("<MemoizedFolderOverviewNode");
     expect(dashboardSource).not.toContain("function renderFolderOverviewNodes(");
     expect(folderOverviewSource).not.toContain("{renderFolderOverviewNodes(null)}");
   });
