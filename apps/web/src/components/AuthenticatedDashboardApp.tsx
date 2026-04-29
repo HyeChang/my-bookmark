@@ -227,6 +227,30 @@ type BookmarkListRowProps = {
   actions: BookmarkListRowActions;
 };
 
+type HomeFavoriteCardViewModel = {
+  bookmark: Bookmark;
+  coverAsset: BookmarkAsset | null;
+  folderName: string;
+  previewText: string;
+  visibleTagItems: BookmarkListRowTagItem[];
+  menuId: string;
+};
+
+type HomeFavoriteCardCacheEntry = {
+  card: HomeFavoriteCardViewModel;
+  bookmark: Bookmark;
+  assets: BookmarkAsset[];
+  folderName: string;
+  previewText: string;
+  tagSignature: string;
+};
+
+type HomeFavoriteCardProps = {
+  card: HomeFavoriteCardViewModel;
+  isActionMenuOpen: boolean;
+  actions: BookmarkListRowActions;
+};
+
 const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
 const USERSCRIPT_DOWNLOAD_PATH = "/downloads/bookmark-saver.user.js?v=0.1.11";
 const BOOKMARK_VIEW_SETTINGS_STORAGE_KEY = "bookmark-view-settings:v2";
@@ -2093,6 +2117,135 @@ function BookmarkListRow({
 }
 
 const MemoizedBookmarkListRow = memo(BookmarkListRow);
+
+function HomeFavoriteCard({
+  card,
+  isActionMenuOpen,
+  actions
+}: HomeFavoriteCardProps) {
+  const {
+    bookmark,
+    coverAsset,
+    folderName,
+    previewText,
+    visibleTagItems,
+    menuId
+  } = card;
+  const cardTitle = bookmark.displayTitle || bookmark.url;
+
+  return (
+    <li
+      className="bookmark-card home-favorite-card"
+      style={
+        bookmark.bookmarkColor
+          ? {
+              borderLeftColor: bookmark.bookmarkColor,
+              borderLeftWidth: "3px"
+            }
+          : undefined
+      }
+    >
+      {coverAsset ? (
+        <div className="asset-grid home-favorite-cover">
+          <img src={coverAsset.contentUrl} alt="업로드 이미지 1" />
+        </div>
+      ) : null}
+      <div className="home-favorite-main">
+        <div className="bookmark-title-line">
+          <strong>{cardTitle}</strong>
+          {renderHiddenBookmarkIndicator(bookmark.isHidden === true)}
+        </div>
+        <p
+          className="muted-text home-favorite-url"
+          title={bookmark.url}
+          style={bookmark.urlColor ? { color: bookmark.urlColor } : undefined}
+        >
+          {bookmark.url}
+        </p>
+        {hasTextContent(previewText) ? (
+          <p className="bookmark-row-summary home-favorite-summary">
+            {previewText}
+          </p>
+        ) : null}
+        <div className="bookmark-row-meta-line home-favorite-meta">
+          <span className="bookmark-row-meta-item">{folderName}</span>
+          {visibleTagItems.map((tag) => (
+            <span key={`home-${bookmark.id}-${tag.id}`} className="bookmark-row-meta-item">
+              {tag.name}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="action-row bookmark-card-actions bookmark-row-actions home-favorite-actions">
+        <button
+          type="button"
+          className="primary-button bookmark-row-primary-action"
+          aria-label={`${cardTitle} 열기`}
+          onClick={() => void actions.onOpen(bookmark)}
+        >
+          열기
+        </button>
+        <div className="bookmark-card-secondary-actions">
+          <button
+            type="button"
+            className="secondary-button bookmark-row-detail-action"
+            aria-label={`${cardTitle} 상세 보기`}
+            onClick={() => void actions.onOpenDetailDialog(bookmark)}
+          >
+            상세
+          </button>
+          <button
+            type="button"
+            className="ghost-button folder-action-trigger bookmark-url-copy-button"
+            aria-label={`${cardTitle} URL 복사`}
+            title="URL 복사"
+            onClick={() => void actions.onCopyUrl(bookmark)}
+          >
+            <span className="bookmark-url-copy-icon" aria-hidden="true" />
+          </button>
+          <div
+            className="folder-action-menu-shell bookmark-card-menu-shell"
+            data-open-menu-shell={isActionMenuOpen ? "true" : undefined}
+          >
+            <button
+              type="button"
+              className="ghost-button folder-action-trigger overflow-trigger"
+              aria-label={`${cardTitle} 북마크 더보기`}
+              aria-expanded={isActionMenuOpen}
+              onClick={() => actions.onToggleActionMenu(menuId)}
+            >
+              ...
+            </button>
+            {isActionMenuOpen ? (
+              <div
+                role="menu"
+                aria-label={`${cardTitle} 북마크 메뉴`}
+                className="folder-action-menu bookmark-card-action-menu"
+              >
+                <button
+                  type="button"
+                  className="secondary-button folder-action-menu-item bookmark-card-action-menu-item"
+                  onClick={() => void actions.onEdit(bookmark)}
+                >
+                  수정
+                </button>
+                <button
+                  type="button"
+                  className="danger-button folder-action-menu-item bookmark-card-action-menu-item"
+                  onClick={() => void actions.onDelete(bookmark)}
+                >
+                  삭제
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+const MemoizedHomeFavoriteCard = memo(HomeFavoriteCard);
 
 export default function AuthenticatedDashboardApp() {
   const [sessionState, setSessionState] = useState<SessionState>({
@@ -5808,6 +5961,75 @@ export default function AuthenticatedDashboardApp() {
       ),
     [hiddenFolderIds, rawHomeFavoriteBookmarks, showHiddenBookmarks, showHiddenFolders]
   );
+  const homeFavoriteCardCacheRef = useRef(new Map<string, HomeFavoriteCardCacheEntry>());
+  const homeFavoriteCards = useMemo<HomeFavoriteCardViewModel[]>(
+    () => {
+      const previousHomeFavoriteCardCache = homeFavoriteCardCacheRef.current;
+      const nextHomeFavoriteCardCache = new Map<string, HomeFavoriteCardCacheEntry>();
+      const cards = visibleHomeFavoriteBookmarks.map((bookmark) => {
+        const assets = bookmarkAssetsByBookmarkId[bookmark.id] ?? EMPTY_BOOKMARK_ASSETS;
+        const visibleTagItems = bookmark.tagIds.slice(0, 2).map((tagId) => {
+          const tag = tagsById.get(tagId);
+          return {
+            id: tagId,
+            name: tag?.name ?? tagId,
+            color: tag?.color ?? null
+          };
+        });
+        const tagSignature = visibleTagItems
+          .map((tag) => `${tag.id}\u001f${tag.name}\u001f${tag.color ?? ""}`)
+          .join("\u001e");
+        const folderName =
+          !bookmark.folderId || extensionFolderIds.has(bookmark.folderId)
+            ? "미분류"
+            : foldersById.get(bookmark.folderId)?.name ?? bookmark.folderId;
+        const previewText = getBookmarkPreviewText(bookmark);
+        const previousCardEntry = previousHomeFavoriteCardCache.get(bookmark.id);
+
+        if (
+          previousCardEntry &&
+          previousCardEntry.bookmark === bookmark &&
+          previousCardEntry.assets === assets &&
+          previousCardEntry.folderName === folderName &&
+          previousCardEntry.previewText === previewText &&
+          previousCardEntry.tagSignature === tagSignature
+        ) {
+          nextHomeFavoriteCardCache.set(bookmark.id, previousCardEntry);
+          return previousCardEntry.card;
+        }
+
+        const card = {
+          bookmark,
+          coverAsset: assets[0] ?? null,
+          folderName,
+          previewText,
+          visibleTagItems,
+          menuId: `home:${bookmark.id}`
+        };
+        const nextCardEntry = {
+          card,
+          bookmark,
+          assets,
+          folderName,
+          previewText,
+          tagSignature
+        };
+
+        nextHomeFavoriteCardCache.set(bookmark.id, nextCardEntry);
+        return card;
+      });
+
+      homeFavoriteCardCacheRef.current = nextHomeFavoriteCardCache;
+      return cards;
+    },
+    [
+      bookmarkAssetsByBookmarkId,
+      extensionFolderIds,
+      foldersById,
+      tagsById,
+      visibleHomeFavoriteBookmarks
+    ]
+  );
   const selectedBookmarkTagIdSet = useMemo(
     () => new Set(bookmarkDraft.tagIds),
     [bookmarkDraft.tagIds]
@@ -7876,131 +8098,19 @@ export default function AuthenticatedDashboardApp() {
           <span>홈을 불러오는 중입니다.</span>
         </div>
       ) : null}
-      {!isLoadingDashboard && visibleHomeFavoriteBookmarks.length === 0 ? (
+      {!isLoadingDashboard && homeFavoriteCards.length === 0 ? (
         <p className="quiet-empty-state home-page-empty-state">즐겨찾기가 없습니다.</p>
       ) : null}
-      {!isLoadingDashboard && visibleHomeFavoriteBookmarks.length > 0 ? (
+      {!isLoadingDashboard && homeFavoriteCards.length > 0 ? (
         <ul className="home-favorite-grid">
-          {visibleHomeFavoriteBookmarks.map((bookmark) => {
-            const bookmarkAssets = bookmarkAssetsByBookmarkId[bookmark.id] ?? [];
-            const bookmarkCoverAsset = bookmarkAssets[0] ?? null;
-            const bookmarkTagItems = getTagDisplayItems(bookmark.tagIds).slice(0, 2);
-            const bookmarkMenuId = `home:${bookmark.id}`;
-
-            return (
-              <li
-                key={`home-${bookmark.id}`}
-                className="bookmark-card home-favorite-card"
-                style={
-                  bookmark.bookmarkColor
-                    ? {
-                        borderLeftColor: bookmark.bookmarkColor,
-                        borderLeftWidth: "3px"
-                      }
-                    : undefined
-                }
-              >
-                {bookmarkCoverAsset ? (
-                  <div className="asset-grid home-favorite-cover">
-                    <img src={bookmarkCoverAsset.contentUrl} alt="업로드 이미지 1" />
-                  </div>
-                ) : null}
-                <div className="home-favorite-main">
-                  <div className="bookmark-title-line">
-                    <strong>{bookmark.displayTitle || bookmark.url}</strong>
-                    {renderHiddenBookmarkIndicator(bookmark.isHidden === true)}
-                  </div>
-                  <p
-                    className="muted-text home-favorite-url"
-                    title={bookmark.url}
-                    style={bookmark.urlColor ? { color: bookmark.urlColor } : undefined}
-                  >
-                    {bookmark.url}
-                  </p>
-                  {hasTextContent(getBookmarkPreviewText(bookmark)) ? (
-                    <p className="bookmark-row-summary home-favorite-summary">
-                      {getBookmarkPreviewText(bookmark)}
-                    </p>
-                  ) : null}
-                  <div className="bookmark-row-meta-line home-favorite-meta">
-                    <span className="bookmark-row-meta-item">{getFolderName(bookmark.folderId)}</span>
-                    {bookmarkTagItems.map((tag) => (
-                      <span key={`home-${bookmark.id}-${tag.id}`} className="bookmark-row-meta-item">
-                        {tag.name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className="action-row bookmark-card-actions bookmark-row-actions home-favorite-actions">
-                  <button
-                    type="button"
-                    className="primary-button bookmark-row-primary-action"
-                    aria-label={`${bookmark.displayTitle || bookmark.url} 열기`}
-                    onClick={() => void handleBookmarkOpen(bookmark)}
-                  >
-                    열기
-                  </button>
-                  <div className="bookmark-card-secondary-actions">
-                    <button
-                      type="button"
-                      className="secondary-button bookmark-row-detail-action"
-                      aria-label={`${bookmark.displayTitle || bookmark.url} 상세 보기`}
-                      onClick={() => void openBookmarkDetail(bookmark.id, bookmark, "dialog")}
-                    >
-                      상세
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost-button folder-action-trigger bookmark-url-copy-button"
-                      aria-label={`${bookmark.displayTitle || bookmark.url} URL 복사`}
-                      title="URL 복사"
-                      onClick={() => void handleBookmarkUrlCopy(bookmark)}
-                    >
-                      <span className="bookmark-url-copy-icon" aria-hidden="true" />
-                    </button>
-                    <div
-                      className="folder-action-menu-shell bookmark-card-menu-shell"
-                      data-open-menu-shell={
-                        openBookmarkActionMenuId === bookmarkMenuId ? "true" : undefined
-                      }
-                    >
-                      <button
-                        type="button"
-                        className="ghost-button folder-action-trigger overflow-trigger"
-                        aria-label={`${bookmark.displayTitle || bookmark.url} 북마크 더보기`}
-                        aria-expanded={openBookmarkActionMenuId === bookmarkMenuId}
-                        onClick={() => toggleBookmarkActionMenu(bookmarkMenuId)}
-                      >
-                        ...
-                      </button>
-                      {openBookmarkActionMenuId === bookmarkMenuId ? (
-                        <div
-                          role="menu"
-                          aria-label={`${bookmark.displayTitle || bookmark.url} 북마크 메뉴`}
-                          className="folder-action-menu bookmark-card-action-menu"
-                        >
-                          <button
-                            type="button"
-                            className="secondary-button folder-action-menu-item bookmark-card-action-menu-item"
-                            onClick={() => beginBookmarkEdit(bookmark)}
-                          >
-                            수정
-                          </button>
-                          <button
-                            type="button"
-                            className="danger-button folder-action-menu-item bookmark-card-action-menu-item"
-                            onClick={() => void handleBookmarkDelete(bookmark)}
-                          >
-                            삭제
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </li>
-            );
-          })}
+          {homeFavoriteCards.map((card) => (
+            <MemoizedHomeFavoriteCard
+              key={card.menuId}
+              card={card}
+              isActionMenuOpen={openBookmarkActionMenuId === card.menuId}
+              actions={bookmarkListRowActions}
+            />
+          ))}
         </ul>
       ) : null}
       {isHomeRecommendationOpen

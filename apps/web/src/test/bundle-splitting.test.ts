@@ -117,4 +117,22 @@ describe("bundle splitting", () => {
     expect(dashboardSource).toContain("return previousRowEntry.row;");
     expect(dashboardSource).not.toContain("const assets = bookmarkAssetsByBookmarkId[bookmark.id] ?? [];");
   });
+
+  it("renders home favorite cards through memoized card view models", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const homeSectionSource = dashboardSource.slice(
+      dashboardSource.indexOf("const homeSection = ("),
+      dashboardSource.indexOf("const homeSection = (") + 9000
+    );
+
+    expect(dashboardSource).toContain("type HomeFavoriteCardViewModel =");
+    expect(dashboardSource).toContain("const MemoizedHomeFavoriteCard = memo(HomeFavoriteCard);");
+    expect(dashboardSource).toContain("const homeFavoriteCards = useMemo<HomeFavoriteCardViewModel[]>(");
+    expect(dashboardSource).toContain("<MemoizedHomeFavoriteCard");
+    expect(homeSectionSource).not.toContain("visibleHomeFavoriteBookmarks.map((bookmark) => {");
+    expect(homeSectionSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
+  });
 });
