@@ -10,6 +10,7 @@ import {
 import type { Folder } from "@bookmark/shared";
 
 import { colorPresets, folderIconPresets } from "../lib/folder-presets";
+import "./FolderManagerDialog.css";
 
 export type FolderManagerDraft = {
   name: string;
