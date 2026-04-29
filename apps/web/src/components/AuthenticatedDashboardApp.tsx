@@ -2702,7 +2702,8 @@ export default function AuthenticatedDashboardApp() {
         ...collections,
         bookmarkCounts: null as BookmarkCounts | null,
         homeFavoriteBookmarks: null as Bookmark[] | null,
-        hasFullInventory: true
+        hasFullInventory: true,
+        usesFullInventoryFallback: false
       };
     }
 
@@ -2723,15 +2724,19 @@ export default function AuthenticatedDashboardApp() {
         inventoryBookmarks: [] as Bookmark[],
         bookmarkCounts: nextBookmarkCounts,
         homeFavoriteBookmarks: favoritePage.bookmarks,
-        hasFullInventory: false
+        hasFullInventory: false,
+        usesFullInventoryFallback: false
       };
     } catch {
+      setActiveDashboardView("bookmarks");
+      requestDesktopRecommendationsIfNeeded();
       const collections = await loadBookmarkCollections(normalizedSearch);
       return {
         ...collections,
         bookmarkCounts: null as BookmarkCounts | null,
         homeFavoriteBookmarks: null as Bookmark[] | null,
-        hasFullInventory: true
+        hasFullInventory: true,
+        usesFullInventoryFallback: true
       };
     }
   }
@@ -2759,7 +2764,8 @@ export default function AuthenticatedDashboardApp() {
           inventoryBookmarks: nextBookmarkInventory,
           bookmarkCounts: nextBookmarkCounts,
           homeFavoriteBookmarks: nextHomeFavoriteBookmarks,
-          hasFullInventory
+          hasFullInventory,
+          usesFullInventoryFallback
         },
         nextFolders,
         nextTags
@@ -2775,6 +2781,9 @@ export default function AuthenticatedDashboardApp() {
         setHasLoadedFullBookmarkInventory(hasFullInventory);
         setBookmarkCounts(nextBookmarkCounts);
         setHomeFavoriteBookmarks(nextHomeFavoriteBookmarks);
+        if (usesFullInventoryFallback) {
+          setActiveDashboardView("bookmarks");
+        }
         setSelectedBookmark((currentSelectedBookmark) => {
           if (!currentSelectedBookmark) {
             return null;
@@ -5829,6 +5838,8 @@ export default function AuthenticatedDashboardApp() {
     shouldUseMobileSidebarPanels && mobileSidebarPanel === "bookmark";
   const shouldRenderMobileRecommendationTab =
     shouldUseMobileSidebarPanels && mobileSidebarPanel === "recommendation";
+  const shouldRenderBookmarkResultsPanel =
+    !isHomeDashboardView && (!shouldUseMobileSidebarPanels || shouldRenderMobileBookmarkTab);
   const shouldRenderBookmarkComposerOverlay = isBookmarkComposerOpen;
   const shouldRenderFolderManagerOverlay = isFolderManagerOpen;
   const shouldRenderTagManagerOverlay = isTagManagerOpen;
@@ -8430,9 +8441,7 @@ export default function AuthenticatedDashboardApp() {
             {isHomeDashboardView ? homeSection : null}
             {shouldRenderMobileFolderTab ? folderOverviewSection : null}
             {shouldRenderMobileRecommendationTab ? recommendationSection : null}
-            {(!shouldUseMobileSidebarPanels || shouldRenderMobileBookmarkTab)
-              ? renderLazyBookmarkResultsPanel({ isHidden: isHomeDashboardView })
-              : null}
+            {shouldRenderBookmarkResultsPanel ? renderLazyBookmarkResultsPanel() : null}
             {shouldShowDesktopRecommendationBoard ? recommendationSection : null}
           </div>
           {shouldShowDesktopReadingRail ? (

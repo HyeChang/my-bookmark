@@ -248,7 +248,72 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
+      if (url === "/api/bookmarks/counts" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            counts: {
+              active: { total: 2, visible: 2 },
+              favorite: { total: 1, visible: 1 },
+              trashed: { total: 0, visible: 0 },
+              unfiled: { total: 2, visible: 2 },
+              byFolderId: {}
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks?favorite=1&limit=20&offset=0" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-favorite-home",
+                folderId: null,
+                url: "https://example.com/favorite",
+                isFavorite: true,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Favorite home",
+                userContent: "Pinned content",
+                userSummary: "Pinned summary",
+                displayTitle: "Favorite home",
+                displayContent: "Pinned content",
+                displaySummary: "Pinned summary",
+                tagIds: [],
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ],
+            pagination: {
+              limit: 20,
+              offset: 0,
+              total: 1,
+              hasMore: false
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (
+        (url === "/api/bookmarks" ||
+          url === "/api/bookmarks?limit=20&offset=0") &&
+        !init?.method
+      ) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -348,12 +413,8 @@ describe("bookmark dashboard", () => {
     expect(within(homePage).getByRole("heading", { name: /^홈$/i })).toBeInTheDocument();
     expect(within(homePage).getByText(/^Favorite home$/i)).toBeInTheDocument();
     expect(within(homePage).queryByText(/^Normal home$/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: /bookmark-results/i })).toHaveClass(
-      "dashboard-panel-visually-hidden"
-    );
-    expect(screen.getByRole("region", { name: /bookmark-list/i })).toHaveClass(
-      "dashboard-panel-visually-hidden"
-    );
+    expect(screen.queryByRole("region", { name: /bookmark-results/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /bookmark-list/i })).not.toBeInTheDocument();
 
     const folderOverview = screen.getByRole("region", { name: /folder-overview/i });
     fireEvent.click(within(folderOverview).getByRole("button", { name: /모든 북마크 보기/i }));
@@ -566,7 +627,12 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
+      if (
+        (url === "/api/bookmarks" ||
+          url === "/api/bookmarks?limit=20&offset=0" ||
+          url === "/api/bookmarks?favorite=1&limit=20&offset=0") &&
+        !init?.method
+      ) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -591,6 +657,26 @@ describe("bookmark dashboard", () => {
                 updatedAt: "2026-04-13T08:00:00.000Z"
               }
             ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/counts" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            counts: {
+              active: { total: 1, visible: 1 },
+              favorite: { total: 1, visible: 1 },
+              trashed: { total: 0, visible: 0 },
+              unfiled: { total: 1, visible: 1 },
+              byFolderId: {}
+            }
           }),
           {
             status: 200,
@@ -720,7 +806,11 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if (
+        (url === "/api/bookmarks" ||
+          url === "/api/bookmarks?favorite=1&limit=20&offset=0") &&
+        !init?.method
+      ) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -745,6 +835,26 @@ describe("bookmark dashboard", () => {
                 updatedAt: "2026-04-13T08:00:00.000Z"
               }
             ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/counts" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            counts: {
+              active: { total: 1, visible: 1 },
+              favorite: { total: 1, visible: 1 },
+              trashed: { total: 0, visible: 0 },
+              unfiled: { total: 1, visible: 1 },
+              byFolderId: {}
+            }
           }),
           {
             status: 200,
@@ -7214,11 +7324,6 @@ describe("bookmark dashboard", () => {
     const recommendationList = within(mainPanel).getByRole("region", {
       name: /recommendation-list/i
     });
-    const homePage = screen.getByRole("region", { name: /home-page/i });
-    fireEvent.click(within(homePage).getByRole("button", { name: /^추천 보기$/i }));
-    await waitFor(() => {
-      expect(recommendationList).toHaveAttribute("aria-busy", "true");
-    });
     await waitFor(() => {
       expect(recommendationList).toHaveAttribute("aria-busy", "false");
     });
@@ -7241,11 +7346,13 @@ describe("bookmark dashboard", () => {
     fireEvent.click(within(folderOverview).getByRole("button", { name: /숨김 폴더 보기/i }));
 
     await waitFor(() => {
-    expect(within(folderOverview).getByRole("button", { name: /숨김 폴더 숨기기/i })).toBeInTheDocument();
+      expect(within(folderOverview).getByRole("button", { name: /숨김 폴더 숨기기/i })).toBeInTheDocument();
     });
     expect(within(folderOverview).getByRole("button", { name: /Private 폴더 보기/i })).toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^Secret bookmark$/i)).toBeInTheDocument();
-    expect(within(recommendationList).getByText(/^Secret bookmark$/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(recommendationList).getByText(/^Secret bookmark$/i)).toBeInTheDocument();
+    });
   });
 
   it("hides hidden bookmarks until the bookmark hidden toggle is enabled", async () => {
@@ -7420,11 +7527,6 @@ describe("bookmark dashboard", () => {
     const recommendationList = within(mainPanel).getByRole("region", {
       name: /recommendation-list/i
     });
-    const homePage = screen.getByRole("region", { name: /home-page/i });
-    fireEvent.click(within(homePage).getByRole("button", { name: /^추천 보기$/i }));
-    await waitFor(() => {
-      expect(recommendationList).toHaveAttribute("aria-busy", "true");
-    });
     await waitFor(() => {
       expect(recommendationList).toHaveAttribute("aria-busy", "false");
     });
@@ -7460,7 +7562,9 @@ describe("bookmark dashboard", () => {
     ).toHaveTextContent(/^🔓$/);
     expect(within(bookmarkListRegion).queryByText(/^숨김 북마크 숨기기$/i)).not.toBeInTheDocument();
     expect(within(bookmarkListRegion).getByText(/^Secret bookmark$/i)).toBeInTheDocument();
-    expect(within(recommendationList).getByText(/^Secret bookmark$/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(recommendationList).getByText(/^Secret bookmark$/i)).toBeInTheDocument();
+    });
     const secretBookmarkRow = within(bookmarkListRegion)
       .getByText(/^Secret bookmark$/i)
       .closest(".bookmark-list-row");
@@ -10880,14 +10984,8 @@ describe("bookmark dashboard", () => {
 
     render(<App />);
 
-    const homePage = await screen.findByRole("region", { name: /home-page/i });
-    fireEvent.click(
-      within(homePage).getByRole("button", {
-        name: /^추천 보기$/i
-      })
-    );
-    const recommendationRegion = await within(homePage).findByRole("region", {
-      name: /home-recommendation-list/i
+    const recommendationRegion = await screen.findByRole("region", {
+      name: /recommendation-list/i
     });
     expect(
       await within(recommendationRegion).findByText(/^Favorite recommendation$/i)
