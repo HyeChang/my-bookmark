@@ -1359,6 +1359,39 @@ function reorderSiblingFolders(
   return remainingFolders;
 }
 
+type FolderReorderPosition = "top" | "up" | "down" | "bottom";
+
+function moveFolderToSiblingPosition(
+  siblingFolders: Folder[],
+  folderId: string,
+  position: FolderReorderPosition
+) {
+  const currentIndex = siblingFolders.findIndex((folder) => folder.id === folderId);
+
+  if (currentIndex === -1) {
+    return siblingFolders;
+  }
+
+  const lastIndex = siblingFolders.length - 1;
+  const targetIndex =
+    position === "top"
+      ? 0
+      : position === "up"
+        ? Math.max(0, currentIndex - 1)
+        : position === "down"
+          ? Math.min(lastIndex, currentIndex + 1)
+          : lastIndex;
+
+  if (targetIndex === currentIndex) {
+    return siblingFolders;
+  }
+
+  const nextFolders = [...siblingFolders];
+  const [folder] = nextFolders.splice(currentIndex, 1);
+  nextFolders.splice(targetIndex, 0, folder);
+  return nextFolders;
+}
+
 function renderColorPicker(
   legend: string,
   selectedColor: string,
@@ -3699,6 +3732,46 @@ export default function AuthenticatedDashboardApp({
     }
   }
 
+  async function handleFolderReorderToPosition(
+    folder: Folder,
+    position: FolderReorderPosition
+  ) {
+    const siblingFolders = getSiblingFolders(folders, folder.parentFolderId);
+    const reorderedSiblingFolders = moveFolderToSiblingPosition(
+      siblingFolders,
+      folder.id,
+      position
+    );
+
+    if (
+      reorderedSiblingFolders.map((currentFolder) => currentFolder.id).join(",") ===
+      siblingFolders.map((currentFolder) => currentFolder.id).join(",")
+    ) {
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      setIsReorderingFolders(true);
+      const nextFolders = await reorderFolders({
+        parentFolderId: folder.parentFolderId,
+        folderIds: reorderedSiblingFolders.map((currentFolder) => currentFolder.id)
+      });
+
+      startTransition(() => {
+        setFolders(nextFolders);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "폴더 순서를 저장하지 못했습니다."
+        );
+      });
+    } finally {
+      setIsReorderingFolders(false);
+    }
+  }
+
   async function handleFolderMoveDrop(targetFolder: Folder) {
     if (!draggingFolderId || draggingFolderId === targetFolder.id) {
       resetDraggingFolder();
@@ -3740,6 +3813,49 @@ export default function AuthenticatedDashboardApp({
       });
     } finally {
       resetDraggingFolder();
+      setIsReorderingFolders(false);
+    }
+  }
+
+  async function handleFolderMoveToParent(folder: Folder, parentFolderId: string | null) {
+    if (folder.parentFolderId === parentFolderId) {
+      return;
+    }
+
+    const descendantFolderIds = getFolderDescendantIds(folders, folder.id);
+    if (parentFolderId && (parentFolderId === folder.id || descendantFolderIds.has(parentFolderId))) {
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      setIsReorderingFolders(true);
+      const nextFolders = await moveFolder(folder.id, {
+        parentFolderId
+      });
+
+      startTransition(() => {
+        setFolders(nextFolders);
+        if (parentFolderId) {
+          const expandedParentIds = [
+            parentFolderId,
+            ...getFolderAncestorIds(folders, parentFolderId)
+          ];
+          setExpandedFolderManagerIds((currentIds) =>
+            Array.from(new Set([...currentIds, ...expandedParentIds]))
+          );
+          setExpandedFolderOverviewIds((currentIds) =>
+            Array.from(new Set([...currentIds, ...expandedParentIds]))
+          );
+        }
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "폴더 부모를 변경하지 못했습니다."
+        );
+      });
+    } finally {
       setIsReorderingFolders(false);
     }
   }
@@ -7661,7 +7777,9 @@ export default function AuthenticatedDashboardApp({
                 onBeginChildFolderCreate={beginChildFolderCreate}
                 onFolderDelete={handleFolderDelete}
                 onFolderReorderDrop={handleFolderReorderDrop}
+                onFolderReorderToPosition={handleFolderReorderToPosition}
                 onFolderMoveDrop={handleFolderMoveDrop}
+                onFolderMoveToParent={handleFolderMoveToParent}
                 onFolderMoveToRootDrop={handleFolderMoveToRootDrop}
                 onToggleFolderExpansion={toggleFolderManagerExpansion}
                 onToggleFolderActionMenu={toggleFolderActionMenu}

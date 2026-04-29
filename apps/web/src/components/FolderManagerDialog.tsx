@@ -21,6 +21,8 @@ export type FolderManagerDraft = {
   parentFolderId: string;
 };
 
+export type FolderReorderPosition = "top" | "up" | "down" | "bottom";
+
 export type FolderManagerDialogProps = {
   isEditing: boolean;
   draft: FolderManagerDraft;
@@ -43,7 +45,12 @@ export type FolderManagerDialogProps = {
   onBeginChildFolderCreate: (folder: Folder) => void;
   onFolderDelete: (folder: Folder) => void | Promise<void>;
   onFolderReorderDrop: (folder: Folder) => void | Promise<void>;
+  onFolderReorderToPosition: (
+    folder: Folder,
+    position: FolderReorderPosition
+  ) => void | Promise<void>;
   onFolderMoveDrop: (folder: Folder) => void | Promise<void>;
+  onFolderMoveToParent: (folder: Folder, parentFolderId: string | null) => void | Promise<void>;
   onFolderMoveToRootDrop: () => void | Promise<void>;
   onToggleFolderExpansion: (folderId: string) => void;
   onToggleFolderActionMenu: (folderId: string) => void;
@@ -344,6 +351,16 @@ function getFoldersByParentId(folders: Folder[]) {
   return foldersByParentId;
 }
 
+function getSiblingFolders(folders: Folder[], parentFolderId: string | null) {
+  return folders
+    .filter((folder) => folder.parentFolderId === parentFolderId)
+    .sort(
+      (leftFolder, rightFolder) =>
+        leftFolder.sortOrder - rightFolder.sortOrder ||
+        leftFolder.name.localeCompare(rightFolder.name)
+    );
+}
+
 function getFolderDescendantIds(folders: Folder[], rootFolderId: string) {
   const descendants = new Set<string>();
   const pendingFolderIds = [rootFolderId];
@@ -365,6 +382,30 @@ function getFolderDescendantIds(folders: Folder[], rootFolderId: string) {
   }
 
   return descendants;
+}
+
+function getFolderMoveParentOptions(folders: Folder[], folderToMove: Folder) {
+  const excludedFolderIds = new Set([
+    folderToMove.id,
+    ...getFolderDescendantIds(folders, folderToMove.id)
+  ]);
+  const foldersByParentId = getFoldersByParentId(
+    folders.filter((folder) => !excludedFolderIds.has(folder.id))
+  );
+  const options: Array<{ folder: Folder; label: string }> = [];
+
+  function visit(parentFolderId: string | null, depth: number) {
+    for (const folder of foldersByParentId.get(parentFolderId) ?? []) {
+      options.push({
+        folder,
+        label: `${"-- ".repeat(depth)}${folder.name}`
+      });
+      visit(folder.id, depth + 1);
+    }
+  }
+
+  visit(null, 0);
+  return options;
 }
 
 function getFolderName(folders: Folder[], folderId: string | null) {
@@ -417,7 +458,9 @@ export default function FolderManagerDialog({
   onBeginChildFolderCreate,
   onFolderDelete,
   onFolderReorderDrop,
+  onFolderReorderToPosition,
   onFolderMoveDrop,
+  onFolderMoveToParent,
   onFolderMoveToRootDrop,
   onToggleFolderExpansion,
   onToggleFolderActionMenu,
@@ -425,6 +468,52 @@ export default function FolderManagerDialog({
   onFolderDragEnd
 }: FolderManagerDialogProps) {
   const folderChildrenByParentId = getFoldersByParentId(managerFolders);
+  const [openFolderSortMenuId, setOpenFolderSortMenuId] = useState<string | null>(null);
+  const [openFolderMoveMenuId, setOpenFolderMoveMenuId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!openFolderSortMenuId && !openFolderMoveMenuId) {
+      return undefined;
+    }
+
+    function handleDocumentPointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest('[data-folder-manager-open-menu="true"]')
+      ) {
+        return;
+      }
+
+      setOpenFolderSortMenuId(null);
+      setOpenFolderMoveMenuId(null);
+    }
+
+    globalThis.document.addEventListener("pointerdown", handleDocumentPointerDown);
+
+    return () => {
+      globalThis.document.removeEventListener("pointerdown", handleDocumentPointerDown);
+    };
+  }, [openFolderMoveMenuId, openFolderSortMenuId]);
+
+  function toggleFolderSortMenu(folderId: string) {
+    setOpenFolderMoveMenuId(null);
+    setOpenFolderSortMenuId((currentFolderId) =>
+      currentFolderId === folderId ? null : folderId
+    );
+  }
+
+  function toggleFolderMoveMenu(folderId: string) {
+    setOpenFolderSortMenuId(null);
+    setOpenFolderMoveMenuId((currentFolderId) =>
+      currentFolderId === folderId ? null : folderId
+    );
+  }
+
+  function closeInlineFolderMenus() {
+    setOpenFolderSortMenuId(null);
+    setOpenFolderMoveMenuId(null);
+  }
 
   function renderFolderManagerNodes(parentFolderId: string | null, depth = 0): ReactNode {
     return (folderChildrenByParentId.get(parentFolderId) ?? []).map((folder) => {
@@ -434,6 +523,16 @@ export default function FolderManagerDialog({
       const rowStyle = {
         "--folder-tree-depth": depth
       } as CSSProperties;
+      const siblingFolders = getSiblingFolders(managerFolders, folder.parentFolderId);
+      const siblingIndex = siblingFolders.findIndex((siblingFolder) => siblingFolder.id === folder.id);
+      const isFirstSibling = siblingIndex <= 0;
+      const isLastSibling = siblingIndex === -1 || siblingIndex >= siblingFolders.length - 1;
+      const isSortMenuOpen = openFolderSortMenuId === folder.id;
+      const isMoveMenuOpen = openFolderMoveMenuId === folder.id;
+      const moveParentOptions = getFolderMoveParentOptions(managerFolders, folder).filter(
+        ({ folder: parentFolder }) => parentFolder.id !== folder.parentFolderId
+      );
+      const canMoveToRoot = folder.parentFolderId !== null;
 
       return (
         <li
@@ -486,51 +585,172 @@ export default function FolderManagerDialog({
                 ) : null}
               </div>
               <div className="folder-tree-actions">
-                <button
-                  type="button"
-                  className="ghost-button folder-tree-handle"
-                  draggable
-                  disabled={isReordering}
-                  aria-label={`${folder.name} 폴더 드래그 정렬`}
-                  onDragStart={() => onFolderDragStart(folder.id)}
-                  onDragEnd={() => onFolderDragEnd()}
+                <div
+                  className="folder-action-menu-shell folder-tree-inline-menu-shell"
+                  data-open-menu-shell={isSortMenuOpen ? "true" : undefined}
+                  data-folder-manager-open-menu={isSortMenuOpen ? "true" : undefined}
                 >
-                  정렬
-                </button>
+                  <button
+                    type="button"
+                    className="ghost-button folder-tree-handle"
+                    draggable
+                    disabled={isReordering}
+                    aria-label={`${folder.name} 폴더 드래그 정렬`}
+                    aria-haspopup="menu"
+                    aria-expanded={isSortMenuOpen}
+                    onClick={() => toggleFolderSortMenu(folder.id)}
+                    onDragStart={() => {
+                      closeInlineFolderMenus();
+                      onFolderDragStart(folder.id);
+                    }}
+                    onDragEnd={() => onFolderDragEnd()}
+                  >
+                    정렬
+                  </button>
+                  {isSortMenuOpen ? (
+                    <div
+                      role="menu"
+                      aria-label={`${folder.name} 폴더 정렬 메뉴`}
+                      className="folder-action-menu folder-tree-inline-menu"
+                    >
+                      <button
+                        type="button"
+                        className="secondary-button folder-action-menu-item"
+                        aria-label={`${folder.name} 폴더 맨 위로 이동`}
+                        disabled={isFirstSibling || isReordering}
+                        onClick={() => {
+                          closeInlineFolderMenus();
+                          void onFolderReorderToPosition(folder, "top");
+                        }}
+                      >
+                        맨 위
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button folder-action-menu-item"
+                        aria-label={`${folder.name} 폴더 한 칸 위로 이동`}
+                        disabled={isFirstSibling || isReordering}
+                        onClick={() => {
+                          closeInlineFolderMenus();
+                          void onFolderReorderToPosition(folder, "up");
+                        }}
+                      >
+                        위로
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button folder-action-menu-item"
+                        aria-label={`${folder.name} 폴더 한 칸 아래로 이동`}
+                        disabled={isLastSibling || isReordering}
+                        onClick={() => {
+                          closeInlineFolderMenus();
+                          void onFolderReorderToPosition(folder, "down");
+                        }}
+                      >
+                        아래로
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button folder-action-menu-item"
+                        aria-label={`${folder.name} 폴더 맨 아래로 이동`}
+                        disabled={isLastSibling || isReordering}
+                        onClick={() => {
+                          closeInlineFolderMenus();
+                          void onFolderReorderToPosition(folder, "bottom");
+                        }}
+                      >
+                        맨 아래
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
                 <button
                   type="button"
                   className="secondary-button folder-tree-child-create"
                   aria-label={`${folder.name} 하위 폴더 추가`}
-                  onClick={() => onBeginChildFolderCreate(folder)}
+                  onClick={() => {
+                    closeInlineFolderMenus();
+                    onBeginChildFolderCreate(folder);
+                  }}
                 >
                   + 하위
                 </button>
-                <button
-                  type="button"
-                  className="ghost-button folder-tree-drop-action"
-                  disabled={isReordering}
-                  aria-label={`${folder.name} 폴더 하위로 이동`}
-                  onDragOver={(event) => {
-                    event.stopPropagation();
-                    if (!draggingFolderId || draggingFolderId === folder.id) {
-                      return;
-                    }
-
-                    const descendantFolderIds = getFolderDescendantIds(allFolders, draggingFolderId);
-                    if (descendantFolderIds.has(folder.id)) {
-                      return;
-                    }
-
-                    event.preventDefault();
-                  }}
-                  onDrop={(event) => {
-                    event.stopPropagation();
-                    event.preventDefault();
-                    void onFolderMoveDrop(folder);
-                  }}
+                <div
+                  className="folder-action-menu-shell folder-tree-inline-menu-shell"
+                  data-open-menu-shell={isMoveMenuOpen ? "true" : undefined}
+                  data-folder-manager-open-menu={isMoveMenuOpen ? "true" : undefined}
                 >
-                  이동
-                </button>
+                  <button
+                    type="button"
+                    className="ghost-button folder-tree-drop-action"
+                    disabled={isReordering}
+                    aria-label={`${folder.name} 폴더 이동`}
+                    aria-haspopup="menu"
+                    aria-expanded={isMoveMenuOpen}
+                    onClick={() => toggleFolderMoveMenu(folder.id)}
+                    onDragOver={(event) => {
+                      event.stopPropagation();
+                      if (!draggingFolderId || draggingFolderId === folder.id) {
+                        return;
+                      }
+
+                      const descendantFolderIds = getFolderDescendantIds(allFolders, draggingFolderId);
+                      if (descendantFolderIds.has(folder.id)) {
+                        return;
+                      }
+
+                      event.preventDefault();
+                    }}
+                    onDrop={(event) => {
+                      event.stopPropagation();
+                      event.preventDefault();
+                      closeInlineFolderMenus();
+                      void onFolderMoveDrop(folder);
+                    }}
+                  >
+                    이동
+                  </button>
+                  {isMoveMenuOpen ? (
+                    <div
+                      role="menu"
+                      aria-label={`${folder.name} 폴더 이동 메뉴`}
+                      className="folder-action-menu folder-tree-inline-menu folder-tree-move-menu"
+                    >
+                      {canMoveToRoot ? (
+                        <button
+                          type="button"
+                          className="secondary-button folder-action-menu-item"
+                          aria-label={`${folder.name} 폴더를 최상위로 이동`}
+                          disabled={isReordering}
+                          onClick={() => {
+                            closeInlineFolderMenus();
+                            void onFolderMoveToParent(folder, null);
+                          }}
+                        >
+                          최상위
+                        </button>
+                      ) : null}
+                      {moveParentOptions.map(({ folder: parentFolder, label }) => (
+                        <button
+                          key={parentFolder.id}
+                          type="button"
+                          className="secondary-button folder-action-menu-item"
+                          aria-label={`${folder.name} 폴더를 ${parentFolder.name} 아래로 이동`}
+                          disabled={isReordering}
+                          onClick={() => {
+                            closeInlineFolderMenus();
+                            void onFolderMoveToParent(folder, parentFolder.id);
+                          }}
+                        >
+                          {label} 아래
+                        </button>
+                      ))}
+                      {!canMoveToRoot && moveParentOptions.length === 0 ? (
+                        <p className="folder-action-menu-empty">이동할 위치 없음</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
                 <div
                   className="folder-action-menu-shell"
                   data-open-menu-shell={openFolderActionMenuId === folder.id ? "true" : undefined}
@@ -540,7 +760,10 @@ export default function FolderManagerDialog({
                     className="ghost-button folder-action-trigger overflow-trigger"
                     aria-label={`${folder.name} 폴더 더보기`}
                     aria-expanded={openFolderActionMenuId === folder.id}
-                    onClick={() => onToggleFolderActionMenu(folder.id)}
+                    onClick={() => {
+                      closeInlineFolderMenus();
+                      onToggleFolderActionMenu(folder.id);
+                    }}
                   >
                     ...
                   </button>

@@ -56,6 +56,10 @@
   flex-wrap: wrap;
 }
 
+.folder-tree-inline-menu-shell {
+  display: inline-flex;
+}
+
 .folder-tree-handle,
 .folder-tree-child-create,
 .folder-tree-drop-action {
@@ -100,6 +104,24 @@
 
 .folder-tree-drop-action {
   color: #4f5d74;
+}
+
+.folder-tree-inline-menu {
+  min-width: 8.7rem;
+  gap: 0.34rem;
+}
+
+.folder-tree-move-menu {
+  min-width: 12rem;
+  max-height: min(19rem, 62vh);
+  overflow: auto;
+}
+
+.folder-action-menu-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  text-align: center;
 }
 
 .folder-tree-meta {
