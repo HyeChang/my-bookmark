@@ -5905,8 +5905,6 @@ export default function AuthenticatedDashboardApp() {
   const shouldRenderBookmarkComposerOverlay = isBookmarkComposerOpen;
   const shouldRenderFolderManagerOverlay = isFolderManagerOpen;
   const shouldRenderTagManagerOverlay = isTagManagerOpen;
-  const shouldShowMobileSearchSummary = isMobileSearchViewport && hasActiveBookmarkSearch(appliedBookmarkSearch);
-  const shouldShowSearchPanelBody = !isMobileSearchViewport || isMobileSearchPanelOpen;
   const extensionFolderIds = useMemo(() => getExtensionFolderIds(folders), [folders]);
   const rawHiddenFolderIds = useMemo(() => getHiddenFolderIds(folders), [folders]);
   const hiddenFolderIds = useMemo(
@@ -5915,12 +5913,27 @@ export default function AuthenticatedDashboardApp() {
     ),
     [extensionFolderIds, rawHiddenFolderIds]
   );
-  const activeBookmarkSearchSummaryItems = getBookmarkSearchSummaryItems(
-    appliedBookmarkSearch,
-    {
-      getFolderName,
-      getTagNames
-    }
+  const hasActiveAppliedBookmarkSearch = useMemo(
+    () => hasActiveBookmarkSearch(appliedBookmarkSearch),
+    [appliedBookmarkSearch]
+  );
+  const shouldShowMobileSearchSummary =
+    isMobileSearchViewport && hasActiveAppliedBookmarkSearch;
+  const shouldShowSearchPanelBody = !isMobileSearchViewport || isMobileSearchPanelOpen;
+  const activeBookmarkSearchSummaryItems = useMemo(
+    () =>
+      getBookmarkSearchSummaryItems(appliedBookmarkSearch, {
+        getFolderName: (folderId) => {
+          if (!folderId || extensionFolderIds.has(folderId)) {
+            return "미분류";
+          }
+
+          return foldersById.get(folderId)?.name ?? folderId;
+        },
+        getTagNames: (tagIds) =>
+          tagIds.map((tagId) => tagsById.get(tagId)?.name ?? tagId)
+      }),
+    [appliedBookmarkSearch, extensionFolderIds, foldersById, tagsById]
   );
   const visibleFolders = useMemo(
     () =>
@@ -6164,7 +6177,7 @@ export default function AuthenticatedDashboardApp() {
     : visibleHomeFavoriteBookmarks.length;
   const activeFolderOverviewSpecialFilter =
     folderOverviewSpecialFilter ??
-    (!hasActiveBookmarkSearch(appliedBookmarkSearch) ? "all" : null);
+    (!hasActiveAppliedBookmarkSearch ? "all" : null);
   const isTrashBookmarkView = activeFolderOverviewSpecialFilter === "trash";
   const bookmarkListRowCacheRef = useRef(new Map<string, BookmarkListRowCacheEntry>());
   const bookmarkListRowActionsRef = useRef<BookmarkListRowActions | null>(null);
@@ -8854,7 +8867,7 @@ export default function AuthenticatedDashboardApp() {
                 ) : null}
               </form>
               ) : null}
-              {hasActiveBookmarkSearch(appliedBookmarkSearch) && shouldShowSearchPanelBody ? (
+              {hasActiveAppliedBookmarkSearch && shouldShowSearchPanelBody ? (
                 <div className="filter-summary-card">
                   <div className="filter-summary-header">
                     <p className="filter-summary-kicker">현재 작업 조건</p>

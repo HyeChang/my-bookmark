@@ -153,4 +153,27 @@ describe("bundle splitting", () => {
     expect(recommendationColumnSource).not.toContain("recommendationBookmarks.map((bookmark) => (");
     expect(recommendationColumnSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
   });
+
+  it("memoizes search panel derived values", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const derivedSearchSource = dashboardSource.slice(
+      dashboardSource.indexOf("const shouldShowAdvancedBookmarkSearch"),
+      dashboardSource.indexOf("const visibleFolders = useMemo(")
+    );
+    const searchPanelSource = dashboardSource.slice(
+      dashboardSource.indexOf('aria-label="search-panel"'),
+      dashboardSource.indexOf('aria-label="bookmark-list"')
+    );
+
+    expect(derivedSearchSource).toContain("const hasActiveAppliedBookmarkSearch = useMemo(");
+    expect(derivedSearchSource).toContain("const activeBookmarkSearchSummaryItems = useMemo(");
+    expect(derivedSearchSource).toContain("getBookmarkSearchSummaryItems(appliedBookmarkSearch");
+    expect(derivedSearchSource).toContain(
+      "[appliedBookmarkSearch, extensionFolderIds, foldersById, tagsById]"
+    );
+    expect(searchPanelSource).not.toContain("hasActiveBookmarkSearch(appliedBookmarkSearch)");
+  });
 });
