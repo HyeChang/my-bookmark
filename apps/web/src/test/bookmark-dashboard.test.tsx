@@ -211,10 +211,16 @@ describe("bookmark dashboard", () => {
     expect(
       screen.getByText(/^보이는 폴더가 없습니다\.$/i)
     ).toHaveClass("folder-overview-empty-state");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /모든 북마크 보기/i
+      })
+    );
+    const bookmarkListRegion = await screen.findByRole("region", {
+      name: /bookmark-list/i
+    });
     expect(
-      within(screen.getByRole("region", { name: /bookmark-list/i })).getByText(
-        /^보관한 북마크가 없습니다\.$/i
-      )
+      within(bookmarkListRegion).getByText(/^보관한 북마크가 없습니다\.$/i)
     ).toHaveClass("bookmark-list-empty-state");
   });
 

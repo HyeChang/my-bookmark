@@ -5,6 +5,7 @@ import type {
 } from "@bookmark/shared";
 import {
   getBookmarkPreviewArticleBlocks,
+  getBookmarkPreviewFieldRows,
   getBookmarkPreviewImageAlt,
   hasBookmarkPreviewCoverImage,
   renderBookmarkPreviewArticle,
@@ -42,7 +43,6 @@ export type BookmarkDetailPanelProps = {
   userRows: BookmarkDetailFieldRow[];
   sourceRows: BookmarkDetailFieldRow[];
   livePreview: BookmarkExtractPreview | null;
-  livePreviewRows: BookmarkDetailFieldRow[];
   previewError: string | null;
   previewNotice: string | null;
   isActionMenuOpen: boolean;
@@ -87,7 +87,6 @@ export default function BookmarkDetailPanel({
   userRows,
   sourceRows,
   livePreview,
-  livePreviewRows,
   previewError,
   previewNotice,
   isActionMenuOpen,
@@ -112,6 +111,7 @@ export default function BookmarkDetailPanel({
     ? "미리보기 전체화면 종료"
     : "미리보기 전체화면";
   const livePreviewBlocks = getBookmarkPreviewArticleBlocks(livePreview);
+  const livePreviewRows = getBookmarkPreviewFieldRows(livePreview);
   const title = bookmark.displayTitle || bookmark.url;
   const renderBookmarkPreviewFullscreenButton = (extraClassName = "") => (
     <button

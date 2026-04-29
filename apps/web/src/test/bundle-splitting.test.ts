@@ -79,6 +79,27 @@ describe("bundle splitting", () => {
     }
   });
 
+  it("keeps detail preview rendering inside the lazy detail panel chunk", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const detailPanelSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkDetailPanel.tsx"),
+      "utf8"
+    );
+
+    expect(dashboardSource).toContain('lazy(() => import("./BookmarkDetailPanel"))');
+    expect(dashboardSource).not.toContain("function renderVisibleSelectedBookmarkDetail");
+    expect(dashboardSource).not.toContain("getBookmarkPreviewArticleBlocks");
+    expect(dashboardSource).not.toContain("getBookmarkPreviewFieldRows");
+    expect(dashboardSource).not.toContain("renderBookmarkPreviewArticle");
+    expect(dashboardSource).not.toContain("hasBookmarkPreviewCoverImage");
+    expect(detailPanelSource).toContain("getBookmarkPreviewArticleBlocks");
+    expect(detailPanelSource).toContain("getBookmarkPreviewFieldRows");
+    expect(detailPanelSource).toContain("renderBookmarkPreviewArticle");
+  });
+
   it("memoizes bookmark list row view models before rendering rows", () => {
     const dashboardSource = readFileSync(
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
