@@ -102,4 +102,19 @@ describe("bundle splitting", () => {
     expect(dashboardSource).toContain("<MemoizedBookmarkListRow");
     expect(bookmarkListSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
   });
+
+  it("reuses bookmark list row view models when unrelated asset cache entries change", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+
+    expect(dashboardSource).toContain("type BookmarkListRowCacheEntry =");
+    expect(dashboardSource).toContain("const EMPTY_BOOKMARK_ASSETS: BookmarkAsset[] = [];");
+    expect(dashboardSource).toContain("const bookmarkListRowCacheRef = useRef");
+    expect(dashboardSource).toContain("const previousBookmarkListRowCache = bookmarkListRowCacheRef.current;");
+    expect(dashboardSource).toContain("const previousRowEntry = previousBookmarkListRowCache.get(bookmark.id);");
+    expect(dashboardSource).toContain("return previousRowEntry.row;");
+    expect(dashboardSource).not.toContain("const assets = bookmarkAssetsByBookmarkId[bookmark.id] ?? [];");
+  });
 });

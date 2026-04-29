@@ -186,6 +186,24 @@ type BookmarkListRowViewModel = {
   shouldShowInfo: boolean;
 };
 
+type BookmarkListRowCacheEntry = {
+  row: BookmarkListRowViewModel;
+  bookmark: Bookmark;
+  assets: BookmarkAsset[];
+  folderName: string;
+  previewText: string;
+  summaryStateLabel: string;
+  tagSignature: string;
+  remainingTagCount: number;
+  isTrashed: boolean;
+  shouldShowCover: boolean;
+  shouldShowListCover: boolean;
+  shouldShowTitle: boolean;
+  shouldShowDescription: boolean;
+  shouldShowTags: boolean;
+  shouldShowInfo: boolean;
+};
+
 type BookmarkListRowActionResult = void | Promise<void>;
 
 type BookmarkListRowActions = {
@@ -213,6 +231,7 @@ const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
 const USERSCRIPT_DOWNLOAD_PATH = "/downloads/bookmark-saver.user.js?v=0.1.11";
 const BOOKMARK_VIEW_SETTINGS_STORAGE_KEY = "bookmark-view-settings:v2";
 const DEFAULT_BOOKMARK_VIEW_MODE: BookmarkViewMode = "list";
+const EMPTY_BOOKMARK_ASSETS: BookmarkAsset[] = [];
 
 const emptyBookmarkDraft: BookmarkDraft = {
   url: "",
@@ -5874,6 +5893,7 @@ export default function AuthenticatedDashboardApp() {
     folderOverviewSpecialFilter ??
     (!hasActiveBookmarkSearch(appliedBookmarkSearch) ? "all" : null);
   const isTrashBookmarkView = activeFolderOverviewSpecialFilter === "trash";
+  const bookmarkListRowCacheRef = useRef(new Map<string, BookmarkListRowCacheEntry>());
   const bookmarkListRowActionsRef = useRef<BookmarkListRowActions | null>(null);
   bookmarkListRowActionsRef.current = {
     onToggleDetail: toggleBookmarkDetailFromCard,
@@ -5910,9 +5930,11 @@ export default function AuthenticatedDashboardApp() {
     []
   );
   const bookmarkListRows = useMemo<BookmarkListRowViewModel[]>(
-    () =>
-      renderedPagedBookmarks.map((bookmark) => {
-        const assets = bookmarkAssetsByBookmarkId[bookmark.id] ?? [];
+    () => {
+      const previousBookmarkListRowCache = bookmarkListRowCacheRef.current;
+      const nextBookmarkListRowCache = new Map<string, BookmarkListRowCacheEntry>();
+      const rows = renderedPagedBookmarks.map((bookmark) => {
+        const assets = bookmarkAssetsByBookmarkId[bookmark.id] ?? EMPTY_BOOKMARK_ASSETS;
         const tagItems = bookmark.tagIds.map((tagId) => {
           const tag = tagsById.get(tagId);
           return {
@@ -5921,6 +5943,9 @@ export default function AuthenticatedDashboardApp() {
             color: tag?.color ?? null
           };
         });
+        const tagSignature = tagItems
+          .map((tag) => `${tag.id}\u001f${tag.name}\u001f${tag.color ?? ""}`)
+          .join("\u001e");
         const displaySettings =
           bookmarkViewMode === "list"
             ? bookmarkListDisplaySettings
@@ -5945,21 +5970,48 @@ export default function AuthenticatedDashboardApp() {
           bookmarkViewMode !== "title" &&
           (!appliesDisplaySettings || displaySettings.bookmarkInfo);
         const visibleTagItems = tagItems.slice(0, shouldUseCompactMobileCards ? 1 : 2);
+        const folderName =
+          !bookmark.folderId || extensionFolderIds.has(bookmark.folderId)
+            ? "미분류"
+            : foldersById.get(bookmark.folderId)?.name ?? bookmark.folderId;
+        const previewText = getBookmarkPreviewText(bookmark);
+        const summaryStateLabel = getBookmarkSummaryStateLabel(bookmark);
+        const remainingTagCount = Math.max(0, tagItems.length - visibleTagItems.length);
+        const isTrashed = bookmark.isTrashed || isTrashBookmarkView;
+        const previousRowEntry = previousBookmarkListRowCache.get(bookmark.id);
 
-        return {
+        if (
+          previousRowEntry &&
+          previousRowEntry.bookmark === bookmark &&
+          previousRowEntry.assets === assets &&
+          previousRowEntry.folderName === folderName &&
+          previousRowEntry.previewText === previewText &&
+          previousRowEntry.summaryStateLabel === summaryStateLabel &&
+          previousRowEntry.tagSignature === tagSignature &&
+          previousRowEntry.remainingTagCount === remainingTagCount &&
+          previousRowEntry.isTrashed === isTrashed &&
+          previousRowEntry.shouldShowCover === shouldShowCover &&
+          previousRowEntry.shouldShowListCover === shouldShowListCover &&
+          previousRowEntry.shouldShowTitle === shouldShowTitle &&
+          previousRowEntry.shouldShowDescription === shouldShowDescription &&
+          previousRowEntry.shouldShowTags === shouldShowTags &&
+          previousRowEntry.shouldShowInfo === shouldShowInfo
+        ) {
+          nextBookmarkListRowCache.set(bookmark.id, previousRowEntry);
+          return previousRowEntry.row;
+        }
+
+        const row = {
           bookmark,
           assets,
           assetCount: assets.length,
           coverAsset: assets[0] ?? null,
-          folderName:
-            !bookmark.folderId || extensionFolderIds.has(bookmark.folderId)
-              ? "미분류"
-              : foldersById.get(bookmark.folderId)?.name ?? bookmark.folderId,
-          previewText: getBookmarkPreviewText(bookmark),
-          summaryStateLabel: getBookmarkSummaryStateLabel(bookmark),
+          folderName,
+          previewText,
+          summaryStateLabel,
           visibleTagItems,
-          remainingTagCount: Math.max(0, tagItems.length - visibleTagItems.length),
-          isTrashed: bookmark.isTrashed || isTrashBookmarkView,
+          remainingTagCount,
+          isTrashed,
           shouldShowCover,
           shouldShowListCover,
           shouldShowTitle,
@@ -5967,7 +6019,31 @@ export default function AuthenticatedDashboardApp() {
           shouldShowTags,
           shouldShowInfo
         };
-      }),
+        const nextRowEntry = {
+          row,
+          bookmark,
+          assets,
+          folderName,
+          previewText,
+          summaryStateLabel,
+          tagSignature,
+          remainingTagCount,
+          isTrashed,
+          shouldShowCover,
+          shouldShowListCover,
+          shouldShowTitle,
+          shouldShowDescription,
+          shouldShowTags,
+          shouldShowInfo
+        };
+
+        nextBookmarkListRowCache.set(bookmark.id, nextRowEntry);
+        return row;
+      });
+
+      bookmarkListRowCacheRef.current = nextBookmarkListRowCache;
+      return rows;
+    },
     [
       bookmarkAssetsByBookmarkId,
       bookmarkCardDisplaySettings,
