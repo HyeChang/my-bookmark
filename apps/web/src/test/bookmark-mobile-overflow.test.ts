@@ -6,11 +6,18 @@ const appCss = readFileSync(
   resolve(__dirname, "../components/AuthenticatedDashboardApp.css"),
   "utf8"
 );
+const bookmarkResultsCss = readFileSync(
+  resolve(__dirname, "../components/BookmarkResultsPanel.css"),
+  "utf8"
+);
 
 describe("bookmark mobile overflow css", () => {
   it("keeps long bookmark text from widening mobile bookmark rows", () => {
+    expect(bookmarkResultsCss).toMatch(
+      /@media\s*\(max-width:\s*720px\)\s*\{[\s\S]*\.bookmark-list-table,\s*\.bookmark-list-row\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%/s
+    );
     expect(appCss).toMatch(
-      /@media\s*\(max-width:\s*720px\)\s*\{[\s\S]*\.bookmark-list-table,\s*\.bookmark-list-row,\s*\.bookmark-row-main,\s*\.bookmark-row-meta,\s*\.bookmark-row-summary,\s*\.bookmark-card-summary\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%/s
+      /@media\s*\(max-width:\s*720px\)\s*\{[\s\S]*\.bookmark-row-main,\s*\.bookmark-row-meta,\s*\.bookmark-row-summary,\s*\.bookmark-card-summary\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%/s
     );
     expect(appCss).toMatch(
       /@media\s*\(max-width:\s*720px\)\s*\{[\s\S]*\.bookmark-row-summary,\s*\.bookmark-card-summary,\s*\.bookmark-row-meta-item\s*\{[^}]*overflow-wrap:\s*anywhere[^}]*word-break:\s*break-word/s
@@ -24,13 +31,13 @@ describe("bookmark mobile overflow css", () => {
   });
 
   it("keeps compact mobile icon actions aligned with text actions", () => {
-    expect(appCss).toMatch(
+    expect(bookmarkResultsCss).toMatch(
       /@media\s*\(max-width:\s*720px\)\s*\{[\s\S]*\.bookmark-row-actions-mobile-compact\s*\{[^}]*--bookmark-mobile-action-height:\s*1\.95rem[^}]*align-items:\s*center/s
     );
-    expect(appCss).toMatch(
+    expect(bookmarkResultsCss).toMatch(
       /\.bookmark-row-actions-mobile-compact\s*>\s*\.bookmark-row-primary-action\s*\{[^}]*height:\s*var\(--bookmark-mobile-action-height\)[^}]*min-height:\s*var\(--bookmark-mobile-action-height\)/s
     );
-    expect(appCss).toMatch(
+    expect(bookmarkResultsCss).toMatch(
       /\.bookmark-row-actions-mobile-compact\s+\.bookmark-url-copy-button,\s*\.bookmark-row-actions-mobile-compact\s+\.overflow-trigger\s*\{[^}]*width:\s*var\(--bookmark-mobile-action-height\)[^}]*height:\s*var\(--bookmark-mobile-action-height\)[^}]*min-height:\s*var\(--bookmark-mobile-action-height\)/s
     );
   });

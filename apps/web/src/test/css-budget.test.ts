@@ -24,6 +24,7 @@ describe("CSS budget", () => {
       "utf8"
     );
     const lazyCssFiles = [
+      "BookmarkResultsPanel.css",
       "BookmarkComposerDialog.css",
       "BookmarkDetailPanel.css",
       "ExtensionDialogs.css",
@@ -42,6 +43,12 @@ describe("CSS budget", () => {
     expect(dashboardCss).not.toContain(".manager-");
     expect(dashboardCss).not.toContain(".recommendation-panel-card");
     expect(dashboardCss).not.toContain(".recommendation-loading-card");
+    expect(dashboardCss).not.toContain(".search-panel-card");
+    expect(dashboardCss).not.toContain(".search-toolbar-shell");
+    expect(dashboardCss).not.toContain(".filter-summary-card");
+    expect(dashboardCss).not.toContain(".bookmark-list-table");
+    expect(dashboardCss).not.toContain(".bookmark-pagination-bar");
+    expect(dashboardCss).not.toContain(".bookmark-row-actions-mobile-compact");
     expect(dashboardCss).not.toContain(".tag-manager-dialog-shell");
 
     for (const fileName of lazyCssFiles) {

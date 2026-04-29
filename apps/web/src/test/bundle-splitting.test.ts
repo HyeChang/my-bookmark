@@ -111,6 +111,7 @@ describe("bundle splitting", () => {
       "const bookmarkListRowActionsRef = useRef<BookmarkListRowActions | null>(null);"
     );
     expect(dashboardSource).toContain("const bookmarkListRowActions = useMemo<BookmarkListRowActions>(");
+    expect(bookmarkResultsSource).toContain('import "./BookmarkResultsPanel.css";');
     expect(bookmarkResultsSource).toContain("<MemoizedBookmarkListRow");
     expect(bookmarkListSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
   });

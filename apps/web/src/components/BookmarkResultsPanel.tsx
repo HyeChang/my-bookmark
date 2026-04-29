@@ -20,6 +20,7 @@ import {
   hasTextContent,
   renderHiddenBookmarkIndicator
 } from "./bookmark-preview-utils";
+import "./BookmarkResultsPanel.css";
 
 export type BookmarkSearchDraft = {
   query: string;
