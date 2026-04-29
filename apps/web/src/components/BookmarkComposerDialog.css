@@ -45,6 +45,28 @@
   background: linear-gradient(180deg, rgba(255, 252, 246, 0) 0%, rgba(255, 252, 246, 0.96) 28%);
 }
 
+.inline-folder-create {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.inline-folder-create-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.95rem;
+  border: 1px solid rgba(31, 37, 51, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.inline-folder-create-panel {
+  border-color: var(--border-soft);
+  background: var(--surface-raised);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+}
+
 .bookmark-composer-dialog-shell,
 .bookmark-composer-panel-readable,
 .bookmark-composer-panel-readable .bookmark-composer-section,
@@ -87,9 +109,19 @@
 .bookmark-composer-panel-readable .bookmark-composer-section,
 .bookmark-composer-panel-readable .bookmark-preview-card,
 .bookmark-composer-panel-readable .bookmark-preview-fallback-card,
+.bookmark-composer-panel-readable .inline-folder-create-panel,
 .bookmark-composer-panel-readable .inline-file-list li {
   border-color: #dfe3e8;
   background: #ffffff;
+}
+
+@media (min-width: 1121px) {
+  .inline-folder-create-panel {
+    border-color: var(--desktop-border);
+    background: var(--desktop-panel);
+    box-shadow: none;
+    backdrop-filter: none;
+  }
 }
 
 .bookmark-composer-panel-readable .bookmark-preview-fallback-card {

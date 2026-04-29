@@ -1348,7 +1348,6 @@ img {
 }
 
 .checkbox-field,
-.manager-checkbox-row,
 .search-filter-checkbox {
   display: flex !important;
   flex-direction: row !important;
@@ -1444,83 +1443,10 @@ img {
   flex-shrink: 0;
 }
 
-.inline-folder-create {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-}
-
-.inline-folder-create-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  padding: 0.95rem;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.58);
-  border: 1px solid rgba(31, 37, 51, 0.08);
-}
-
 .field-note {
   margin: 0;
   color: #5e6572;
   font-size: 0.86rem;
-}
-
-.manager-workspace {
-  display: grid;
-  grid-template-columns: minmax(280px, 0.96fr) minmax(0, 1.14fr);
-  gap: 0.9rem;
-  align-items: start;
-}
-
-.manager-surface {
-  display: flex;
-  flex-direction: column;
-  gap: 0.64rem;
-  padding: 0.72rem;
-  border: 1px solid rgba(31, 37, 51, 0.08);
-  border-radius: 13px;
-  background: rgba(252, 250, 246, 0.76);
-}
-
-.manager-editor-surface {
-  position: sticky;
-  top: 0;
-}
-
-.manager-section-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.14rem;
-}
-
-.manager-section-header h3 {
-  margin: 0;
-  font-size: 0.88rem;
-  color: #1b2230;
-}
-
-.manager-section-header p {
-  margin: 0;
-  color: #677081;
-  font-size: 0.76rem;
-}
-
-.manager-section-kicker {
-  margin: 0;
-  color: #7a5641;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.manager-stack-form {
-  gap: 0.64rem;
-}
-
-.manager-dropzone {
-  margin-bottom: 0.08rem;
 }
 
 .search-form {
@@ -3704,13 +3630,6 @@ img {
     width: 100%;
   }
 
-  .manager-workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .manager-editor-surface {
-    position: static;
-  }
 }
 
 @media (max-width: 720px) {
@@ -4428,7 +4347,6 @@ img {
 .overlay-dialog-shell,
 .search-grid-surface,
 .search-filter-group,
-.manager-surface,
 .bookmark-preview-card,
 .detail-block,
 .recommendation-column,
@@ -4437,7 +4355,6 @@ img {
 .home-favorite-card,
 .tag-list-item,
 .bookmark-list-row,
-.inline-folder-create-panel,
 .folder-action-menu,
 .color-select-popover {
   border-color: var(--border-soft);
@@ -4479,7 +4396,6 @@ img {
 .recommendation-panel-title-row h2,
 .folder-overview-title-row h2,
 .search-panel-heading h2,
-.manager-section-header h3,
 .bookmark-composer-section-header h3,
 .recommendation-column h3,
 .detail-block h3,
@@ -4495,7 +4411,6 @@ img {
 .search-panel-kicker,
 .bookmark-list-kicker,
 .recommendation-panel-kicker,
-.manager-section-kicker,
 .hero-command-label,
 .sidebar-segment-kicker,
 .detail-row-label {
@@ -4524,7 +4439,6 @@ img {
 .folder-overview-helper,
 .bookmark-composer-section-header p,
 .bookmark-preview-card p,
-.manager-section-header p,
 .quiet-empty-state {
   color: var(--text-muted);
 }
@@ -4916,8 +4830,6 @@ img {
 .detail-block,
 .tag-list-item,
 .bookmark-list-row,
-.inline-folder-create-panel,
-.manager-surface,
 .bookmark-preview-card {
   background: rgba(36, 44, 57, 0.78);
 }
@@ -5258,14 +5170,12 @@ img {
 .session-card,
 .search-grid-surface,
 .search-filter-group,
-.manager-surface,
 .bookmark-preview-card,
 .detail-block,
 .recommendation-column,
 .recommendation-item,
 .tag-list-item,
 .bookmark-list-row,
-.inline-folder-create-panel,
 .folder-action-menu,
 .color-select-popover {
     border-color: var(--desktop-border);
@@ -5293,7 +5203,6 @@ img {
   .recommendation-panel-kicker,
   .workspace-panel-kicker,
   .search-panel-kicker,
-  .manager-section-kicker,
   .detail-row-label {
     color: var(--desktop-muted);
   }
