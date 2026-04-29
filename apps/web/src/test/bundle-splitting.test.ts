@@ -176,4 +176,24 @@ describe("bundle splitting", () => {
     );
     expect(searchPanelSource).not.toContain("hasActiveBookmarkSearch(appliedBookmarkSearch)");
   });
+
+  it("renders folder overview nodes through memoized node view models", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const folderOverviewSource = dashboardSource.slice(
+      dashboardSource.indexOf("const folderOverviewSection = ("),
+      dashboardSource.indexOf("function renderRecommendationLoadingCard()")
+    );
+
+    expect(dashboardSource).toContain("type FolderOverviewNodeViewModel =");
+    expect(dashboardSource).toContain("type FolderOverviewNodeActions =");
+    expect(dashboardSource).toContain("const MemoizedFolderOverviewNode = memo(FolderOverviewNode);");
+    expect(dashboardSource).toContain("const expandedFolderOverviewIdSet = useMemo(");
+    expect(dashboardSource).toContain("const folderOverviewNodes = useMemo<FolderOverviewNodeViewModel[]>(");
+    expect(dashboardSource).toContain("<MemoizedFolderOverviewNode");
+    expect(dashboardSource).not.toContain("function renderFolderOverviewNodes(");
+    expect(folderOverviewSource).not.toContain("{renderFolderOverviewNodes(null)}");
+  });
 });

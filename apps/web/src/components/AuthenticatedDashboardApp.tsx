@@ -272,6 +272,48 @@ type RecommendationCardProps = {
   actions: BookmarkListRowActions;
 };
 
+type FolderOverviewNodeViewModel = {
+  folder: Folder;
+  childNodes: FolderOverviewNodeViewModel[];
+  depth: number;
+  bookmarkCount: number;
+  hasChildren: boolean;
+  isExpanded: boolean;
+  isActive: boolean;
+  dropMode: FolderOverviewDropMode | null;
+};
+
+type FolderOverviewNodeActions = {
+  onToggleExpansion: (folderId: string) => BookmarkListRowActionResult;
+  onSelect: (folder: Folder) => BookmarkListRowActionResult;
+  onDragStart: (
+    folderId: string,
+    event: ReactDragEvent<HTMLButtonElement>
+  ) => BookmarkListRowActionResult;
+  onDragEnd: () => BookmarkListRowActionResult;
+  onDragOver: (
+    folder: Folder,
+    event: ReactDragEvent<HTMLButtonElement>
+  ) => BookmarkListRowActionResult;
+  onDragLeave: (folderId: string) => BookmarkListRowActionResult;
+  onDrop: (
+    folder: Folder,
+    event: ReactDragEvent<HTMLButtonElement>
+  ) => BookmarkListRowActionResult;
+  onBeginEdit: (folder: Folder) => BookmarkListRowActionResult;
+  onBeginChildCreate: (folder: Folder) => BookmarkListRowActionResult;
+  onToggleActionMenu: (folderId: string) => BookmarkListRowActionResult;
+  onDelete: (folder: Folder) => BookmarkListRowActionResult;
+};
+
+type FolderOverviewNodeProps = {
+  node: FolderOverviewNodeViewModel;
+  shouldUseMobileSidebarPanels: boolean;
+  isReorderingFolders: boolean;
+  openFolderActionMenuId: string | null;
+  actions: FolderOverviewNodeActions;
+};
+
 const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
 const USERSCRIPT_DOWNLOAD_PATH = "/downloads/bookmark-saver.user.js?v=0.1.11";
 const BOOKMARK_VIEW_SETTINGS_STORAGE_KEY = "bookmark-view-settings:v2";
@@ -1298,16 +1340,6 @@ function getFolderVisibleIdsForQuery(folders: Folder[], query: string) {
   return visibleFolderIds;
 }
 
-function countBookmarksInFolderTree(bookmarks: Bookmark[], folders: Folder[], folderId: string) {
-  const descendantFolderIds = getFolderDescendantIds(folders, folderId);
-
-  return bookmarks.filter(
-    (bookmark) =>
-      bookmark.folderId === folderId ||
-      (bookmark.folderId ? descendantFolderIds.has(bookmark.folderId) : false)
-  ).length;
-}
-
 function getBookmarkCountBucketValue(
   bucket: { total: number; visible: number } | undefined,
   showHiddenBookmarks: boolean
@@ -1317,22 +1349,6 @@ function getBookmarkCountBucketValue(
   }
 
   return showHiddenBookmarks ? bucket.total : bucket.visible;
-}
-
-function countBookmarksInFolderTreeFromCounts(
-  counts: BookmarkCounts,
-  folders: Folder[],
-  folderId: string,
-  showHiddenBookmarks: boolean
-) {
-  const folderIds = [folderId, ...getFolderDescendantIds(folders, folderId)];
-
-  return folderIds.reduce(
-    (total, currentFolderId) =>
-      total +
-      getBookmarkCountBucketValue(counts.byFolderId[currentFolderId], showHiddenBookmarks),
-    0
-  );
 }
 
 function countVisibleActiveBookmarksFromCounts(
@@ -2297,6 +2313,245 @@ function RecommendationCard({ card, actions }: RecommendationCardProps) {
 }
 
 const MemoizedRecommendationCard = memo(RecommendationCard);
+
+function renderFolderOverviewNodeLabel(folder: Folder) {
+  const folderIconGlyph = getFolderIconGlyph(folder.icon);
+
+  return (
+    <span className="folder-overview-name">
+      {folderIconGlyph ? (
+        <span
+          aria-hidden="true"
+          className="folder-icon-badge"
+          style={
+            folder.color
+              ? {
+                  color: folder.color,
+                  backgroundColor: `${folder.color}1a`
+                }
+              : undefined
+          }
+        >
+          {folderIconGlyph}
+        </span>
+      ) : folder.color ? (
+        renderColorSwatch(folder.color)
+      ) : null}
+      <span className="folder-label-text">{folder.name}</span>
+      {folder.isHidden === true ? (
+        <span className="folder-hidden-indicator" aria-hidden="true">
+          🔒
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function FolderOverviewNode({
+  node,
+  shouldUseMobileSidebarPanels,
+  isReorderingFolders,
+  openFolderActionMenuId,
+  actions
+}: FolderOverviewNodeProps) {
+  const {
+    folder,
+    childNodes,
+    depth,
+    bookmarkCount,
+    hasChildren,
+    isExpanded,
+    isActive,
+    dropMode
+  } = node;
+  const isActionMenuOpen = openFolderActionMenuId === folder.id;
+  const dropModeClass =
+    !shouldUseMobileSidebarPanels && dropMode
+      ? dropMode === "reorder"
+        ? " folder-overview-trigger-drop-reorder"
+        : " folder-overview-trigger-drop-move"
+      : "";
+
+  return (
+    <li className="folder-overview-item">
+      <div className="folder-overview-entry">
+        <div
+          className={`folder-overview-row${isActive ? " folder-overview-row-active" : ""}`}
+          data-depth={depth}
+          style={{ "--folder-overview-depth": Math.min(depth, 6) } as CSSProperties}
+        >
+          {hasChildren ? (
+            <button
+              type="button"
+              className="folder-overview-disclosure"
+              aria-label={`${folder.name} 폴더 ${isExpanded ? "접기" : "펼치기"}`}
+              aria-expanded={isExpanded}
+              onClick={() => {
+                void actions.onToggleExpansion(folder.id);
+              }}
+            >
+              {isExpanded ? "▾" : "▸"}
+            </button>
+          ) : (
+            <span aria-hidden="true" className="folder-overview-disclosure-spacer" />
+          )}
+          {!shouldUseMobileSidebarPanels ? (
+            <button
+              type="button"
+              className="ghost-button folder-overview-handle"
+              draggable
+              disabled={isReorderingFolders}
+              aria-label={`${folder.name} 폴더 드래그 정렬`}
+              onDragStart={(event) => {
+                void actions.onDragStart(folder.id, event);
+              }}
+              onDragEnd={() => {
+                void actions.onDragEnd();
+              }}
+            >
+              ⋮⋮
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={`folder-overview-trigger${
+              isActive ? " folder-overview-trigger-active" : ""
+            }${dropModeClass}`}
+            aria-label={`${folder.name} 폴더 보기`}
+            aria-pressed={isActive}
+            title={folder.name}
+            onClick={() => {
+              void actions.onSelect(folder);
+            }}
+            onDragOver={
+              shouldUseMobileSidebarPanels
+                ? undefined
+                : (event) => {
+                    void actions.onDragOver(folder, event);
+                  }
+            }
+            onDragLeave={
+              shouldUseMobileSidebarPanels
+                ? undefined
+                : () => {
+                    void actions.onDragLeave(folder.id);
+                  }
+            }
+            onDrop={
+              shouldUseMobileSidebarPanels
+                ? undefined
+                : (event) => {
+                    void actions.onDrop(folder, event);
+                  }
+            }
+          >
+            <span className="folder-overview-copy">
+              {renderFolderOverviewNodeLabel(folder)}
+            </span>
+            <span className="folder-overview-count">{bookmarkCount}</span>
+          </button>
+          {shouldUseMobileSidebarPanels ? (
+            <div className="folder-overview-mobile-actions">
+              <button
+                type="button"
+                className="secondary-button folder-overview-mobile-edit"
+                aria-label={`${folder.name} 폴더 수정`}
+                onClick={() => {
+                  void actions.onBeginEdit(folder);
+                }}
+              >
+                편집
+              </button>
+            </div>
+          ) : (
+            <div className="folder-overview-inline-actions folder-overview-inline-actions-visible">
+              <button
+                type="button"
+                className="secondary-button folder-overview-child-create"
+                aria-label={`${folder.name} 하위 폴더 추가`}
+                onClick={() => {
+                  void actions.onBeginChildCreate(folder);
+                }}
+              >
+                + 하위
+              </button>
+              <div
+                className="folder-action-menu-shell folder-overview-menu-shell"
+                data-open-menu-shell={isActionMenuOpen ? "true" : undefined}
+              >
+                <button
+                  type="button"
+                  className="ghost-button folder-action-trigger overflow-trigger"
+                  aria-label={`${folder.name} 폴더 더보기`}
+                  aria-expanded={isActionMenuOpen}
+                  onClick={() => {
+                    void actions.onToggleActionMenu(folder.id);
+                  }}
+                >
+                  ...
+                </button>
+                {isActionMenuOpen ? (
+                  <div
+                    role="menu"
+                    aria-label={`${folder.name} 폴더 메뉴`}
+                    className="folder-action-menu"
+                  >
+                    <button
+                      type="button"
+                      className="secondary-button folder-action-menu-item"
+                      aria-label={`${folder.name} 하위 폴더 추가`}
+                      onClick={() => {
+                        void actions.onBeginChildCreate(folder);
+                      }}
+                    >
+                      추가
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button folder-action-menu-item"
+                      aria-label={`${folder.name} 폴더 수정`}
+                      onClick={() => {
+                        void actions.onBeginEdit(folder);
+                      }}
+                    >
+                      수정
+                    </button>
+                    <button
+                      type="button"
+                      className="danger-button folder-action-menu-item"
+                      aria-label={`${folder.name} 폴더 삭제`}
+                      onClick={() => {
+                        void actions.onDelete(folder);
+                      }}
+                    >
+                      삭제
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+        </div>
+        {hasChildren && isExpanded ? (
+          <ul className="folder-overview-children">
+            {childNodes.map((childNode) => (
+              <MemoizedFolderOverviewNode
+                key={childNode.folder.id}
+                node={childNode}
+                shouldUseMobileSidebarPanels={shouldUseMobileSidebarPanels}
+                isReorderingFolders={isReorderingFolders}
+                openFolderActionMenuId={openFolderActionMenuId}
+                actions={actions}
+              />
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+const MemoizedFolderOverviewNode = memo(FolderOverviewNode);
 
 export default function AuthenticatedDashboardApp() {
   const [sessionState, setSessionState] = useState<SessionState>({
@@ -6583,6 +6838,181 @@ export default function AuthenticatedDashboardApp() {
     ),
     [folderOverviewVisibleFolderIds, visibleFolders]
   );
+  const expandedFolderOverviewIdSet = useMemo(
+    () => new Set(expandedFolderOverviewIds),
+    [expandedFolderOverviewIds]
+  );
+  const folderOverviewNodes = useMemo<FolderOverviewNodeViewModel[]>(
+    () => {
+      const visibleFolderChildrenByParentId = getFoldersByParentId(visibleFolders);
+      const directBookmarkCountsByFolderId = new Map<string, number>();
+
+      if (hasLoadedFullBookmarkInventory || !bookmarkCounts) {
+        for (const bookmark of visibleBookmarkInventory) {
+          if (!bookmark.folderId) {
+            continue;
+          }
+
+          directBookmarkCountsByFolderId.set(
+            bookmark.folderId,
+            (directBookmarkCountsByFolderId.get(bookmark.folderId) ?? 0) + 1
+          );
+        }
+      } else {
+        for (const folder of visibleFolders) {
+          directBookmarkCountsByFolderId.set(
+            folder.id,
+            getBookmarkCountBucketValue(
+              bookmarkCounts.byFolderId[folder.id],
+              showHiddenBookmarks
+            )
+          );
+        }
+      }
+
+      const bookmarkCountCache = new Map<string, number>();
+
+      function getFolderBookmarkCount(folderId: string): number {
+        const cachedCount = bookmarkCountCache.get(folderId);
+        if (cachedCount !== undefined) {
+          return cachedCount;
+        }
+
+        const total =
+          (directBookmarkCountsByFolderId.get(folderId) ?? 0) +
+          (visibleFolderChildrenByParentId.get(folderId) ?? []).reduce(
+            (sum, childFolder) => sum + getFolderBookmarkCount(childFolder.id),
+            0
+          );
+
+        bookmarkCountCache.set(folderId, total);
+        return total;
+      }
+
+      function buildFolderOverviewNodes(
+        parentFolderId: string | null,
+        depth: number
+      ): FolderOverviewNodeViewModel[] {
+        return (folderOverviewChildrenByParentId.get(parentFolderId) ?? []).map((folder) => {
+          const childFolders = folderOverviewChildrenByParentId.get(folder.id) ?? [];
+          const hasChildren = childFolders.length > 0;
+          const isExpanded =
+            hasChildren &&
+            (isFolderOverviewSearchActive || expandedFolderOverviewIdSet.has(folder.id));
+
+          return {
+            folder,
+            childNodes: isExpanded ? buildFolderOverviewNodes(folder.id, depth + 1) : [],
+            depth,
+            bookmarkCount: getFolderBookmarkCount(folder.id),
+            hasChildren,
+            isExpanded,
+            isActive:
+              activeDashboardView === "bookmarks" &&
+              appliedBookmarkSearch.folderId === folder.id,
+            dropMode:
+              !shouldUseMobileSidebarPanels && folderOverviewDropTarget?.folderId === folder.id
+                ? folderOverviewDropTarget.mode
+                : null
+          };
+        });
+      }
+
+      return buildFolderOverviewNodes(null, 0);
+    },
+    [
+      activeDashboardView,
+      appliedBookmarkSearch.folderId,
+      bookmarkCounts,
+      expandedFolderOverviewIdSet,
+      folderOverviewChildrenByParentId,
+      folderOverviewDropTarget,
+      hasLoadedFullBookmarkInventory,
+      isFolderOverviewSearchActive,
+      shouldUseMobileSidebarPanels,
+      showHiddenBookmarks,
+      visibleBookmarkInventory,
+      visibleFolders
+    ]
+  );
+  const folderOverviewNodeActionsRef = useRef<FolderOverviewNodeActions | null>(null);
+  folderOverviewNodeActionsRef.current = {
+    onToggleExpansion: toggleFolderOverviewExpansion,
+    onSelect: handleFolderOverviewSelect,
+    onDragStart: (folderId, event) => {
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+      }
+      setDraggingFolderId(folderId);
+      setFolderOverviewDropTarget(null);
+    },
+    onDragEnd: resetDraggingFolder,
+    onDragOver: (folder, event) => {
+      const nextDropMode = getFolderOverviewDropMode(folder);
+      if (!nextDropMode) {
+        return;
+      }
+
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+      }
+      setFolderOverviewDropTarget({ folderId: folder.id, mode: nextDropMode });
+    },
+    onDragLeave: (folderId) => {
+      setFolderOverviewDropTarget((currentTarget) =>
+        currentTarget?.folderId === folderId ? null : currentTarget
+      );
+    },
+    onDrop: (folder, event) => {
+      const dropMode = getFolderOverviewDropMode(folder);
+      event.preventDefault();
+
+      if (!dropMode) {
+        resetDraggingFolder();
+        return;
+      }
+
+      setFolderOverviewDropTarget(null);
+      if (dropMode === "reorder") {
+        void handleFolderReorderDrop(folder);
+        return;
+      }
+
+      void handleFolderMoveDrop(folder);
+    },
+    onBeginEdit: beginFolderEdit,
+    onBeginChildCreate: beginChildFolderCreate,
+    onToggleActionMenu: toggleFolderActionMenu,
+    onDelete: handleFolderDelete
+  };
+  const folderOverviewNodeActions = useMemo<FolderOverviewNodeActions>(
+    () => ({
+      onToggleExpansion: (folderId) =>
+        folderOverviewNodeActionsRef.current?.onToggleExpansion(folderId),
+      onSelect: (folder) =>
+        folderOverviewNodeActionsRef.current?.onSelect(folder),
+      onDragStart: (folderId, event) =>
+        folderOverviewNodeActionsRef.current?.onDragStart(folderId, event),
+      onDragEnd: () =>
+        folderOverviewNodeActionsRef.current?.onDragEnd(),
+      onDragOver: (folder, event) =>
+        folderOverviewNodeActionsRef.current?.onDragOver(folder, event),
+      onDragLeave: (folderId) =>
+        folderOverviewNodeActionsRef.current?.onDragLeave(folderId),
+      onDrop: (folder, event) =>
+        folderOverviewNodeActionsRef.current?.onDrop(folder, event),
+      onBeginEdit: (folder) =>
+        folderOverviewNodeActionsRef.current?.onBeginEdit(folder),
+      onBeginChildCreate: (folder) =>
+        folderOverviewNodeActionsRef.current?.onBeginChildCreate(folder),
+      onToggleActionMenu: (folderId) =>
+        folderOverviewNodeActionsRef.current?.onToggleActionMenu(folderId),
+      onDelete: (folder) =>
+        folderOverviewNodeActionsRef.current?.onDelete(folder)
+    }),
+    []
+  );
   const selectedBookmarkUserDetailRows = useMemo(
     () =>
       visibleSelectedBookmark
@@ -7774,211 +8204,6 @@ export default function AuthenticatedDashboardApp() {
     );
   }
 
-  function renderFolderOverviewNodes(parentFolderId: string | null, depth = 0): ReactNode {
-    return (folderOverviewChildrenByParentId.get(parentFolderId) ?? []).map((folder) => {
-      const childFolders = folderOverviewChildrenByParentId.get(folder.id) ?? [];
-      const hasChildren = childFolders.length > 0;
-      const isExpanded =
-        hasChildren && (isFolderOverviewSearchActive || expandedFolderOverviewIds.includes(folder.id));
-      const bookmarkCount =
-        hasLoadedFullBookmarkInventory || !bookmarkCounts
-          ? countBookmarksInFolderTree(
-              visibleBookmarkInventory,
-              visibleFolders,
-              folder.id
-            )
-          : countBookmarksInFolderTreeFromCounts(
-              bookmarkCounts,
-              visibleFolders,
-              folder.id,
-              showHiddenBookmarks
-            );
-      const isActive =
-        activeDashboardView === "bookmarks" && appliedBookmarkSearch.folderId === folder.id;
-
-      return (
-        <li key={folder.id} className="folder-overview-item">
-          <div className="folder-overview-entry">
-            <div
-              className={`folder-overview-row${isActive ? " folder-overview-row-active" : ""}`}
-              data-depth={depth}
-              style={{ "--folder-overview-depth": Math.min(depth, 6) } as CSSProperties}
-            >
-              {hasChildren ? (
-                <button
-                  type="button"
-                  className="folder-overview-disclosure"
-                  aria-label={`${folder.name} 폴더 ${isExpanded ? "접기" : "펼치기"}`}
-                  aria-expanded={isExpanded}
-                  onClick={() => toggleFolderOverviewExpansion(folder.id)}
-                >
-                  {isExpanded ? "▾" : "▸"}
-                </button>
-              ) : (
-                <span aria-hidden="true" className="folder-overview-disclosure-spacer" />
-              )}
-              {!shouldUseMobileSidebarPanels ? (
-                <button
-                  type="button"
-                  className="ghost-button folder-overview-handle"
-                  draggable
-                  disabled={isReorderingFolders}
-                  aria-label={`${folder.name} 폴더 드래그 정렬`}
-                  onDragStart={(event) => {
-                    if (event.dataTransfer) {
-                      event.dataTransfer.effectAllowed = "move";
-                    }
-                    setDraggingFolderId(folder.id);
-                    setFolderOverviewDropTarget(null);
-                  }}
-                  onDragEnd={() => resetDraggingFolder()}
-                >
-                  ⋮⋮
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className={`folder-overview-trigger${isActive ? " folder-overview-trigger-active" : ""}${
-                  !shouldUseMobileSidebarPanels &&
-                  folderOverviewDropTarget?.folderId === folder.id
-                    ? folderOverviewDropTarget.mode === "reorder"
-                      ? " folder-overview-trigger-drop-reorder"
-                      : " folder-overview-trigger-drop-move"
-                    : ""
-                }`}
-                aria-label={`${folder.name} 폴더 보기`}
-                aria-pressed={isActive}
-                title={folder.name}
-                onClick={() => void handleFolderOverviewSelect(folder)}
-                onDragOver={shouldUseMobileSidebarPanels ? undefined : (event) => {
-                  const nextDropMode = getFolderOverviewDropMode(folder);
-                  if (!nextDropMode) {
-                    return;
-                  }
-
-                  event.preventDefault();
-                  if (event.dataTransfer) {
-                    event.dataTransfer.dropEffect = "move";
-                  }
-                  setFolderOverviewDropTarget({ folderId: folder.id, mode: nextDropMode });
-                }}
-                onDragLeave={shouldUseMobileSidebarPanels ? undefined : () => {
-                  setFolderOverviewDropTarget((currentTarget) =>
-                    currentTarget?.folderId === folder.id ? null : currentTarget
-                  );
-                }}
-                onDrop={shouldUseMobileSidebarPanels ? undefined : (event) => {
-                  const dropMode = getFolderOverviewDropMode(folder);
-                  event.preventDefault();
-
-                  if (!dropMode) {
-                    resetDraggingFolder();
-                    return;
-                  }
-
-                  setFolderOverviewDropTarget(null);
-                  if (dropMode === "reorder") {
-                    void handleFolderReorderDrop(folder);
-                    return;
-                  }
-
-                  void handleFolderMoveDrop(folder);
-                }}
-              >
-                <span className="folder-overview-copy">
-                  {renderFolderLabel(
-                    folder.name,
-                    folder.color,
-                    folder.icon,
-                    "folder-overview-name",
-                    folder.isHidden === true
-                  )}
-                </span>
-                <span className="folder-overview-count">{bookmarkCount}</span>
-              </button>
-              {shouldUseMobileSidebarPanels ? (
-                <div className="folder-overview-mobile-actions">
-                  <button
-                    type="button"
-                    className="secondary-button folder-overview-mobile-edit"
-                    aria-label={`${folder.name} 폴더 수정`}
-                    onClick={() => beginFolderEdit(folder)}
-                  >
-                    편집
-                  </button>
-                </div>
-              ) : (
-                <div className="folder-overview-inline-actions folder-overview-inline-actions-visible">
-                  <button
-                    type="button"
-                    className="secondary-button folder-overview-child-create"
-                    aria-label={`${folder.name} 하위 폴더 추가`}
-                    onClick={() => beginChildFolderCreate(folder)}
-                  >
-                    + 하위
-                  </button>
-                  <div
-                    className="folder-action-menu-shell folder-overview-menu-shell"
-                    data-open-menu-shell={
-                      openFolderActionMenuId === folder.id ? "true" : undefined
-                    }
-                  >
-                    <button
-                      type="button"
-                      className="ghost-button folder-action-trigger overflow-trigger"
-                      aria-label={`${folder.name} 폴더 더보기`}
-                      aria-expanded={openFolderActionMenuId === folder.id}
-                      onClick={() => toggleFolderActionMenu(folder.id)}
-                    >
-                      ...
-                    </button>
-                    {openFolderActionMenuId === folder.id ? (
-                      <div
-                        role="menu"
-                        aria-label={`${folder.name} 폴더 메뉴`}
-                        className="folder-action-menu"
-                      >
-                        <button
-                          type="button"
-                          className="secondary-button folder-action-menu-item"
-                          aria-label={`${folder.name} 하위 폴더 추가`}
-                          onClick={() => beginChildFolderCreate(folder)}
-                        >
-                          추가
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary-button folder-action-menu-item"
-                          aria-label={`${folder.name} 폴더 수정`}
-                          onClick={() => beginFolderEdit(folder)}
-                        >
-                          수정
-                        </button>
-                        <button
-                          type="button"
-                          className="danger-button folder-action-menu-item"
-                          aria-label={`${folder.name} 폴더 삭제`}
-                          onClick={() => void handleFolderDelete(folder)}
-                        >
-                          삭제
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              )}
-            </div>
-            {hasChildren && isExpanded ? (
-              <ul className="folder-overview-children">
-                {renderFolderOverviewNodes(folder.id, depth + 1)}
-              </ul>
-            ) : null}
-          </div>
-        </li>
-      );
-    });
-  }
-
   const folderOverviewSection = (
     <section
       aria-label="folder-overview"
@@ -8078,12 +8303,23 @@ export default function AuthenticatedDashboardApp() {
           count: folderOverviewTrashBookmarkCount
         })}
       </ul>
-      {(folderOverviewChildrenByParentId.get(null) ?? []).length === 0 ? (
+      {folderOverviewNodes.length === 0 ? (
         <p className="quiet-empty-state folder-overview-empty-state">
           {showHiddenFolders ? "폴더가 없습니다." : "보이는 폴더가 없습니다."}
         </p>
       ) : (
-        <ul className="folder-overview-list">{renderFolderOverviewNodes(null)}</ul>
+        <ul className="folder-overview-list">
+          {folderOverviewNodes.map((node) => (
+            <MemoizedFolderOverviewNode
+              key={node.folder.id}
+              node={node}
+              shouldUseMobileSidebarPanels={shouldUseMobileSidebarPanels}
+              isReorderingFolders={isReorderingFolders}
+              openFolderActionMenuId={openFolderActionMenuId}
+              actions={folderOverviewNodeActions}
+            />
+          ))}
+        </ul>
       )}
     </section>
   );
