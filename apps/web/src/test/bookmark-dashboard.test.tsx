@@ -167,12 +167,7 @@ describe("bookmark dashboard", () => {
       }
 
       if (url === "/api/tags" && !init?.method) {
-        return new Response(JSON.stringify({ tags: [] }), {
-          status: 200,
-          headers: {
-            "content-type": "application/json"
-          }
-        });
+        throw new Error("Tags should not be fetched for initial home");
       }
 
       if (url === "/api/recommendations" && !init?.method) {
@@ -563,12 +558,7 @@ describe("bookmark dashboard", () => {
       }
 
       if (url === "/api/tags" && !init?.method) {
-        return new Response(JSON.stringify({ tags: [] }), {
-          status: 200,
-          headers: {
-            "content-type": "application/json"
-          }
-        });
+        throw new Error("Tags should not be fetched for initial home");
       }
 
       if (url === "/api/bookmarks" && !init?.method) {
@@ -593,6 +583,7 @@ describe("bookmark dashboard", () => {
     expect(within(folderOverview).getByRole("button", { name: /휴지통 보기/i })).toHaveTextContent("2");
     expect(within(folderOverview).getByRole("button", { name: /Reading 폴더 보기/i })).toHaveTextContent("5");
     expect(fetchMock).not.toHaveBeenCalledWith("/api/bookmarks", expect.anything());
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/tags", expect.anything());
   });
 
   it("keeps home recommendations off until the recommendation toggle is enabled", async () => {

@@ -2250,6 +2250,7 @@ export default function AuthenticatedDashboardApp({
   >({});
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [hasLoadedTags, setHasLoadedTags] = useState(false);
   const [recommendations, setRecommendations] = useState<BookmarkRecommendationsState>(
     emptyBookmarkRecommendations
   );
@@ -2375,6 +2376,7 @@ export default function AuthenticatedDashboardApp({
   const preloadingBookmarkAssetIdsRef = useRef<Set<string>>(new Set());
   const deferredBookmarkAssetPreloadTimerRef =
     useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+  const tagsLoadPromiseRef = useRef<Promise<Tag[]> | null>(null);
 
   function closeOpenMenus() {
     setOpenBookmarkActionMenuId(null);
@@ -2398,6 +2400,7 @@ export default function AuthenticatedDashboardApp({
   function openBookmarkWorkspace() {
     setActiveDashboardView("bookmarks");
     requestDesktopRecommendationsIfNeeded();
+    requestTagsIfNeeded();
     closeOpenMenus();
   }
 
@@ -2762,8 +2765,44 @@ export default function AuthenticatedDashboardApp({
     }
   }
 
+  async function fetchTagsOnce() {
+    if (hasLoadedTags) {
+      return tags;
+    }
+
+    if (!tagsLoadPromiseRef.current) {
+      tagsLoadPromiseRef.current = loadTags().finally(() => {
+        tagsLoadPromiseRef.current = null;
+      });
+    }
+
+    return tagsLoadPromiseRef.current;
+  }
+
+  function requestTagsIfNeeded() {
+    if (hasLoadedTags) {
+      return;
+    }
+
+    void fetchTagsOnce()
+      .then((nextTags) => {
+        startTransition(() => {
+          setTags(nextTags);
+          setHasLoadedTags(true);
+        });
+      })
+      .catch(() => {
+        startTransition(() => {
+          setErrorMessage("태그를 불러오지 못했습니다.");
+        });
+      });
+  }
+
   async function refreshDashboardData(search = appliedBookmarkSearch) {
     setIsLoadingDashboard(true);
+    const normalizedSearch = normalizeBookmarkSearchDraft(search);
+    const shouldLoadTagsWithDashboard =
+      activeDashboardView !== "home" || hasActiveBookmarkSearch(normalizedSearch);
 
     try {
       const [
@@ -2780,7 +2819,7 @@ export default function AuthenticatedDashboardApp({
       ] = await Promise.all([
         loadDashboardBookmarkData(search),
         loadFolders(),
-        loadTags()
+        shouldLoadTagsWithDashboard ? fetchTagsOnce() : Promise.resolve(null)
       ]);
 
       startTransition(() => {
@@ -2803,8 +2842,15 @@ export default function AuthenticatedDashboardApp({
           );
         });
         setFolders(nextFolders);
-        setTags(nextTags);
+        if (nextTags) {
+          setTags(nextTags);
+          setHasLoadedTags(true);
+        }
       });
+
+      if (usesFullInventoryFallback && !shouldLoadTagsWithDashboard) {
+        requestTagsIfNeeded();
+      }
 
       queueBookmarkAssetPreload(
         activeDashboardView === "home"
@@ -2824,6 +2870,7 @@ export default function AuthenticatedDashboardApp({
         setSelectedBookmark(null);
         setFolders([]);
         setTags([]);
+        setHasLoadedTags(false);
         setRecommendations(emptyBookmarkRecommendations);
         setHasLoadedRecommendations(false);
         setExtensionTokens([]);
@@ -3107,6 +3154,8 @@ export default function AuthenticatedDashboardApp({
       setErrorMessage(null);
       const idToken = await signInWithGoogle();
       const user = await exchangeIdTokenForSession(idToken);
+      const shouldLoadTagsAfterLogin =
+        activeDashboardView !== "home" || hasActiveBookmarkSearch(appliedBookmarkSearch);
       const [
         { visibleBookmarks: nextBookmarks, inventoryBookmarks: nextBookmarkInventory },
         nextFolders,
@@ -3118,7 +3167,7 @@ export default function AuthenticatedDashboardApp({
           inventoryBookmarks: [] as Bookmark[]
         })),
         loadFolders().catch(() => []),
-        loadTags().catch(() => [])
+        shouldLoadTagsAfterLogin ? fetchTagsOnce().catch(() => []) : Promise.resolve(null)
       ]);
 
       startTransition(() => {
@@ -3134,7 +3183,13 @@ export default function AuthenticatedDashboardApp({
         setTrashedBookmarks([]);
         setSelectedBookmark(null);
         setFolders(nextFolders);
-        setTags(nextTags);
+        if (nextTags) {
+          setTags(nextTags);
+          setHasLoadedTags(true);
+        } else {
+          setTags([]);
+          setHasLoadedTags(false);
+        }
         setRecommendations(emptyBookmarkRecommendations);
         setHasLoadedRecommendations(false);
         setIsLoadingRecommendations(false);
@@ -3165,6 +3220,7 @@ export default function AuthenticatedDashboardApp({
     await logoutSession();
     await signOutFromGoogle().catch(() => undefined);
     recommendationRequestIdRef.current += 1;
+    tagsLoadPromiseRef.current = null;
     invalidateSelectedBookmarkPreviewCache();
 
     startTransition(() => {
@@ -3179,6 +3235,7 @@ export default function AuthenticatedDashboardApp({
       setBookmarkAssetsByBookmarkId({});
       setFolders([]);
       setTags([]);
+      setHasLoadedTags(false);
       setRecommendations(emptyBookmarkRecommendations);
       setHasLoadedRecommendations(false);
       setIsLoadingRecommendations(false);
@@ -3518,6 +3575,7 @@ export default function AuthenticatedDashboardApp({
         });
 
         startTransition(() => {
+          setHasLoadedTags(true);
           setTags((currentTags) => [...currentTags, createdTag]);
           setTagDraft(emptyTagDraft);
           setInitialTagDraft(emptyTagDraft);
@@ -3756,6 +3814,7 @@ export default function AuthenticatedDashboardApp({
       });
 
       startTransition(() => {
+        setHasLoadedTags(true);
         setTags((currentTags) => [...currentTags, createdTag]);
         setBookmarkDraft((currentDraft) => ({
           ...currentDraft,
@@ -3998,6 +4057,7 @@ export default function AuthenticatedDashboardApp({
     const nextDraft = emptyTagDraft;
     setErrorMessage(null);
     setIsMobileHeaderMenuOpen(false);
+    requestTagsIfNeeded();
     setEditingTagId(null);
     setOpenTagActionMenuId(null);
     setTagDraft(nextDraft);
@@ -4130,6 +4190,7 @@ export default function AuthenticatedDashboardApp({
       setErrorMessage(null);
       setActiveDashboardView("bookmarks");
       requestDesktopRecommendationsIfNeeded();
+      requestTagsIfNeeded();
       setIsLoadingDashboard(true);
       const normalizedNextSearch = normalizeBookmarkSearchDraft(nextSearchDraft);
 
@@ -4197,6 +4258,7 @@ export default function AuthenticatedDashboardApp({
 
     setActiveDashboardView("bookmarks");
     requestDesktopRecommendationsIfNeeded();
+    requestTagsIfNeeded();
     setIsBookmarkSortMenuOpen(false);
 
     if (folderOverviewSpecialFilter) {
@@ -4373,6 +4435,7 @@ export default function AuthenticatedDashboardApp({
 
     setActiveDashboardView("bookmarks");
     requestDesktopRecommendationsIfNeeded();
+    requestTagsIfNeeded();
     if (shouldUseMobileSidebarPanels) {
       setMobileSidebarPanel("bookmark");
     }
@@ -4527,6 +4590,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   async function beginBookmarkEdit(bookmark: Bookmark) {
+    requestTagsIfNeeded();
     let editableBookmark = bookmark;
     if (bookmark.contentTruncated) {
       try {
@@ -4661,6 +4725,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   function beginBookmarkCreate() {
+    requestTagsIfNeeded();
     const nextDraft = {
       ...emptyBookmarkDraft,
       folderId: appliedBookmarkSearch.folderId
@@ -4897,6 +4962,7 @@ export default function AuthenticatedDashboardApp({
 
     try {
       setErrorMessage(null);
+      requestTagsIfNeeded();
       setOpenBookmarkActionMenuId(null);
       setIsBookmarkDetailActionMenuOpen(false);
       setBookmarkDetailDisplayMode(displayMode);
@@ -6000,14 +6066,16 @@ export default function AuthenticatedDashboardApp({
       const nextHomeFavoriteCardCache = new Map<string, HomeFavoriteCardCacheEntry>();
       const cards = visibleHomeFavoriteBookmarks.map((bookmark) => {
         const assets = bookmarkAssetsByBookmarkId[bookmark.id] ?? EMPTY_BOOKMARK_ASSETS;
-        const visibleTagItems = bookmark.tagIds.slice(0, 2).map((tagId) => {
-          const tag = tagsById.get(tagId);
-          return {
-            id: tagId,
-            name: tag?.name ?? tagId,
-            color: tag?.color ?? null
-          };
-        });
+        const visibleTagItems = hasLoadedTags
+          ? bookmark.tagIds.slice(0, 2).map((tagId) => {
+              const tag = tagsById.get(tagId);
+              return {
+                id: tagId,
+                name: tag?.name ?? tagId,
+                color: tag?.color ?? null
+              };
+            })
+          : [];
         const tagSignature = visibleTagItems
           .map((tag) => `${tag.id}\u001f${tag.name}\u001f${tag.color ?? ""}`)
           .join("\u001e");
@@ -6058,6 +6126,7 @@ export default function AuthenticatedDashboardApp({
       bookmarkAssetsByBookmarkId,
       extensionFolderIds,
       foldersById,
+      hasLoadedTags,
       tagsById,
       visibleHomeFavoriteBookmarks
     ]
@@ -6798,6 +6867,7 @@ export default function AuthenticatedDashboardApp({
     Boolean(visibleSelectedBookmark) &&
     bookmarkDetailActiveTab === "preview" &&
     isBookmarkPreviewFullscreen;
+  const heroTagSummary = hasLoadedTags ? `태그 ${tags.length}개` : "태그";
 
   function renderBookmarkDetailPlaceholder() {
     return (
@@ -8199,7 +8269,7 @@ export default function AuthenticatedDashboardApp({
             <div className="hero-command-meta">
               <p className="hero-command-label">빠른 작업</p>
               <p className="hero-command-summary">
-                북마크 {folderOverviewAllBookmarkCount}개 · 폴더 {visibleFolders.length}개 · 태그 {tags.length}개
+                북마크 {folderOverviewAllBookmarkCount}개 · 폴더 {visibleFolders.length}개 · {heroTagSummary}
               </p>
             </div>
             <div
