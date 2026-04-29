@@ -74,12 +74,16 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
+    const bookmarkResultsSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
+      "utf8"
+    );
 
     expect(dashboardSource).toMatch(
       /const bookmarkListRows = useMemo(?:<BookmarkListRowViewModel\[\]>)?\(/
     );
     expect(dashboardSource).toContain("renderedPagedBookmarks.map((bookmark) => {");
-    expect(dashboardSource).toContain("{bookmarkListRows.map((bookmarkRow) => {");
+    expect(bookmarkResultsSource).toContain("{bookmarkListRows.map((bookmarkRow) => {");
     expect(dashboardSource).not.toContain("{renderedPagedBookmarks.map((bookmark) => {");
   });
 
@@ -88,18 +92,26 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
-    const bookmarkListSource = dashboardSource.slice(
-      dashboardSource.indexOf("bookmark-list-table"),
-      dashboardSource.indexOf("bookmark-pagination-bar")
+    const bookmarkResultsSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
+      "utf8"
+    );
+    const bookmarkListSource = bookmarkResultsSource.slice(
+      bookmarkResultsSource.indexOf("bookmark-list-table"),
+      bookmarkResultsSource.indexOf("bookmark-pagination-bar")
     );
 
-    expect(dashboardSource).toContain("type BookmarkListRowActions =");
-    expect(dashboardSource).toContain("const MemoizedBookmarkListRow = memo(BookmarkListRow);");
+    expect(dashboardSource).toContain('lazy(() => import("./BookmarkResultsPanel"))');
+    expect(dashboardSource).toContain("<LazyBookmarkResultsPanel");
+    expect(dashboardSource).toContain("BookmarkListRowActions");
+    expect(dashboardSource).not.toContain("const MemoizedBookmarkListRow = memo(BookmarkListRow);");
+    expect(bookmarkResultsSource).toContain("export type BookmarkListRowActions =");
+    expect(bookmarkResultsSource).toContain("const MemoizedBookmarkListRow = memo(BookmarkListRow);");
     expect(dashboardSource).toContain(
       "const bookmarkListRowActionsRef = useRef<BookmarkListRowActions | null>(null);"
     );
     expect(dashboardSource).toContain("const bookmarkListRowActions = useMemo<BookmarkListRowActions>(");
-    expect(dashboardSource).toContain("<MemoizedBookmarkListRow");
+    expect(bookmarkResultsSource).toContain("<MemoizedBookmarkListRow");
     expect(bookmarkListSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
   });
 
@@ -163,13 +175,13 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
-    const derivedSearchSource = dashboardSource.slice(
-      dashboardSource.indexOf("const shouldShowAdvancedBookmarkSearch"),
-      dashboardSource.indexOf("const visibleFolders = useMemo(")
+    const bookmarkResultsSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
+      "utf8"
     );
-    const searchPanelSource = dashboardSource.slice(
-      dashboardSource.indexOf('aria-label="search-panel"'),
-      dashboardSource.indexOf('aria-label="bookmark-list"')
+    const derivedSearchSource = dashboardSource.slice(
+      dashboardSource.indexOf("const hasActiveAppliedBookmarkSearch"),
+      dashboardSource.indexOf("const visibleFolders = useMemo(")
     );
 
     expect(derivedSearchSource).toContain("const hasActiveAppliedBookmarkSearch = useMemo(");
@@ -178,7 +190,8 @@ describe("bundle splitting", () => {
     expect(derivedSearchSource).toContain(
       "[appliedBookmarkSearch, extensionFolderIds, foldersById, tagsById]"
     );
-    expect(searchPanelSource).not.toContain("hasActiveBookmarkSearch(appliedBookmarkSearch)");
+    expect(bookmarkResultsSource).toContain('aria-label="search-panel"');
+    expect(bookmarkResultsSource).not.toContain("hasActiveBookmarkSearch(appliedBookmarkSearch)");
   });
 
   it("renders folder overview nodes through memoized node view models", () => {
