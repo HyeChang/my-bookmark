@@ -15,7 +15,7 @@ describe("CSS budget", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.css")
     );
 
-    expect(css.byteLength).toBeLessThanOrEqual(152_000);
+    expect(css.byteLength).toBeLessThanOrEqual(80_000);
   });
 
   it("keeps lazy dialog styles out of the dashboard stylesheet", () => {
@@ -34,7 +34,7 @@ describe("CSS budget", () => {
       "TagManagerDialog.css",
     ];
 
-    expect(Buffer.byteLength(dashboardCss)).toBeLessThanOrEqual(138_000);
+    expect(Buffer.byteLength(dashboardCss)).toBeLessThanOrEqual(80_000);
     expect(dashboardCss).not.toContain(".bookmark-composer-dialog-shell");
     expect(dashboardCss).not.toContain(".bookmark-detail-card");
     expect(dashboardCss).not.toContain(".extension-token-panel-readable");
@@ -55,5 +55,53 @@ describe("CSS budget", () => {
       const css = readFileSync(join(process.cwd(), "src", "components", fileName));
       expect(css.byteLength).toBeGreaterThan(0);
     }
+  });
+
+  it("keeps theme overrides available after desktop light rules in component styles", () => {
+    const themedCssFiles = [
+      "AuthenticatedDashboardTheme.css",
+      "HomePanel.css",
+      "BookmarkResultsPanel.css",
+      "BookmarkComposerDialog.css",
+      "BookmarkDetailPanel.css",
+      "ExtensionDialogs.css",
+      "FolderManagerDialog.css",
+      "FolderOverviewPanel.css",
+      "ManagerDialog.css",
+      "RecommendationPanel.css",
+      "TagManagerDialog.css",
+    ];
+
+    for (const fileName of themedCssFiles) {
+      const css = readFileSync(
+        join(process.cwd(), "src", "components", fileName),
+        "utf8"
+      );
+      const lastDesktopLightRule = css.lastIndexOf("@media (min-width: 1121px)");
+      const lastDarkThemeRule = css.lastIndexOf(".app-theme-dark");
+
+      expect(css, `${fileName} should include light theme overrides`).toContain(
+        ".app-theme-light"
+      );
+      expect(css, `${fileName} should include dark theme overrides`).toContain(
+        ".app-theme-dark"
+      );
+      expect(
+        lastDarkThemeRule,
+        `${fileName} should keep dark theme overrides after desktop rules`
+      ).toBeGreaterThan(lastDesktopLightRule);
+    }
+  });
+
+  it("resets desktop light variables on the dark app shell", () => {
+    const css = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardTheme.css"),
+      "utf8"
+    );
+    const finalDarkShellBlock = css.slice(css.lastIndexOf(".app-theme-dark.app-shell"));
+
+    expect(finalDarkShellBlock).toContain("--text-primary: #d9e2f0");
+    expect(finalDarkShellBlock).toContain("--surface-sidebar:");
+    expect(finalDarkShellBlock).toContain("--desktop-panel:");
   });
 });

@@ -1,6 +1,5 @@
 import {
   lazy,
-  memo,
   Suspense,
   startTransition,
   useEffect,
@@ -12,6 +11,7 @@ import {
   type FormEvent
 } from "react";
 import "./AuthenticatedDashboardApp.css";
+import "./AuthenticatedDashboardTheme.css";
 
 import type {
   AuthenticatedUser,
@@ -34,12 +34,12 @@ import type { BookmarkPage } from "../lib/bookmarks";
 import { colorPresets, folderIconPresets } from "../lib/folder-presets";
 import type { BookmarkExtensionPresenceStatus } from "../lib/extension-presence";
 import { extractImageFilesFromDataTransfer } from "../lib/clipboard-images";
+import { loadFirebaseAuth, preloadFirebaseAuth } from "../lib/firebase-auth-loader";
 import {
   getBookmarkPreviewStoredSourceFields,
   getBookmarkPreviewWorkerFallbackMessage,
   hasTextContent,
   isJsRequiredBookmarkPreview,
-  renderHiddenBookmarkIndicator,
   sanitizeExtractedDisplayText
 } from "./bookmark-preview-utils";
 import type {
@@ -53,6 +53,10 @@ import type {
   FolderOverviewSpecialFilter,
   MobileSidebarPanelId
 } from "./FolderOverviewPanel";
+import type {
+  HomeFavoriteCardViewModel,
+  HomePanelActions
+} from "./HomePanel";
 
 type SessionState =
   | { status: "loading" }
@@ -140,6 +144,7 @@ type BookmarkDetailDisplayMode = "rail" | "dialog";
 type BookmarkDetailTab = "detail" | "preview" | "extract";
 type BookmarkViewMode = "list" | "card" | "title" | "moodboard";
 type BookmarkPageSize = 20 | 50 | 100;
+type AppThemeMode = "light" | "dark";
 
 type BookmarkSearchSummaryItem = {
   key: string;
@@ -222,15 +227,6 @@ type BookmarkListRowActions = {
   onPermanentDelete: (bookmark: Bookmark) => BookmarkListRowActionResult;
 };
 
-type HomeFavoriteCardViewModel = {
-  bookmark: Bookmark;
-  coverAsset: BookmarkAsset | null;
-  folderName: string;
-  previewText: string;
-  visibleTagItems: BookmarkListRowTagItem[];
-  menuId: string;
-};
-
 type HomeFavoriteCardCacheEntry = {
   card: HomeFavoriteCardViewModel;
   bookmark: Bookmark;
@@ -238,12 +234,6 @@ type HomeFavoriteCardCacheEntry = {
   folderName: string;
   previewText: string;
   tagSignature: string;
-};
-
-type HomeFavoriteCardProps = {
-  card: HomeFavoriteCardViewModel;
-  isActionMenuOpen: boolean;
-  actions: BookmarkListRowActions;
 };
 
 type RecommendationCardCacheEntry = {
@@ -256,6 +246,7 @@ type RecommendationCardCacheEntry = {
 
 const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
 const USERSCRIPT_DOWNLOAD_PATH = "/downloads/bookmark-saver.user.js?v=0.1.11";
+const APP_THEME_STORAGE_KEY = "bookmark-theme";
 const BOOKMARK_VIEW_SETTINGS_STORAGE_KEY = "bookmark-view-settings:v2";
 const DEFAULT_BOOKMARK_VIEW_MODE: BookmarkViewMode = "list";
 const EMPTY_BOOKMARK_ASSETS: BookmarkAsset[] = [];
@@ -390,6 +381,24 @@ const defaultBookmarkListDisplaySettings: BookmarkCardDisplaySettings = {
   bookmarkInfo: true,
   coverSize: 132
 };
+
+function loadStoredAppTheme(): AppThemeMode {
+  try {
+    return globalThis.localStorage?.getItem(APP_THEME_STORAGE_KEY) === "dark"
+      ? "dark"
+      : "light";
+  } catch {
+    return "light";
+  }
+}
+
+function storeAppTheme(theme: AppThemeMode) {
+  try {
+    globalThis.localStorage?.setItem(APP_THEME_STORAGE_KEY, theme);
+  } catch {
+    // Theme preference is non-critical; keep the in-memory toggle working.
+  }
+}
 
 const MOBILE_SEARCH_BREAKPOINT = 720;
 const MOBILE_SEARCH_MEDIA_QUERY = `(max-width: ${MOBILE_SEARCH_BREAKPOINT}px)`;
@@ -716,14 +725,6 @@ function ColorSelectField({
 
 function getBookmarkSortLabel(sort: BookmarkSortMode) {
   return bookmarkSortOptions.find((option) => option.value === sort)?.label ?? "날짜순으로 ↓";
-}
-
-function getBookmarkSortShortLabel(sort: BookmarkSortMode) {
-  return bookmarkSortOptions.find((option) => option.value === sort)?.shortLabel ?? "날짜 ↓";
-}
-
-function getBookmarkViewModeLabel(mode: BookmarkViewMode) {
-  return bookmarkViewModeOptions.find((option) => option.value === mode)?.label ?? "리스트";
 }
 
 function clampBookmarkCoverSize(value: number) {
@@ -1424,34 +1425,80 @@ function renderSearchColorSelect(
 }
 
 async function signInWithGoogle() {
-  const firebaseAuth = await import("../lib/firebase");
+  const firebaseAuth = await loadFirebaseAuth();
   return firebaseAuth.signInWithGoogle();
 }
 
 async function signOutFromGoogle() {
-  const firebaseAuth = await import("../lib/firebase");
+  const firebaseAuth = await loadFirebaseAuth();
   return firebaseAuth.signOutFromGoogle();
 }
+
+function createDashboardPanelChunkLoader<TModule>(loadModule: () => Promise<TModule>) {
+  let modulePromise: Promise<TModule> | null = null;
+
+  return () => {
+    modulePromise ??= loadModule().catch((error) => {
+      modulePromise = null;
+      throw error;
+    });
+    return modulePromise;
+  };
+}
+
+const loadBookmarkDetailPanel = createDashboardPanelChunkLoader(() =>
+  import("./BookmarkDetailPanel")
+);
+const loadFolderOverviewPanel = createDashboardPanelChunkLoader(() =>
+  import("./FolderOverviewPanel")
+);
+const loadHomePanel = createDashboardPanelChunkLoader(() => import("./HomePanel"));
+const loadBookmarkResultsPanel = createDashboardPanelChunkLoader(() =>
+  import("./BookmarkResultsPanel")
+);
 
 const LazyInstallHelpDialog = lazy(() => import("./InstallHelpDialog"));
 const LazyExtensionDownloadDialog = lazy(() => import("./ExtensionDownloadDialog"));
 const LazyExtensionTokenDialog = lazy(() => import("./ExtensionTokenDialog"));
-const LazyBookmarkDetailPanel = lazy(() => import("./BookmarkDetailPanel"));
+const LazyBookmarkDetailPanel = lazy(loadBookmarkDetailPanel);
 const LazyBookmarkComposerDialog = lazy(() => import("./BookmarkComposerDialog"));
 const LazyFolderManagerDialog = lazy(() => import("./FolderManagerDialog"));
 const LazyTagManagerDialog = lazy(() => import("./TagManagerDialog"));
 const LazyRecommendationPanel = lazy(() => import("./RecommendationPanel"));
-const LazyBookmarkResultsPanel = lazy(() => import("./BookmarkResultsPanel"));
+const LazyHomePanel = lazy(loadHomePanel);
+const LazyBookmarkResultsPanel = lazy(loadBookmarkResultsPanel);
 const LazyFolderOverviewPanel = lazy(() =>
-  import("./FolderOverviewPanel").then((module) => ({
+  loadFolderOverviewPanel().then((module) => ({
     default: module.FolderOverviewPanel
   }))
 );
 const LazyMobileSidebarTabs = lazy(() =>
-  import("./FolderOverviewPanel").then((module) => ({
+  loadFolderOverviewPanel().then((module) => ({
     default: module.MobileSidebarTabs
   }))
 );
+
+type DashboardPanelChunk = "home" | "bookmarks" | "folder" | "detail";
+
+const dashboardPanelChunkLoaders: Record<DashboardPanelChunk, () => Promise<unknown>> = {
+  home: loadHomePanel,
+  bookmarks: loadBookmarkResultsPanel,
+  folder: loadFolderOverviewPanel,
+  detail: loadBookmarkDetailPanel
+};
+
+const preloadedDashboardPanelChunks = new Set<DashboardPanelChunk>();
+
+function preloadDashboardPanelChunk(chunk: DashboardPanelChunk) {
+  if (preloadedDashboardPanelChunks.has(chunk)) {
+    return;
+  }
+
+  preloadedDashboardPanelChunks.add(chunk);
+  void dashboardPanelChunkLoaders[chunk]().catch(() => {
+    preloadedDashboardPanelChunks.delete(chunk);
+  });
+}
 
 type BookmarkAssetsModule = typeof import("../lib/bookmark-assets");
 type BookmarkExtractModule = typeof import("../lib/bookmark-extract");
@@ -1860,139 +1907,11 @@ function renderFolderIconPicker(
   );
 }
 
-function HomeFavoriteCard({
-  card,
-  isActionMenuOpen,
-  actions
-}: HomeFavoriteCardProps) {
-  const {
-    bookmark,
-    coverAsset,
-    folderName,
-    previewText,
-    visibleTagItems,
-    menuId
-  } = card;
-  const cardTitle = bookmark.displayTitle || bookmark.url;
-
-  return (
-    <li
-      className="bookmark-card home-favorite-card"
-      style={
-        bookmark.bookmarkColor
-          ? {
-              borderLeftColor: bookmark.bookmarkColor,
-              borderLeftWidth: "3px"
-            }
-          : undefined
-      }
-    >
-      {coverAsset ? (
-        <div className="asset-grid home-favorite-cover">
-          <img src={coverAsset.contentUrl} alt="업로드 이미지 1" />
-        </div>
-      ) : null}
-      <div className="home-favorite-main">
-        <div className="bookmark-title-line">
-          <strong>{cardTitle}</strong>
-          {renderHiddenBookmarkIndicator(bookmark.isHidden === true)}
-        </div>
-        <p
-          className="muted-text home-favorite-url"
-          title={bookmark.url}
-          style={bookmark.urlColor ? { color: bookmark.urlColor } : undefined}
-        >
-          {bookmark.url}
-        </p>
-        {hasTextContent(previewText) ? (
-          <p className="bookmark-row-summary home-favorite-summary">
-            {previewText}
-          </p>
-        ) : null}
-        <div className="bookmark-row-meta-line home-favorite-meta">
-          <span className="bookmark-row-meta-item">{folderName}</span>
-          {visibleTagItems.map((tag) => (
-            <span key={`home-${bookmark.id}-${tag.id}`} className="bookmark-row-meta-item">
-              {tag.name}
-            </span>
-          ))}
-        </div>
-      </div>
-      <div className="action-row bookmark-card-actions bookmark-row-actions home-favorite-actions">
-        <button
-          type="button"
-          className="primary-button bookmark-row-primary-action"
-          aria-label={`${cardTitle} 열기`}
-          onClick={() => void actions.onOpen(bookmark)}
-        >
-          열기
-        </button>
-        <div className="bookmark-card-secondary-actions">
-          <button
-            type="button"
-            className="secondary-button bookmark-row-detail-action"
-            aria-label={`${cardTitle} 상세 보기`}
-            onClick={() => void actions.onOpenDetailDialog(bookmark)}
-          >
-            상세
-          </button>
-          <button
-            type="button"
-            className="ghost-button folder-action-trigger bookmark-url-copy-button"
-            aria-label={`${cardTitle} URL 복사`}
-            title="URL 복사"
-            onClick={() => void actions.onCopyUrl(bookmark)}
-          >
-            <span className="bookmark-url-copy-icon" aria-hidden="true" />
-          </button>
-          <div
-            className="folder-action-menu-shell bookmark-card-menu-shell"
-            data-open-menu-shell={isActionMenuOpen ? "true" : undefined}
-          >
-            <button
-              type="button"
-              className="ghost-button folder-action-trigger overflow-trigger"
-              aria-label={`${cardTitle} 북마크 더보기`}
-              aria-expanded={isActionMenuOpen}
-              onClick={() => actions.onToggleActionMenu(menuId)}
-            >
-              ...
-            </button>
-            {isActionMenuOpen ? (
-              <div
-                role="menu"
-                aria-label={`${cardTitle} 북마크 메뉴`}
-                className="folder-action-menu bookmark-card-action-menu"
-              >
-                <button
-                  type="button"
-                  className="secondary-button folder-action-menu-item bookmark-card-action-menu-item"
-                  onClick={() => void actions.onEdit(bookmark)}
-                >
-                  수정
-                </button>
-                <button
-                  type="button"
-                  className="danger-button folder-action-menu-item bookmark-card-action-menu-item"
-                  onClick={() => void actions.onDelete(bookmark)}
-                >
-                  삭제
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    </li>
-  );
-}
-
-const MemoizedHomeFavoriteCard = memo(HomeFavoriteCard);
-
 export default function AuthenticatedDashboardApp({
   initialUser,
   onSessionEnd
 }: AuthenticatedDashboardAppProps = {}) {
+  const [appTheme, setAppTheme] = useState<AppThemeMode>(() => loadStoredAppTheme());
   const [sessionState, setSessionState] = useState<SessionState>({
     status: "loading"
   });
@@ -2136,6 +2055,21 @@ export default function AuthenticatedDashboardApp({
     useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
   const tagsLoadPromiseRef = useRef<Promise<Tag[]> | null>(null);
 
+  useEffect(() => {
+    const rootElement = globalThis.document?.documentElement;
+
+    if (rootElement) {
+      rootElement.dataset.appTheme = appTheme;
+    }
+    storeAppTheme(appTheme);
+
+    return () => {
+      if (rootElement?.dataset.appTheme === appTheme) {
+        delete rootElement.dataset.appTheme;
+      }
+    };
+  }, [appTheme]);
+
   function closeOpenMenus() {
     setOpenBookmarkActionMenuId(null);
     setIsBookmarkDetailActionMenuOpen(false);
@@ -2147,7 +2081,12 @@ export default function AuthenticatedDashboardApp({
     setIsMobileHeaderMenuOpen(false);
   }
 
+  function toggleAppTheme() {
+    setAppTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"));
+  }
+
   function openHomePage() {
+    preloadDashboardPanelChunk("home");
     setActiveDashboardView("home");
     setSelectedBookmark(null);
     setBookmarkDetailDisplayMode("rail");
@@ -2156,6 +2095,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   function openBookmarkWorkspace() {
+    preloadDashboardPanelChunk("bookmarks");
     setActiveDashboardView("bookmarks");
     requestDesktopRecommendationsIfNeeded();
     requestTagsIfNeeded();
@@ -4794,6 +4734,7 @@ export default function AuthenticatedDashboardApp({
     bookmarkOverride?: Bookmark,
     displayMode: BookmarkDetailDisplayMode = "rail"
   ) {
+    preloadDashboardPanelChunk("detail");
     const requestId = bookmarkDetailRequestIdRef.current + 1;
     bookmarkDetailRequestIdRef.current = requestId;
     const knownBookmark = findKnownBookmark(bookmarkId, bookmarkOverride);
@@ -6099,6 +6040,17 @@ export default function AuthenticatedDashboardApp({
     }),
     [bookmarkListRowActions]
   );
+  const homePanelActions = useMemo<HomePanelActions>(
+    () => ({
+      onOpen: (bookmark) => bookmarkListRowActions.onOpen(bookmark),
+      onOpenDetailDialog: (bookmark) => bookmarkListRowActions.onOpenDetailDialog(bookmark),
+      onCopyUrl: (bookmark) => bookmarkListRowActions.onCopyUrl(bookmark),
+      onToggleActionMenu: (bookmarkId) => bookmarkListRowActions.onToggleActionMenu(bookmarkId),
+      onEdit: (bookmark) => bookmarkListRowActions.onEdit(bookmark),
+      onDelete: (bookmark) => bookmarkListRowActions.onDelete(bookmark)
+    }),
+    [bookmarkListRowActions]
+  );
   const bookmarkListRows = useMemo<BookmarkListRowViewModel[]>(
     () => {
       const previousBookmarkListRowCache = bookmarkListRowCacheRef.current;
@@ -6764,67 +6716,6 @@ export default function AuthenticatedDashboardApp({
     );
   }
 
-  function renderBookmarkSortControl() {
-    const activeSortLabel = getBookmarkSortLabel(appliedBookmarkSearch.sort);
-    const activeSortShortLabel = getBookmarkSortShortLabel(appliedBookmarkSearch.sort);
-    const triggerLabel = shouldUseCompactMobileCards ? activeSortShortLabel : activeSortLabel;
-
-    return (
-      <div
-        className="bookmark-sort-menu-shell"
-        data-open-menu-shell={isBookmarkSortMenuOpen ? "true" : undefined}
-      >
-        <button
-          type="button"
-          className="secondary-button bookmark-sort-trigger"
-          aria-label="북마크 정렬"
-          aria-expanded={isBookmarkSortMenuOpen}
-          onClick={() => {
-            setIsBookmarkViewMenuOpen(false);
-            setIsBookmarkSortMenuOpen((currentState) => !currentState);
-          }}
-        >
-          <span className="bookmark-sort-trigger-label">정렬</span>
-          <span className="bookmark-sort-trigger-value">{triggerLabel}</span>
-        </button>
-        {isBookmarkSortMenuOpen ? (
-          <div
-            role="menu"
-            aria-label="북마크 정렬 메뉴"
-            className="folder-action-menu bookmark-sort-menu"
-          >
-            <p className="bookmark-sort-menu-title">정렬 기준</p>
-            {bookmarkSortOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                role="menuitemradio"
-                aria-checked={appliedBookmarkSearch.sort === option.value}
-                className={`secondary-button folder-action-menu-item bookmark-sort-menu-item${
-                  appliedBookmarkSearch.sort === option.value
-                    ? " bookmark-sort-menu-item-active"
-                    : ""
-                }`}
-                onClick={() => void applyBookmarkSort(option.value)}
-              >
-                <span aria-hidden="true" className="bookmark-sort-menu-mark">
-                  {appliedBookmarkSearch.sort === option.value ? "●" : "○"}
-                </span>
-                <span>{option.label}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  function getActiveBookmarkDisplaySettings() {
-    return bookmarkViewMode === "list"
-      ? bookmarkListDisplaySettings
-      : bookmarkCardDisplaySettings;
-  }
-
   function updateBookmarkDisplaySetting(
     key: keyof Omit<BookmarkCardDisplaySettings, "coverSize">,
     value: boolean
@@ -6843,123 +6734,12 @@ export default function AuthenticatedDashboardApp({
     }));
   }
 
-  function renderBookmarkViewControl() {
-    const activeViewLabel = getBookmarkViewModeLabel(bookmarkViewMode);
-    const shouldShowDisplayControls = bookmarkViewMode !== "title";
-    const shouldShowCoverSizeControl =
-      bookmarkViewMode === "card" || bookmarkViewMode === "moodboard";
-    const activeBookmarkDisplaySettings = getActiveBookmarkDisplaySettings();
-
-    return (
-      <div
-        className="bookmark-view-menu-shell"
-        data-open-menu-shell={isBookmarkViewMenuOpen ? "true" : undefined}
-      >
-        <button
-          type="button"
-          className="secondary-button bookmark-view-trigger"
-          aria-label="보기 설정"
-          aria-expanded={isBookmarkViewMenuOpen}
-          onClick={() => {
-            setIsBookmarkSortMenuOpen(false);
-            setIsBookmarkViewMenuOpen((currentState) => !currentState);
-          }}
-        >
-          <span aria-hidden="true" className="bookmark-view-trigger-icon">
-            ▦
-          </span>
-          <span className="bookmark-view-trigger-value">{activeViewLabel}</span>
-        </button>
-        {isBookmarkViewMenuOpen ? (
-          <div
-            role="menu"
-            aria-label="보기 설정 메뉴"
-            className="folder-action-menu bookmark-view-menu"
-          >
-            <section className="bookmark-view-menu-section">
-              <p className="bookmark-view-menu-title">보기</p>
-              {bookmarkViewModeOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={bookmarkViewMode === option.value}
-                  className={`secondary-button folder-action-menu-item bookmark-view-menu-item${
-                    bookmarkViewMode === option.value ? " bookmark-view-menu-item-active" : ""
-                  }`}
-                  onClick={() => setBookmarkViewMode(option.value)}
-                >
-                  <span aria-hidden="true" className="bookmark-view-menu-mark">
-                    {bookmarkViewMode === option.value ? "●" : "○"}
-                  </span>
-                  <span aria-hidden="true" className="bookmark-view-menu-icon">
-                    {option.icon}
-                  </span>
-                  <span>{option.label}</span>
-                </button>
-              ))}
-            </section>
-            {shouldShowDisplayControls ? (
-            <section className="bookmark-view-menu-section">
-              <p className="bookmark-view-menu-title">항목에서 표시</p>
-              {[
-                ["coverImage", "커버 이미지"],
-                ["title", "제목"],
-                ["description", "설명"],
-                ["tags", "태그"],
-                ["bookmarkInfo", "북마크 정보"]
-              ].map(([key, label]) => {
-                const settingKey = key as keyof Omit<BookmarkCardDisplaySettings, "coverSize">;
-                const isChecked = activeBookmarkDisplaySettings[settingKey];
-
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    role="menuitemcheckbox"
-                    aria-checked={isChecked}
-                    className={`secondary-button folder-action-menu-item bookmark-view-menu-item${
-                      isChecked ? " bookmark-view-menu-item-active" : ""
-                    }`}
-                    onClick={() => updateBookmarkDisplaySetting(settingKey, !isChecked)}
-                  >
-                    <span aria-hidden="true" className="bookmark-view-menu-check">
-                      {isChecked ? "✓" : ""}
-                    </span>
-                    <span>{label}</span>
-                  </button>
-                );
-              })}
-            </section>
-            ) : null}
-            {shouldShowCoverSizeControl ? (
-            <section className="bookmark-view-menu-section bookmark-cover-size-section">
-              <label className="bookmark-cover-size-label" htmlFor="bookmark-cover-size-input">
-                커버 이미지
-              </label>
-              <input
-                id="bookmark-cover-size-input"
-                aria-label="커버 이미지 크기"
-                className="bookmark-cover-size-slider"
-                type="range"
-                min="80"
-                max="220"
-                step="10"
-                value={bookmarkCardDisplaySettings.coverSize}
-                onChange={(event) => {
-                  const nextCoverSize = clampBookmarkCoverSize(Number(event.target.value));
-                  setBookmarkCardDisplaySettings((currentSettings) => ({
-                    ...currentSettings,
-                    coverSize: nextCoverSize
-                  }));
-                }}
-              />
-            </section>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    );
+  function updateBookmarkCoverSize(value: number) {
+    const nextCoverSize = clampBookmarkCoverSize(value);
+    setBookmarkCardDisplaySettings((currentSettings) => ({
+      ...currentSettings,
+      coverSize: nextCoverSize
+    }));
   }
 
   function renderPendingAssetComposerSection(existingBookmarkId: string | null = null) {
@@ -7016,7 +6796,13 @@ export default function AuthenticatedDashboardApp({
           <div className="asset-grid">
             {existingAssets.map((asset, index) => (
               <div key={asset.id} className="asset-item">
-                <img src={asset.contentUrl} alt={`업로드 이미지 ${index + 1}`} />
+                <img
+                  src={asset.contentUrl}
+                  alt={`업로드 이미지 ${index + 1}`}
+                  loading="lazy"
+                  decoding="async"
+                  fetchPriority="low"
+                />
                 <button
                   type="button"
                   className="ghost-button"
@@ -7185,6 +6971,17 @@ export default function AuthenticatedDashboardApp({
     }
   }
 
+  function preloadMobileSidebarPanel(panelId: MobileSidebarPanelId) {
+    if (panelId === "folder") {
+      preloadDashboardPanelChunk("folder");
+      return;
+    }
+
+    if (panelId === "bookmark") {
+      preloadDashboardPanelChunk("bookmarks");
+    }
+  }
+
   function renderLazyFolderOverviewPanel(options?: { isHidden?: boolean }) {
     return (
       <Suspense fallback={null}>
@@ -7241,6 +7038,7 @@ export default function AuthenticatedDashboardApp({
             }
           ]}
           onSelectPanel={handleMobileSidebarPanelSelect}
+          onPreloadPanel={preloadMobileSidebarPanel}
         />
       </Suspense>
     );
@@ -7251,7 +7049,10 @@ export default function AuthenticatedDashboardApp({
       <Suspense fallback={null}>
         <LazyBookmarkResultsPanel
           activeBookmarkSearchSummaryItems={activeBookmarkSearchSummaryItems}
+          activeBookmarkSort={appliedBookmarkSearch.sort}
           bookmarkCardCoverSize={bookmarkCardDisplaySettings.coverSize}
+          bookmarkCardDisplaySettings={bookmarkCardDisplaySettings}
+          bookmarkListDisplaySettings={bookmarkListDisplaySettings}
           bookmarkListElementRef={bookmarkListElementRef}
           bookmarkListPageSize={bookmarkListPageSize}
           bookmarkListRows={bookmarkListRows}
@@ -7260,10 +7061,13 @@ export default function AuthenticatedDashboardApp({
           bookmarkSearchModeOptions={bookmarkSearchModeOptions}
           bookmarkSortOptions={bookmarkSortOptions}
           bookmarkViewMode={bookmarkViewMode}
+          bookmarkViewModeOptions={bookmarkViewModeOptions}
           canVirtualizeBookmarkList={canVirtualizeBookmarkList}
           hasActiveAppliedBookmarkSearch={hasActiveAppliedBookmarkSearch}
           hasMoreVisibleBookmarks={hasMoreVisibleBookmarks}
           isAdvancedBookmarkSearchOpen={isAdvancedBookmarkSearchOpen}
+          isBookmarkSortMenuOpen={isBookmarkSortMenuOpen}
+          isBookmarkViewMenuOpen={isBookmarkViewMenuOpen}
           isHidden={options?.isHidden}
           isLoadingDashboard={isLoadingDashboard}
           isLoadingMoreBookmarks={isLoadingMoreBookmarks}
@@ -7290,9 +7094,13 @@ export default function AuthenticatedDashboardApp({
           handleBookmarkSearchReset={handleBookmarkSearchReset}
           handleBookmarkSearchSubmit={handleBookmarkSearchSubmit}
           handleToggleHiddenBookmarks={handleToggleHiddenBookmarks}
-          renderBookmarkSortControl={renderBookmarkSortControl}
-          renderBookmarkViewControl={renderBookmarkViewControl}
           renderSearchColorSelect={renderSearchColorSelect}
+          onBookmarkCoverSizeChange={updateBookmarkCoverSize}
+          onBookmarkDisplaySettingChange={updateBookmarkDisplaySetting}
+          onBookmarkSortMenuOpenChange={setIsBookmarkSortMenuOpen}
+          onBookmarkSortSelect={applyBookmarkSort}
+          onBookmarkViewMenuOpenChange={setIsBookmarkViewMenuOpen}
+          onBookmarkViewModeChange={setBookmarkViewMode}
           setIsAdvancedBookmarkSearchOpen={setIsAdvancedBookmarkSearchOpen}
           setIsMobileSearchPanelOpen={setIsMobileSearchPanelOpen}
           toggleBookmarkSearchTag={toggleBookmarkSearchTag}
@@ -7327,79 +7135,54 @@ export default function AuthenticatedDashboardApp({
     isHidden: isHomeDashboardView
   });
 
-  const homeSection = (
-    <section aria-label="home-page" className="surface-card panel-card home-page">
-      <header className="home-page-header">
-        <div className="home-page-title-block">
-          <p className="bookmark-list-kicker">홈</p>
-          <div className="home-page-title-row">
-            <h2>홈</h2>
-            <span className="home-page-count">즐겨찾기 {homeFavoriteBookmarkCount}개</span>
-          </div>
-        </div>
-        <button
-          type="button"
-          className={`home-recommendation-toggle${
-            isHomeRecommendationOpen ? " home-recommendation-toggle-active" : ""
-          }`}
-          aria-label="추천 보기"
-          aria-pressed={isHomeRecommendationOpen}
-          onClick={() => {
+  function renderLazyHomePanel() {
+    return (
+      <Suspense fallback={null}>
+        <LazyHomePanel
+          isLoadingDashboard={isLoadingDashboard}
+          homeFavoriteBookmarkCount={homeFavoriteBookmarkCount}
+          homeFavoriteCards={homeFavoriteCards}
+          isHomeRecommendationOpen={isHomeRecommendationOpen}
+          openBookmarkActionMenuId={openBookmarkActionMenuId}
+          actions={homePanelActions}
+          onToggleRecommendations={() => {
             const nextIsOpen = !isHomeRecommendationOpen;
             setIsHomeRecommendationOpen(nextIsOpen);
             if (nextIsOpen) {
               requestRecommendationsIfNeeded();
             }
           }}
-        >
-          <span className="home-recommendation-toggle-label">추천</span>
-          <span className="home-recommendation-toggle-track" aria-hidden="true">
-            <span className="home-recommendation-toggle-thumb" />
-          </span>
-        </button>
-      </header>
-      {isLoadingDashboard ? (
-        <div className="bookmark-loading-state" role="status" aria-live="polite">
-          <span className="bookmark-loading-spinner" aria-hidden="true" />
-          <span>홈을 불러오는 중입니다.</span>
-        </div>
-      ) : null}
-      {!isLoadingDashboard && homeFavoriteCards.length === 0 ? (
-        <p className="quiet-empty-state home-page-empty-state">즐겨찾기가 없습니다.</p>
-      ) : null}
-      {!isLoadingDashboard && homeFavoriteCards.length > 0 ? (
-        <ul className="home-favorite-grid">
-          {homeFavoriteCards.map((card) => (
-            <MemoizedHomeFavoriteCard
-              key={card.menuId}
-              card={card}
-              isActionMenuOpen={openBookmarkActionMenuId === card.menuId}
-              actions={bookmarkListRowActions}
-            />
-          ))}
-        </ul>
-      ) : null}
-      {isHomeRecommendationOpen
-        ? renderLazyRecommendationPanel({
-            ariaLabel: "home-recommendation-list",
-            className: "home-recommendation-panel",
-            isEmbedded: true
-          })
-        : null}
-    </section>
-  );
+          recommendationPanel={
+            isHomeRecommendationOpen
+              ? renderLazyRecommendationPanel({
+                  ariaLabel: "home-recommendation-list",
+                  className: "home-recommendation-panel",
+                  isEmbedded: true
+                })
+              : null
+          }
+        />
+      </Suspense>
+    );
+  }
+
+  const isDarkAppTheme = appTheme === "dark";
+  const appThemeToggleLabel = isDarkAppTheme ? "라이트 모드로 변경" : "다크 모드로 변경";
 
   return (
     <main
-      className={`app-shell${
+      className={`app-shell app-theme-${appTheme}${
         isBookmarkDetailPreviewFullscreenActive ? " app-shell-preview-fullscreen" : ""
       }`}
+      data-app-theme={appTheme}
     >
       <header className="app-hero">
         <button
           type="button"
           className="hero-copy hero-home-button"
           aria-label="홈으로 이동"
+          onMouseEnter={() => preloadDashboardPanelChunk("home")}
+          onFocus={() => preloadDashboardPanelChunk("home")}
           onClick={() => openHomePage()}
         >
           <h1>Bookmark</h1>
@@ -7477,6 +7260,21 @@ export default function AuthenticatedDashboardApp({
         ) : null}
         <div className={`hero-actions${shouldUseMobileSidebarPanels ? " hero-actions-mobile" : ""}`}>
           {sessionState.status === "loading" ? <p>세션을 확인하는 중입니다.</p> : null}
+          <button
+            type="button"
+            className="secondary-button hero-theme-toggle"
+            aria-label={appThemeToggleLabel}
+            aria-pressed={isDarkAppTheme}
+            title={appThemeToggleLabel}
+            onClick={toggleAppTheme}
+          >
+            <span className="theme-toggle-icon" aria-hidden="true">
+              {isDarkAppTheme ? "☀" : "◐"}
+            </span>
+            <span className="theme-toggle-label">
+              {isDarkAppTheme ? "라이트" : "다크"}
+            </span>
+          </button>
           {shouldUseMobileSidebarPanels && sessionState.status === "authenticated" ? (
             <>
               <button
@@ -7586,7 +7384,13 @@ export default function AuthenticatedDashboardApp({
                   앱 설치
                 </button>
               ) : null}
-              <button type="button" className="primary-button" onClick={() => void handleGoogleLogin()}>
+              <button
+                type="button"
+                className="primary-button"
+                onMouseEnter={preloadFirebaseAuth}
+                onFocus={preloadFirebaseAuth}
+                onClick={() => void handleGoogleLogin()}
+              >
                 Google로 로그인
               </button>
             </>
@@ -7667,7 +7471,7 @@ export default function AuthenticatedDashboardApp({
               aria-label="result-primary-column"
               className="result-primary-column"
             >
-            {isHomeDashboardView ? homeSection : null}
+            {isHomeDashboardView ? renderLazyHomePanel() : null}
             {shouldRenderMobileFolderTab
               ? renderLazyFolderOverviewPanel({ isHidden: isHomeDashboardView })
               : null}

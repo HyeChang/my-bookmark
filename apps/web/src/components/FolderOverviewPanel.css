@@ -753,6 +753,64 @@
   }
 }
 
+.app-theme-light .folder-overview-card,
+.app-theme-light .dashboard-sidebar .folder-overview-card {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+  box-shadow: none;
+}
+
+.app-theme-light .folder-overview-title-row h2,
+.app-theme-light .folder-overview-system-label,
+.app-theme-light .folder-overview-name {
+  color: #20242b !important;
+}
+
+.app-theme-light .folder-overview-helper,
+.app-theme-light .folder-overview-count,
+.app-theme-light .folder-overview-system-count {
+  color: #66707d !important;
+}
+
+.app-theme-light .folder-overview-search-input,
+.app-theme-light .folder-overview-trigger,
+.app-theme-light .folder-overview-system-trigger,
+.app-theme-light .sidebar-segment-tab {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+  box-shadow: none;
+}
+
+.app-theme-light .folder-overview-trigger:hover,
+.app-theme-light .folder-overview-system-trigger:hover {
+  background: #f7f8fa !important;
+}
+
+.app-theme-light .folder-overview-trigger-active,
+.app-theme-light .folder-overview-system-trigger-active,
+.app-theme-light .sidebar-segment-tab-active {
+  border-color: rgba(22, 131, 232, 0.22) !important;
+  background: rgba(22, 131, 232, 0.1) !important;
+  color: #1683e8 !important;
+}
+
+.app-theme-dark .folder-overview-card,
+.app-theme-dark .dashboard-sidebar .folder-overview-card {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-sidebar) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .folder-overview-trigger,
+.app-theme-dark .folder-overview-system-trigger,
+.app-theme-dark .sidebar-segment-tab {
+  border-color: rgba(148, 163, 184, 0.1) !important;
+  background: rgba(26, 34, 46, 0.62) !important;
+  color: var(--text-primary) !important;
+}
+
 @media (min-width: 1121px) {
 
   .dashboard-sidebar .folder-overview-card,
@@ -867,4 +925,89 @@
   .dashboard-sidebar .folder-overview-trigger {
     min-height: 2rem;
   }
+}
+
+/* Final theme pass for the lazy-loaded folder overview chunk. */
+.app-theme-light .folder-overview-card,
+.app-theme-light .folder-overview-list,
+.app-theme-light .folder-overview-row,
+.app-theme-light .folder-overview-entry,
+.app-theme-light .folder-overview-children,
+.app-theme-light .folder-overview-trigger,
+.app-theme-light .folder-overview-system-trigger,
+.app-theme-light .sidebar-segment-tab,
+.app-theme-light .folder-overview-search-input {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+}
+
+.app-theme-light .folder-overview-title-row h2,
+.app-theme-light .folder-overview-system-label,
+.app-theme-light .folder-overview-name {
+  color: #20242b !important;
+}
+
+.app-theme-light .folder-overview-helper,
+.app-theme-light .folder-overview-count,
+.app-theme-light .folder-overview-system-count {
+  color: #66707d !important;
+}
+
+.app-theme-dark .folder-overview-card,
+.app-theme-dark .folder-overview-list,
+.app-theme-dark .folder-overview-row,
+.app-theme-dark .folder-overview-entry,
+.app-theme-dark .folder-overview-children {
+  border-color: var(--border-soft) !important;
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+.app-theme-dark .folder-overview-card {
+  background: var(--surface-sidebar) !important;
+}
+
+.app-theme-dark .folder-overview-title-row h2,
+.app-theme-dark .folder-overview-system-label,
+.app-theme-dark .folder-overview-name {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .folder-overview-helper,
+.app-theme-dark .folder-overview-count,
+.app-theme-dark .folder-overview-system-count,
+.app-theme-dark .folder-overview-system-icon {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .folder-overview-search-input,
+.app-theme-dark .folder-overview-trigger,
+.app-theme-dark .folder-overview-system-trigger,
+.app-theme-dark .sidebar-segment-tab {
+  border-color: rgba(148, 163, 184, 0.12) !important;
+  background: rgba(26, 34, 46, 0.62) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .folder-overview-trigger:hover,
+.app-theme-dark .folder-overview-system-trigger:hover,
+.app-theme-dark .sidebar-segment-tab:hover {
+  background: rgba(55, 65, 81, 0.7) !important;
+}
+
+.app-theme-dark .folder-overview-trigger-active,
+.app-theme-dark .folder-overview-system-trigger-active,
+.app-theme-dark .sidebar-segment-tab-active {
+  border-color: rgba(158, 199, 255, 0.34) !important;
+  background: rgba(158, 199, 255, 0.14) !important;
+  color: var(--accent) !important;
+}
+
+.app-theme-dark .folder-overview-empty-state {
+  border-color: var(--border-soft) !important;
+  background: linear-gradient(135deg, rgba(36, 46, 61, 0.86), rgba(25, 34, 48, 0.82)) !important;
+  color: var(--text-muted) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
 }

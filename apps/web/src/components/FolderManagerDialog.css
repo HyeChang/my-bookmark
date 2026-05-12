@@ -181,3 +181,60 @@
     backdrop-filter: none;
   }
 }
+
+/* Final theme pass for the lazy-loaded folder manager chunk. */
+.app-theme-light .folder-tree-item,
+.app-theme-light .folder-tree-row,
+.app-theme-light .folder-tree-inline-menu,
+.app-theme-light .folder-tree-move-menu {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+  box-shadow: none !important;
+}
+
+.app-theme-light .folder-tree-label,
+.app-theme-light .folder-tree-summary strong {
+  color: #20242b !important;
+}
+
+.app-theme-light .folder-tree-meta p,
+.app-theme-light .folder-tree-disclosure,
+.app-theme-light .folder-tree-drop-action,
+.app-theme-light .folder-action-menu-empty {
+  color: #66707d !important;
+}
+
+.app-theme-dark .folder-tree-item,
+.app-theme-dark .folder-tree-row,
+.app-theme-dark .folder-tree-inline-menu,
+.app-theme-dark .folder-tree-move-menu {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16) !important;
+}
+
+.app-theme-dark .folder-tree-item-child {
+  background: rgba(16, 24, 36, 0.92) !important;
+}
+
+.app-theme-dark .folder-tree-label,
+.app-theme-dark .folder-tree-summary strong {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .folder-tree-meta p,
+.app-theme-dark .folder-tree-disclosure,
+.app-theme-dark .folder-tree-drop-action,
+.app-theme-dark .folder-action-menu-empty {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .folder-tree-handle,
+.app-theme-dark .folder-tree-child-create,
+.app-theme-dark .folder-tree-drop-action {
+  border-color: var(--border-soft) !important;
+  background: rgba(40, 48, 61, 0.86) !important;
+  color: var(--text-primary) !important;
+}

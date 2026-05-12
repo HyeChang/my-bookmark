@@ -283,7 +283,14 @@ export default function BookmarkDetailPanel({
           {assets.length > 0 ? (
             <div className="asset-grid">
               {assets.map((asset, index) => (
-                <img key={asset.id} src={asset.contentUrl} alt={`업로드 이미지 ${index + 1}`} />
+                <img
+                  key={asset.id}
+                  src={asset.contentUrl}
+                  alt={`업로드 이미지 ${index + 1}`}
+                  loading="lazy"
+                  decoding="async"
+                  fetchPriority="low"
+                />
               ))}
             </div>
           ) : isLoadingAssets ? (
@@ -323,6 +330,9 @@ export default function BookmarkDetailPanel({
                 className="bookmark-preview-image"
                 src={livePreview.sourceImageUrl}
                 alt={getBookmarkPreviewImageAlt(livePreview)}
+                loading="lazy"
+                decoding="async"
+                fetchPriority="low"
               />
             ) : null}
             {livePreview ? renderBookmarkPreviewArticle(livePreview) : null}

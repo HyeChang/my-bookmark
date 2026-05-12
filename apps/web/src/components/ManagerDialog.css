@@ -108,3 +108,43 @@
     color: var(--desktop-muted);
   }
 }
+
+/* Final theme pass for shared manager dialogs. */
+.app-theme-light .manager-surface,
+.app-theme-light .manager-editor-surface {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+  box-shadow: none !important;
+}
+
+.app-theme-light .manager-section-header h3,
+.app-theme-light .manager-checkbox-row {
+  color: #20242b !important;
+}
+
+.app-theme-light .manager-section-header p,
+.app-theme-light .manager-section-kicker {
+  color: #66707d !important;
+}
+
+.app-theme-dark .manager-surface,
+.app-theme-dark .manager-editor-surface {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16) !important;
+}
+
+.app-theme-dark .manager-section-header h3,
+.app-theme-dark .manager-checkbox-row {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .manager-section-header p {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .manager-section-kicker {
+  color: var(--accent) !important;
+}

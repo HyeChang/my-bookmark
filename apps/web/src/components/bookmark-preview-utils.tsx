@@ -184,6 +184,8 @@ export function renderBookmarkPreviewArticle(preview: BookmarkExtractPreview) {
                 src={block.url}
                 alt={getBookmarkPreviewArticleImageAlt(preview, block, currentImageIndex)}
                 loading="lazy"
+                decoding="async"
+                fetchPriority="low"
               />
               {block.alt ? <figcaption>{block.alt}</figcaption> : null}
             </figure>

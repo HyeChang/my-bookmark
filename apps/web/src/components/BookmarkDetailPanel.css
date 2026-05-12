@@ -511,3 +511,81 @@
     background: #f7f8fa;
   }
 }
+
+/* Final theme pass for the lazy-loaded detail chunk. */
+.app-theme-light .bookmark-detail-card,
+.app-theme-light .bookmark-detail-placeholder,
+.app-theme-light .bookmark-detail-dialog-shell .detail-block,
+.app-theme-light .bookmark-detail-card-preview-fullscreen {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+  box-shadow: none !important;
+}
+
+.app-theme-light .bookmark-detail-title-copy h2,
+.app-theme-light .bookmark-detail-title-copy strong,
+.app-theme-light .bookmark-detail-placeholder h2 {
+  color: #20242b !important;
+}
+
+.app-theme-light .bookmark-detail-url,
+.app-theme-light .bookmark-detail-meta,
+.app-theme-light .bookmark-detail-meta-line,
+.app-theme-light .bookmark-detail-meta-primary,
+.app-theme-light .bookmark-detail-title-row > .muted-text,
+.app-theme-light .bookmark-detail-loading-status {
+  color: #66707d !important;
+}
+
+.app-theme-dark .bookmark-detail-card,
+.app-theme-dark .bookmark-detail-placeholder,
+.app-theme-dark .bookmark-detail-dialog-shell .detail-block,
+.app-theme-dark .bookmark-detail-card-preview-fullscreen {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16) !important;
+}
+
+.app-theme-dark .bookmark-detail-card-preview-fullscreen,
+.app-theme-dark .bookmark-detail-card-preview-fullscreen .bookmark-detail-preview-panel > .detail-block {
+  background: rgba(20, 27, 38, 0.98) !important;
+}
+
+.app-theme-dark .bookmark-detail-title-copy h2,
+.app-theme-dark .bookmark-detail-title-copy strong,
+.app-theme-dark .bookmark-detail-placeholder h2 {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .bookmark-detail-url,
+.app-theme-dark .bookmark-detail-meta,
+.app-theme-dark .bookmark-detail-meta-line,
+.app-theme-dark .bookmark-detail-meta-primary,
+.app-theme-dark .bookmark-detail-title-row > .muted-text,
+.app-theme-dark .bookmark-detail-loading-status {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .bookmark-detail-header,
+.app-theme-dark .bookmark-detail-tabs {
+  border-color: var(--border-soft) !important;
+}
+
+.app-theme-dark .bookmark-detail-tab {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .bookmark-detail-tab-active {
+  background: rgba(158, 199, 255, 0.14) !important;
+  color: var(--accent) !important;
+}
+
+.app-theme-dark .bookmark-detail-action-menu,
+.app-theme-dark .bookmark-detail-window-button,
+.app-theme-dark .bookmark-detail-close-button {
+  border-color: var(--border-soft) !important;
+  background: rgba(40, 48, 61, 0.86) !important;
+  color: var(--text-primary) !important;
+}

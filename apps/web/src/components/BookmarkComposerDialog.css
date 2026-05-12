@@ -219,3 +219,110 @@
     border-color: var(--desktop-border);
   }
 }
+
+/* Final theme pass for the lazy-loaded bookmark composer chunk. */
+.app-theme-light .bookmark-composer-dialog-shell,
+.app-theme-light .bookmark-composer-panel-readable,
+.app-theme-light .bookmark-composer-panel-readable .bookmark-composer-section,
+.app-theme-light .bookmark-composer-panel-readable .bookmark-preview-card,
+.app-theme-light .bookmark-composer-panel-readable .bookmark-preview-fallback-card,
+.app-theme-light .bookmark-composer-panel-readable .inline-folder-create-panel,
+.app-theme-light .bookmark-composer-panel-readable .inline-file-list li {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+}
+
+.app-theme-light .bookmark-composer-dialog-shell .overlay-dialog-title h2,
+.app-theme-light .bookmark-composer-panel-readable .workspace-panel-heading-row h2,
+.app-theme-light .bookmark-composer-panel-readable .bookmark-composer-section-header h3,
+.app-theme-light .bookmark-composer-panel-readable .bookmark-preview-card h3,
+.app-theme-light .bookmark-composer-panel-readable .bookmark-preview-fallback-card h3,
+.app-theme-light .bookmark-composer-panel-readable .stack-form label,
+.app-theme-light .bookmark-composer-panel-readable .tag-fieldset legend,
+.app-theme-light .bookmark-composer-panel-readable .picker-fieldset legend {
+  color: #20242b !important;
+}
+
+.app-theme-light .bookmark-composer-dialog-shell .workspace-panel-kicker,
+.app-theme-light .bookmark-composer-panel-readable .workspace-panel-kicker,
+.app-theme-light .bookmark-composer-panel-readable .bookmark-composer-section-header p,
+.app-theme-light .bookmark-composer-panel-readable .bookmark-preview-card p,
+.app-theme-light .bookmark-composer-panel-readable .bookmark-preview-fallback-card p,
+.app-theme-light .bookmark-composer-panel-readable .field-note,
+.app-theme-light .bookmark-composer-panel-readable .color-select-trigger-value,
+.app-theme-light .bookmark-composer-panel-readable .color-select-option-copy,
+.app-theme-light .bookmark-composer-panel-readable .picker-chip-copy,
+.app-theme-light .bookmark-composer-panel-readable .bookmark-tag-selected-summary,
+.app-theme-light .bookmark-composer-panel-readable .bookmark-tag-search-summary {
+  color: #66707d !important;
+}
+
+.app-theme-dark .bookmark-composer-dialog-shell,
+.app-theme-dark .bookmark-composer-panel-readable,
+.app-theme-dark .bookmark-composer-panel-readable .bookmark-composer-section,
+.app-theme-dark .bookmark-composer-panel-readable .bookmark-preview-card,
+.app-theme-dark .bookmark-composer-panel-readable .bookmark-preview-fallback-card,
+.app-theme-dark .bookmark-composer-panel-readable .inline-folder-create-panel,
+.app-theme-dark .bookmark-composer-panel-readable .inline-file-list li {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .bookmark-composer-dialog-shell .overlay-dialog-title h2,
+.app-theme-dark .bookmark-composer-panel-readable .workspace-panel-heading-row h2,
+.app-theme-dark .bookmark-composer-panel-readable .bookmark-composer-section-header h3,
+.app-theme-dark .bookmark-composer-panel-readable .bookmark-preview-card h3,
+.app-theme-dark .bookmark-composer-panel-readable .bookmark-preview-fallback-card h3,
+.app-theme-dark .bookmark-composer-panel-readable .stack-form label,
+.app-theme-dark .bookmark-composer-panel-readable .tag-fieldset legend,
+.app-theme-dark .bookmark-composer-panel-readable .picker-fieldset legend {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .bookmark-composer-dialog-shell .workspace-panel-kicker,
+.app-theme-dark .bookmark-composer-panel-readable .workspace-panel-kicker,
+.app-theme-dark .bookmark-composer-panel-readable .bookmark-composer-section-header p,
+.app-theme-dark .bookmark-composer-panel-readable .bookmark-preview-card p,
+.app-theme-dark .bookmark-composer-panel-readable .bookmark-preview-fallback-card p,
+.app-theme-dark .bookmark-composer-panel-readable .field-note,
+.app-theme-dark .bookmark-composer-panel-readable .color-select-trigger-value,
+.app-theme-dark .bookmark-composer-panel-readable .color-select-option-copy,
+.app-theme-dark .bookmark-composer-panel-readable .picker-chip-copy,
+.app-theme-dark .bookmark-composer-panel-readable .bookmark-tag-selected-summary,
+.app-theme-dark .bookmark-composer-panel-readable .bookmark-tag-search-summary {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .bookmark-composer-panel-readable .stack-form input,
+.app-theme-dark .bookmark-composer-panel-readable .stack-form select,
+.app-theme-dark .bookmark-composer-panel-readable .stack-form textarea,
+.app-theme-dark .bookmark-composer-panel-readable .color-select-trigger,
+.app-theme-dark .bookmark-composer-panel-readable .color-select-option,
+.app-theme-dark .bookmark-composer-panel-readable .picker-chip,
+.app-theme-dark .bookmark-composer-panel-readable .pill-option,
+.app-theme-dark .bookmark-composer-panel-readable .bookmark-tag-selected-chip {
+  border-color: var(--border-soft) !important;
+  background: rgba(23, 30, 42, 0.9) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .bookmark-composer-panel-readable .workspace-panel-summary,
+.app-theme-dark .bookmark-composer-panel-readable .bookmark-tag-selected-chip-remove {
+  background: rgba(158, 199, 255, 0.14) !important;
+  color: var(--accent) !important;
+}
+
+.app-theme-dark .bookmark-composer-panel-readable button:not(.primary-button):not(.danger-button):not(
+    .inline-file-remove-button
+  ) {
+  border-color: var(--border-soft) !important;
+  background: rgba(40, 48, 61, 0.86) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .bookmark-composer-dialog-shell .bookmark-composer-footer {
+  border-color: var(--border-soft) !important;
+  background: linear-gradient(180deg, rgba(10, 16, 25, 0) 0%, rgba(10, 16, 25, 0.96) 28%) !important;
+}

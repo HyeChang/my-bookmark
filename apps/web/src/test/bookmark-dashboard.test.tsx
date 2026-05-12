@@ -65,6 +65,104 @@ function stubDashboardViewport(width: number) {
 }
 
 describe("bookmark dashboard", () => {
+  it("defaults to light mode and switches theme only from the manual toggle", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com",
+              name: "Bookmark Tester"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/counts" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            counts: {
+              active: { total: 0, visible: 0 },
+              favorite: { total: 0, visible: 0 },
+              trashed: { total: 0, visible: 0 },
+              unfiled: { total: 0, visible: 0 },
+              byFolderId: {}
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks?favorite=1&limit=20&offset=0" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [],
+            pagination: {
+              limit: 20,
+              offset: 0,
+              total: 0,
+              hasMore: false
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const homePage = await screen.findByRole("region", { name: /home-page/i });
+    expect(homePage).toBeInTheDocument();
+
+    const appShell = screen.getByRole("main");
+    expect(appShell).toHaveClass("app-theme-light");
+    expect(appShell).not.toHaveClass("app-theme-dark");
+    expect(document.documentElement).toHaveAttribute("data-app-theme", "light");
+
+    const darkModeToggle = screen.getByRole("button", { name: /다크 모드로 변경/i });
+    expect(darkModeToggle).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(darkModeToggle);
+
+    expect(appShell).toHaveClass("app-theme-dark");
+    expect(document.documentElement).toHaveAttribute("data-app-theme", "dark");
+    expect(globalThis.localStorage?.getItem("bookmark-theme")).toBe("dark");
+    expect(
+      screen.getByRole("button", { name: /라이트 모드로 변경/i })
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("shows polished loading placeholders instead of empty recommendation states while dashboard data loads", async () => {
     const pendingDashboardResponse = new Promise<Response>(() => undefined);
 

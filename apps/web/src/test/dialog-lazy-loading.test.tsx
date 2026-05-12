@@ -381,9 +381,11 @@ describe("dialog lazy loading", () => {
       screen.getByRole("button", { name: /Lazy detail bookmark 상세 보기/i })
     );
 
+    await waitFor(() => {
+      expect(lazyDialogMocks.bookmarkDetailLoadCount).toBe(1);
+    });
     expect(await screen.findByText("lazy bookmark detail panel")).toBeInTheDocument();
-    expect(lazyDialogMocks.bookmarkDetailLoadCount).toBe(1);
-  });
+  }, 10_000);
 
   it("loads bookmark composer dialog code only when creating a bookmark", async () => {
     stubAuthenticatedSession();

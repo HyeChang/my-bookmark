@@ -89,3 +89,79 @@
     gap: 0.62rem;
   }
 }
+
+/* Final theme pass for the lazy-loaded tag manager chunk. */
+.app-theme-light .tag-manager-dialog-shell,
+.app-theme-light .tag-manager-panel-readable,
+.app-theme-light .tag-manager-editor-surface,
+.app-theme-light .tag-manager-list-surface,
+.app-theme-light .tag-list-item-readable {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+}
+
+.app-theme-light .tag-manager-dialog-shell .overlay-dialog-title h2,
+.app-theme-light .tag-manager-panel-readable .workspace-panel-heading-row h2,
+.app-theme-light .tag-manager-panel-readable .manager-section-header h3,
+.app-theme-light .tag-list-item-readable .tag-list-name,
+.app-theme-light .tag-manager-panel-readable .stack-form label,
+.app-theme-light .tag-manager-panel-readable .picker-fieldset legend {
+  color: #20242b !important;
+}
+
+.app-theme-light .tag-manager-dialog-shell .workspace-panel-kicker,
+.app-theme-light .tag-manager-panel-readable .workspace-panel-kicker,
+.app-theme-light .tag-manager-panel-readable .manager-section-kicker,
+.app-theme-light .tag-manager-panel-readable .manager-section-header p,
+.app-theme-light .tag-manager-panel-readable .field-note,
+.app-theme-light .tag-manager-panel-readable .color-select-trigger-value,
+.app-theme-light .tag-manager-panel-readable .color-select-option-copy,
+.app-theme-light .tag-manager-panel-readable .picker-chip-copy {
+  color: #66707d !important;
+}
+
+.app-theme-dark .tag-manager-dialog-shell,
+.app-theme-dark .tag-manager-panel-readable,
+.app-theme-dark .tag-manager-editor-surface,
+.app-theme-dark .tag-manager-list-surface,
+.app-theme-dark .tag-list-item-readable {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .tag-manager-dialog-shell .overlay-dialog-title h2,
+.app-theme-dark .tag-manager-panel-readable .workspace-panel-heading-row h2,
+.app-theme-dark .tag-manager-panel-readable .manager-section-header h3,
+.app-theme-dark .tag-list-item-readable .tag-list-name,
+.app-theme-dark .tag-manager-panel-readable .stack-form label,
+.app-theme-dark .tag-manager-panel-readable .picker-fieldset legend {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .tag-manager-dialog-shell .workspace-panel-kicker,
+.app-theme-dark .tag-manager-panel-readable .workspace-panel-kicker,
+.app-theme-dark .tag-manager-panel-readable .manager-section-kicker,
+.app-theme-dark .tag-manager-panel-readable .manager-section-header p,
+.app-theme-dark .tag-manager-panel-readable .field-note,
+.app-theme-dark .tag-manager-panel-readable .color-select-trigger-value,
+.app-theme-dark .tag-manager-panel-readable .color-select-option-copy,
+.app-theme-dark .tag-manager-panel-readable .picker-chip-copy {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .tag-manager-panel-readable .stack-form input,
+.app-theme-dark .tag-manager-panel-readable .color-select-trigger,
+.app-theme-dark .tag-manager-panel-readable .color-select-option,
+.app-theme-dark .tag-manager-panel-readable .picker-chip,
+.app-theme-dark .tag-manager-panel-readable .folder-action-trigger {
+  border-color: var(--border-soft) !important;
+  background: rgba(23, 30, 42, 0.9) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .tag-manager-panel-readable .workspace-panel-summary {
+  background: rgba(158, 199, 255, 0.14) !important;
+  color: var(--accent) !important;
+}

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const firebaseAuthMock = vi.hoisted(() => ({
@@ -22,7 +23,9 @@ vi.mock("../components/AuthenticatedDashboardApp", () => ({
   )
 }));
 
-afterEach(() => {
+afterEach(async () => {
+  const { resetFirebaseAuthLoaderForTest } = await import("../lib/firebase-auth-loader");
+  resetFirebaseAuthLoaderForTest();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.resetModules();
@@ -83,5 +86,67 @@ describe("firebase auth lazy loading", () => {
     });
     expect(firebaseAuthMock.moduleLoadCount).toBe(1);
     expect(await screen.findByRole("region", { name: /mock-dashboard/i })).toBeInTheDocument();
+  });
+
+  it("preloads Firebase auth on login intent without starting sign-in", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(JSON.stringify({ authenticated: false }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/auth/session" && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com",
+              name: "Bookmark Tester"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { default: App } = await import("../App");
+    render(<App />);
+
+    const loginButton = await screen.findByRole("button", {
+      name: /google로 로그인/i
+    });
+    const authGateSource = readFileSync("src/components/AuthGate.tsx", "utf8");
+    const dashboardSource = readFileSync("src/components/AuthenticatedDashboardApp.tsx", "utf8");
+    expect(authGateSource).toContain("onMouseEnter={preloadFirebaseAuth}");
+    expect(authGateSource).toContain("onFocus={preloadFirebaseAuth}");
+    expect(dashboardSource).toContain("onMouseEnter={preloadFirebaseAuth}");
+    expect(dashboardSource).toContain("onFocus={preloadFirebaseAuth}");
+
+    const { preloadFirebaseAuth } = await import("../lib/firebase-auth-loader");
+    const preloadedFirebaseAuth = await preloadFirebaseAuth();
+
+    expect(preloadedFirebaseAuth.signInWithGoogle).toBe(firebaseAuthMock.signInWithGoogle);
+    expect(firebaseAuthMock.signInWithGoogle).not.toHaveBeenCalled();
+
+    fireEvent.click(loginButton);
+
+    await waitFor(() => {
+      expect(firebaseAuthMock.signInWithGoogle).toHaveBeenCalledTimes(1);
+    });
   });
 });

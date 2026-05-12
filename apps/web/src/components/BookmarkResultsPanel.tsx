@@ -48,6 +48,17 @@ export type BookmarkSearchSummaryItem = {
 export type BookmarkViewMode = "list" | "card" | "title" | "moodboard";
 export type BookmarkPageSize = 20 | 50 | 100;
 
+export type BookmarkDisplaySettings = {
+  coverImage: boolean;
+  title: boolean;
+  description: boolean;
+  tags: boolean;
+  bookmarkInfo: boolean;
+  coverSize: number;
+};
+
+type BookmarkDisplaySettingKey = keyof Omit<BookmarkDisplaySettings, "coverSize">;
+
 type BookmarkListRowTagItem = {
   id: string;
   name: string;
@@ -109,19 +120,25 @@ type FolderOption = {
 
 type BookmarkResultsPanelProps = {
   activeBookmarkSearchSummaryItems: BookmarkSearchSummaryItem[];
+  activeBookmarkSort: BookmarkSortMode;
   bookmarkCardCoverSize: number;
+  bookmarkCardDisplaySettings: BookmarkDisplaySettings;
+  bookmarkListDisplaySettings: BookmarkDisplaySettings;
   bookmarkListElementRef: RefObject<HTMLUListElement | null>;
   bookmarkListPageSize: BookmarkPageSize;
   bookmarkListRows: BookmarkListRowViewModel[];
   bookmarkPageSizeOptions: BookmarkPageSize[];
   bookmarkSearchDraft: BookmarkSearchDraft;
   bookmarkSearchModeOptions: Array<{ value: BookmarkSearchMode; label: string }>;
-  bookmarkSortOptions: Array<{ value: BookmarkSortMode; label: string }>;
+  bookmarkSortOptions: Array<{ value: BookmarkSortMode; label: string; shortLabel: string }>;
   bookmarkViewMode: BookmarkViewMode;
+  bookmarkViewModeOptions: Array<{ value: BookmarkViewMode; label: string; icon: string }>;
   canVirtualizeBookmarkList: boolean;
   hasActiveAppliedBookmarkSearch: boolean;
   hasMoreVisibleBookmarks: boolean;
   isAdvancedBookmarkSearchOpen: boolean;
+  isBookmarkSortMenuOpen: boolean;
+  isBookmarkViewMenuOpen: boolean;
   isHidden?: boolean;
   isLoadingDashboard: boolean;
   isLoadingMoreBookmarks: boolean;
@@ -148,13 +165,20 @@ type BookmarkResultsPanelProps = {
   handleBookmarkSearchReset: () => BookmarkListRowActionResult;
   handleBookmarkSearchSubmit: (event: FormEvent<HTMLFormElement>) => BookmarkListRowActionResult;
   handleToggleHiddenBookmarks: () => BookmarkListRowActionResult;
-  renderBookmarkSortControl: () => ReactNode;
-  renderBookmarkViewControl: () => ReactNode;
   renderSearchColorSelect: (
     label: string,
     selectedColor: string,
     onSelect: (value: string) => void
   ) => ReactNode;
+  onBookmarkCoverSizeChange: (value: number) => void;
+  onBookmarkDisplaySettingChange: (
+    key: BookmarkDisplaySettingKey,
+    value: boolean
+  ) => void;
+  onBookmarkSortMenuOpenChange: (updater: (currentState: boolean) => boolean) => void;
+  onBookmarkSortSelect: (sort: BookmarkSortMode) => BookmarkListRowActionResult;
+  onBookmarkViewMenuOpenChange: (updater: (currentState: boolean) => boolean) => void;
+  onBookmarkViewModeChange: (mode: BookmarkViewMode) => void;
   setIsAdvancedBookmarkSearchOpen: (updater: (currentState: boolean) => boolean) => void;
   setIsMobileSearchPanelOpen: (updater: (currentState: boolean) => boolean) => void;
   toggleBookmarkSearchTag: (tagId: string, checked: boolean) => void;
@@ -237,6 +261,238 @@ function renderSearchModeSegmentedControl(
   );
 }
 
+function getBookmarkSortLabel(
+  options: Array<{ value: BookmarkSortMode; label: string; shortLabel: string }>,
+  sort: BookmarkSortMode
+) {
+  return options.find((option) => option.value === sort)?.label ?? "날짜순으로 ↓";
+}
+
+function getBookmarkSortShortLabel(
+  options: Array<{ value: BookmarkSortMode; label: string; shortLabel: string }>,
+  sort: BookmarkSortMode
+) {
+  return options.find((option) => option.value === sort)?.shortLabel ?? "날짜 ↓";
+}
+
+function getBookmarkViewModeLabel(
+  options: Array<{ value: BookmarkViewMode; label: string; icon: string }>,
+  mode: BookmarkViewMode
+) {
+  return options.find((option) => option.value === mode)?.label ?? "리스트";
+}
+
+function BookmarkSortControl({
+  activeBookmarkSort,
+  bookmarkSortOptions,
+  isBookmarkSortMenuOpen,
+  shouldUseCompactMobileCards,
+  onBookmarkSortMenuOpenChange,
+  onBookmarkViewMenuOpenChange,
+  onBookmarkSortSelect
+}: {
+  activeBookmarkSort: BookmarkSortMode;
+  bookmarkSortOptions: Array<{ value: BookmarkSortMode; label: string; shortLabel: string }>;
+  isBookmarkSortMenuOpen: boolean;
+  shouldUseCompactMobileCards: boolean;
+  onBookmarkSortMenuOpenChange: (updater: (currentState: boolean) => boolean) => void;
+  onBookmarkViewMenuOpenChange: (updater: (currentState: boolean) => boolean) => void;
+  onBookmarkSortSelect: (sort: BookmarkSortMode) => BookmarkListRowActionResult;
+}) {
+  const activeSortLabel = getBookmarkSortLabel(bookmarkSortOptions, activeBookmarkSort);
+  const activeSortShortLabel = getBookmarkSortShortLabel(
+    bookmarkSortOptions,
+    activeBookmarkSort
+  );
+  const triggerLabel = shouldUseCompactMobileCards ? activeSortShortLabel : activeSortLabel;
+
+  return (
+    <div
+      className="bookmark-sort-menu-shell"
+      data-open-menu-shell={isBookmarkSortMenuOpen ? "true" : undefined}
+    >
+      <button
+        type="button"
+        className="secondary-button bookmark-sort-trigger"
+        aria-label="북마크 정렬"
+        aria-expanded={isBookmarkSortMenuOpen}
+        onClick={() => {
+          onBookmarkViewMenuOpenChange(() => false);
+          onBookmarkSortMenuOpenChange((currentState) => !currentState);
+        }}
+      >
+        <span className="bookmark-sort-trigger-label">정렬</span>
+        <span className="bookmark-sort-trigger-value">{triggerLabel}</span>
+      </button>
+      {isBookmarkSortMenuOpen ? (
+        <div
+          role="menu"
+          aria-label="북마크 정렬 메뉴"
+          className="folder-action-menu bookmark-sort-menu"
+        >
+          <p className="bookmark-sort-menu-title">정렬 기준</p>
+          {bookmarkSortOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="menuitemradio"
+              aria-checked={activeBookmarkSort === option.value}
+              className={`secondary-button folder-action-menu-item bookmark-sort-menu-item${
+                activeBookmarkSort === option.value ? " bookmark-sort-menu-item-active" : ""
+              }`}
+              onClick={() => void onBookmarkSortSelect(option.value)}
+            >
+              <span aria-hidden="true" className="bookmark-sort-menu-mark">
+                {activeBookmarkSort === option.value ? "●" : "○"}
+              </span>
+              <span>{option.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function BookmarkViewControl({
+  bookmarkCardDisplaySettings,
+  bookmarkListDisplaySettings,
+  bookmarkViewMode,
+  bookmarkViewModeOptions,
+  isBookmarkViewMenuOpen,
+  onBookmarkCoverSizeChange,
+  onBookmarkDisplaySettingChange,
+  onBookmarkSortMenuOpenChange,
+  onBookmarkViewMenuOpenChange,
+  onBookmarkViewModeChange
+}: {
+  bookmarkCardDisplaySettings: BookmarkDisplaySettings;
+  bookmarkListDisplaySettings: BookmarkDisplaySettings;
+  bookmarkViewMode: BookmarkViewMode;
+  bookmarkViewModeOptions: Array<{ value: BookmarkViewMode; label: string; icon: string }>;
+  isBookmarkViewMenuOpen: boolean;
+  onBookmarkCoverSizeChange: (value: number) => void;
+  onBookmarkDisplaySettingChange: (
+    key: BookmarkDisplaySettingKey,
+    value: boolean
+  ) => void;
+  onBookmarkSortMenuOpenChange: (updater: (currentState: boolean) => boolean) => void;
+  onBookmarkViewMenuOpenChange: (updater: (currentState: boolean) => boolean) => void;
+  onBookmarkViewModeChange: (mode: BookmarkViewMode) => void;
+}) {
+  const activeViewLabel = getBookmarkViewModeLabel(bookmarkViewModeOptions, bookmarkViewMode);
+  const shouldShowDisplayControls = bookmarkViewMode !== "title";
+  const shouldShowCoverSizeControl =
+    bookmarkViewMode === "card" || bookmarkViewMode === "moodboard";
+  const activeBookmarkDisplaySettings =
+    bookmarkViewMode === "list" ? bookmarkListDisplaySettings : bookmarkCardDisplaySettings;
+
+  return (
+    <div
+      className="bookmark-view-menu-shell"
+      data-open-menu-shell={isBookmarkViewMenuOpen ? "true" : undefined}
+    >
+      <button
+        type="button"
+        className="secondary-button bookmark-view-trigger"
+        aria-label="보기 설정"
+        aria-expanded={isBookmarkViewMenuOpen}
+        onClick={() => {
+          onBookmarkSortMenuOpenChange(() => false);
+          onBookmarkViewMenuOpenChange((currentState) => !currentState);
+        }}
+      >
+        <span aria-hidden="true" className="bookmark-view-trigger-icon">
+          ▦
+        </span>
+        <span className="bookmark-view-trigger-value">{activeViewLabel}</span>
+      </button>
+      {isBookmarkViewMenuOpen ? (
+        <div
+          role="menu"
+          aria-label="보기 설정 메뉴"
+          className="folder-action-menu bookmark-view-menu"
+        >
+          <section className="bookmark-view-menu-section">
+            <p className="bookmark-view-menu-title">보기</p>
+            {bookmarkViewModeOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="menuitemradio"
+                aria-checked={bookmarkViewMode === option.value}
+                className={`secondary-button folder-action-menu-item bookmark-view-menu-item${
+                  bookmarkViewMode === option.value ? " bookmark-view-menu-item-active" : ""
+                }`}
+                onClick={() => onBookmarkViewModeChange(option.value)}
+              >
+                <span aria-hidden="true" className="bookmark-view-menu-mark">
+                  {bookmarkViewMode === option.value ? "●" : "○"}
+                </span>
+                <span aria-hidden="true" className="bookmark-view-menu-icon">
+                  {option.icon}
+                </span>
+                <span>{option.label}</span>
+              </button>
+            ))}
+          </section>
+          {shouldShowDisplayControls ? (
+            <section className="bookmark-view-menu-section">
+              <p className="bookmark-view-menu-title">항목에서 표시</p>
+              {[
+                ["coverImage", "커버 이미지"],
+                ["title", "제목"],
+                ["description", "설명"],
+                ["tags", "태그"],
+                ["bookmarkInfo", "북마크 정보"]
+              ].map(([key, label]) => {
+                const settingKey = key as BookmarkDisplaySettingKey;
+                const isChecked = activeBookmarkDisplaySettings[settingKey];
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={isChecked}
+                    className={`secondary-button folder-action-menu-item bookmark-view-menu-item${
+                      isChecked ? " bookmark-view-menu-item-active" : ""
+                    }`}
+                    onClick={() => onBookmarkDisplaySettingChange(settingKey, !isChecked)}
+                  >
+                    <span aria-hidden="true" className="bookmark-view-menu-check">
+                      {isChecked ? "✓" : ""}
+                    </span>
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
+            </section>
+          ) : null}
+          {shouldShowCoverSizeControl ? (
+            <section className="bookmark-view-menu-section bookmark-cover-size-section">
+              <label className="bookmark-cover-size-label" htmlFor="bookmark-cover-size-input">
+                커버 이미지
+              </label>
+              <input
+                id="bookmark-cover-size-input"
+                aria-label="커버 이미지 크기"
+                className="bookmark-cover-size-slider"
+                type="range"
+                min="80"
+                max="220"
+                step="10"
+                value={bookmarkCardDisplaySettings.coverSize}
+                onChange={(event) => onBookmarkCoverSizeChange(Number(event.target.value))}
+              />
+            </section>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function BookmarkListRow({
   row,
   bookmarkViewMode,
@@ -280,7 +536,13 @@ function BookmarkListRow({
     >
       {shouldShowListCover && coverAsset ? (
         <div className="asset-grid bookmark-row-assets bookmark-row-list-thumbnail">
-          <img src={coverAsset.contentUrl} alt="업로드 이미지 1" />
+          <img
+            src={coverAsset.contentUrl}
+            alt="업로드 이미지 1"
+            loading="lazy"
+            decoding="async"
+            fetchPriority="low"
+          />
         </div>
       ) : null}
       <div
@@ -295,7 +557,13 @@ function BookmarkListRow({
       >
         {shouldShowCover && coverAsset ? (
           <div className="asset-grid bookmark-row-assets">
-            <img src={coverAsset.contentUrl} alt="업로드 이미지 1" />
+            <img
+              src={coverAsset.contentUrl}
+              alt="업로드 이미지 1"
+              loading="lazy"
+              decoding="async"
+              fetchPriority="low"
+            />
           </div>
         ) : null}
         <div className="bookmark-card-header">
@@ -480,7 +748,10 @@ const MemoizedBookmarkListRow = memo(BookmarkListRow);
 
 export default function BookmarkResultsPanel({
   activeBookmarkSearchSummaryItems,
+  activeBookmarkSort,
   bookmarkCardCoverSize,
+  bookmarkCardDisplaySettings,
+  bookmarkListDisplaySettings,
   bookmarkListElementRef,
   bookmarkListPageSize,
   bookmarkListRows,
@@ -489,10 +760,13 @@ export default function BookmarkResultsPanel({
   bookmarkSearchModeOptions,
   bookmarkSortOptions,
   bookmarkViewMode,
+  bookmarkViewModeOptions,
   canVirtualizeBookmarkList,
   hasActiveAppliedBookmarkSearch,
   hasMoreVisibleBookmarks,
   isAdvancedBookmarkSearchOpen,
+  isBookmarkSortMenuOpen,
+  isBookmarkViewMenuOpen,
   isHidden,
   isLoadingDashboard,
   isLoadingMoreBookmarks,
@@ -519,9 +793,13 @@ export default function BookmarkResultsPanel({
   handleBookmarkSearchReset,
   handleBookmarkSearchSubmit,
   handleToggleHiddenBookmarks,
-  renderBookmarkSortControl,
-  renderBookmarkViewControl,
   renderSearchColorSelect,
+  onBookmarkCoverSizeChange,
+  onBookmarkDisplaySettingChange,
+  onBookmarkSortMenuOpenChange,
+  onBookmarkSortSelect,
+  onBookmarkViewMenuOpenChange,
+  onBookmarkViewModeChange,
   setIsAdvancedBookmarkSearchOpen,
   setIsMobileSearchPanelOpen,
   toggleBookmarkSearchTag,
@@ -926,8 +1204,27 @@ export default function BookmarkResultsPanel({
                 shouldUseCompactMobileCards ? " bookmark-list-header-actions-mobile" : ""
               }`}
             >
-              {renderBookmarkSortControl()}
-              {renderBookmarkViewControl()}
+              <BookmarkSortControl
+                activeBookmarkSort={activeBookmarkSort}
+                bookmarkSortOptions={bookmarkSortOptions}
+                isBookmarkSortMenuOpen={isBookmarkSortMenuOpen}
+                shouldUseCompactMobileCards={shouldUseCompactMobileCards}
+                onBookmarkSortMenuOpenChange={onBookmarkSortMenuOpenChange}
+                onBookmarkViewMenuOpenChange={onBookmarkViewMenuOpenChange}
+                onBookmarkSortSelect={onBookmarkSortSelect}
+              />
+              <BookmarkViewControl
+                bookmarkCardDisplaySettings={bookmarkCardDisplaySettings}
+                bookmarkListDisplaySettings={bookmarkListDisplaySettings}
+                bookmarkViewMode={bookmarkViewMode}
+                bookmarkViewModeOptions={bookmarkViewModeOptions}
+                isBookmarkViewMenuOpen={isBookmarkViewMenuOpen}
+                onBookmarkCoverSizeChange={onBookmarkCoverSizeChange}
+                onBookmarkDisplaySettingChange={onBookmarkDisplaySettingChange}
+                onBookmarkSortMenuOpenChange={onBookmarkSortMenuOpenChange}
+                onBookmarkViewMenuOpenChange={onBookmarkViewMenuOpenChange}
+                onBookmarkViewModeChange={onBookmarkViewModeChange}
+              />
               <label className="bookmark-page-size-control">
                 <span>보기 개수</span>
                 <select

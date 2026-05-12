@@ -2,6 +2,7 @@ import { lazy, startTransition, Suspense, useEffect, useState } from "react";
 import type { AuthenticatedUser } from "@bookmark/shared";
 
 import { exchangeIdTokenForSession, loadSession } from "../lib/session";
+import { loadFirebaseAuth, preloadFirebaseAuth } from "../lib/firebase-auth-loader";
 
 const LazyAuthenticatedDashboardApp = lazy(() => import("./AuthenticatedDashboardApp"));
 const LazyInstallHelpDialog = lazy(() => import("./InstallHelpDialog"));
@@ -17,7 +18,7 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 async function signInWithGoogle() {
-  const firebaseAuth = await import("../lib/firebase");
+  const firebaseAuth = await loadFirebaseAuth();
   return firebaseAuth.signInWithGoogle();
 }
 
@@ -179,6 +180,8 @@ export default function AuthGate() {
                 type="button"
                 className="primary-button"
                 disabled={isLoggingIn}
+                onMouseEnter={preloadFirebaseAuth}
+                onFocus={preloadFirebaseAuth}
                 onClick={() => void handleGoogleLogin()}
               >
                 {isLoggingIn ? "로그인 중" : "Google로 로그인"}

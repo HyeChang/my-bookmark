@@ -409,6 +409,9 @@ export default function BookmarkComposerDialog({
                           className="bookmark-preview-image"
                           src={preview.sourceImageUrl}
                           alt={getBookmarkPreviewImageAlt(preview)}
+                          loading="lazy"
+                          decoding="async"
+                          fetchPriority="low"
                         />
                       ) : null}
                       {previewBlocks.length > 0 ? (

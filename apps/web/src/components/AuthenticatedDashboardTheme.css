@@ -1,0 +1,213 @@
+/* Final theme pass: keep this after desktop-specific light rules. */
+:root[data-app-theme="light"],
+:root[data-app-theme="light"] body,
+:root[data-app-theme="light"] #root {
+  background: #f4f5f7 !important;
+  color: #20242b !important;
+}
+
+:root[data-app-theme="dark"],
+:root[data-app-theme="dark"] body,
+:root[data-app-theme="dark"] #root {
+  background: #141b25 !important;
+  color: #d9e2f0 !important;
+}
+
+.app-theme-light.app-shell {
+  background: #f4f5f7 !important;
+  color: #20242b !important;
+}
+
+.app-theme-dark.app-shell {
+  --bg-base: #141b25;
+  --surface-base: rgba(28, 35, 47, 0.96);
+  --surface-raised: rgba(31, 38, 51, 0.94);
+  --surface-muted: rgba(38, 46, 60, 0.92);
+  --surface-soft: rgba(44, 53, 68, 0.82);
+  --surface-hero: linear-gradient(180deg, rgba(31, 39, 52, 0.96), rgba(25, 33, 45, 0.98));
+  --surface-toolbar: linear-gradient(180deg, rgba(30, 37, 49, 0.98), rgba(26, 33, 45, 0.98));
+  --surface-main: linear-gradient(180deg, rgba(30, 37, 49, 0.96), rgba(24, 31, 43, 0.98));
+  --surface-sidebar: linear-gradient(180deg, rgba(37, 45, 58, 0.96), rgba(31, 39, 52, 0.98));
+  --surface-rail: linear-gradient(180deg, rgba(24, 31, 43, 0.98), rgba(20, 27, 38, 0.98));
+  --border-soft: rgba(148, 163, 184, 0.13);
+  --border-strong: rgba(159, 180, 210, 0.28);
+  --text-strong: #edf3ff;
+  --text-primary: #d9e2f0;
+  --text-muted: #94a3b8;
+  --text-subtle: #74839b;
+  --accent: #9ec7ff;
+  --accent-strong: #76a8ff;
+  --accent-soft: rgba(158, 199, 255, 0.14);
+  --accent-contrast: #081019;
+  --danger-bg: rgba(239, 68, 68, 0.14);
+  --danger-border: rgba(248, 113, 113, 0.24);
+  --danger-text: #fecaca;
+  --desktop-bg: #141b25;
+  --desktop-panel: rgba(31, 38, 51, 0.94);
+  --desktop-sidebar: rgba(31, 39, 52, 0.98);
+  --desktop-border: rgba(148, 163, 184, 0.13);
+  --desktop-border-strong: rgba(159, 180, 210, 0.28);
+  --desktop-text: #d9e2f0;
+  --desktop-muted: #94a3b8;
+  --desktop-subtle: #74839b;
+  --desktop-blue: #9ec7ff;
+  --desktop-blue-soft: rgba(158, 199, 255, 0.14);
+  --surface-card: rgba(31, 38, 51, 0.94);
+  --surface-panel: rgba(31, 38, 51, 0.94);
+  --text-secondary: #94a3b8;
+  background: var(--bg-base) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .app-hero,
+.app-theme-dark .hero-command-bar,
+.app-theme-dark .session-card,
+.app-theme-dark .dashboard-workspace,
+.app-theme-dark .dashboard-main,
+.app-theme-dark .result-primary-column,
+.app-theme-dark .surface-card,
+.app-theme-dark .overlay-dialog-shell,
+.app-theme-dark .bookmark-preview-card,
+.app-theme-dark .detail-block,
+.app-theme-dark .tag-list-item,
+.app-theme-dark .folder-action-menu,
+.app-theme-dark .color-select-popover,
+.app-theme-dark .bookmark-reading-rail {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16) !important;
+}
+
+.app-theme-dark .app-hero {
+  background: var(--surface-hero) !important;
+}
+
+.app-theme-dark .dashboard-sidebar {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-sidebar) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .hero-copy h1,
+.app-theme-dark .workspace-panel-heading-row h2,
+.app-theme-dark .overlay-dialog-title h2,
+.app-theme-dark .bookmark-list-title-row h2,
+.app-theme-dark .bookmark-title-line,
+.app-theme-dark .bookmark-title-line strong,
+.app-theme-dark .detail-block h3,
+.app-theme-dark .tag-list-name,
+.app-theme-dark .session-card strong,
+.app-theme-dark .theme-toggle-label,
+.app-theme-dark .folder-action-menu button {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .hero-support,
+.app-theme-dark .hero-command-summary,
+.app-theme-dark .session-label,
+.app-theme-dark .workspace-panel-summary,
+.app-theme-dark .bookmark-row-summary,
+.app-theme-dark .bookmark-row-meta-line,
+.app-theme-dark .detail-row-label,
+.app-theme-dark .detail-row-value,
+.app-theme-dark .muted-text,
+.app-theme-dark .field-note,
+.app-theme-dark .quiet-empty-state,
+.app-theme-dark .dashboard-sidebar .workspace-panel-kicker,
+.app-theme-dark .dashboard-sidebar .muted-text {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .hero-command-label,
+.app-theme-dark .workspace-panel-kicker,
+.app-theme-dark .bookmark-list-kicker,
+.app-theme-dark .bookmark-detail-kicker {
+  color: var(--accent) !important;
+}
+
+.app-theme-dark .secondary-button,
+.app-theme-dark .ghost-button,
+.app-theme-dark .overflow-trigger,
+.app-theme-dark .folder-action-trigger,
+.app-theme-dark .hero-theme-toggle,
+.app-theme-dark .hero-install-button,
+.app-theme-dark .stack-form input,
+.app-theme-dark .stack-form select,
+.app-theme-dark .stack-form textarea,
+.app-theme-dark .color-select-trigger,
+.app-theme-dark .color-select-option,
+.app-theme-dark .pill-option,
+.app-theme-dark .picker-chip,
+.app-theme-dark .chip-button {
+  background: rgba(40, 48, 61, 0.86) !important;
+  border-color: var(--border-soft) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+.app-theme-dark .secondary-button:hover,
+.app-theme-dark .ghost-button:hover,
+.app-theme-dark .overflow-trigger:hover,
+.app-theme-dark .folder-action-trigger:hover,
+.app-theme-dark .hero-theme-toggle:hover,
+.app-theme-dark .hero-install-button:hover {
+  background: rgba(55, 65, 81, 0.9) !important;
+  border-color: var(--border-strong) !important;
+}
+
+.app-theme-dark .primary-button {
+  background: #1e88e5 !important;
+  border-color: #1e88e5 !important;
+  color: #ffffff !important;
+}
+
+.app-theme-dark .danger-button {
+  background: var(--danger-bg) !important;
+  border-color: var(--danger-border) !important;
+  color: var(--danger-text) !important;
+}
+
+.app-theme-dark .quiet-empty-state,
+.app-theme-dark .bookmark-loading-state,
+.app-theme-dark .bookmark-list-empty-state,
+.app-theme-dark .bookmark-reading-rail .quiet-empty-state,
+.app-theme-dark .dashboard-sidebar .quiet-empty-state {
+  border-color: var(--border-soft) !important;
+  background: linear-gradient(135deg, rgba(36, 46, 61, 0.86), rgba(25, 34, 48, 0.82)) !important;
+  color: var(--text-muted) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+.app-theme-dark .bookmark-preview-article-image,
+.app-theme-dark .bookmark-preview-image {
+  border-color: var(--border-soft) !important;
+  background: rgba(12, 18, 28, 0.72) !important;
+}
+
+@media (min-width: 1121px) {
+  .app-theme-dark.app-shell {
+    --text-primary: #d9e2f0;
+    --surface-sidebar: linear-gradient(180deg, rgba(37, 45, 58, 0.96), rgba(31, 39, 52, 0.98));
+    --desktop-panel: rgba(31, 38, 51, 0.94);
+    background: var(--bg-base) !important;
+    color: var(--text-primary) !important;
+  }
+
+  .app-theme-dark .app-hero,
+  .app-theme-dark .dashboard-workspace,
+  .app-theme-dark .dashboard-main,
+  .app-theme-dark .result-primary-column,
+  .app-theme-dark .bookmark-reading-rail,
+  .app-theme-dark .bookmark-reading-rail .detail-block,
+  .app-theme-dark .folder-action-menu {
+    border-color: var(--border-soft) !important;
+    background: var(--surface-raised) !important;
+    color: var(--text-primary) !important;
+  }
+
+  .app-theme-dark .dashboard-sidebar {
+    background: var(--surface-sidebar) !important;
+    color: var(--text-primary) !important;
+  }
+}

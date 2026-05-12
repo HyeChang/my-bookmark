@@ -544,3 +544,95 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.app-theme-light .recommendation-panel-card,
+.app-theme-light .recommendation-column,
+.app-theme-light .recommendation-item {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+  box-shadow: none;
+}
+
+.app-theme-light .recommendation-panel-title-row h2,
+.app-theme-light .recommendation-column h3,
+.app-theme-light .recommendation-copy strong {
+  color: #20242b !important;
+}
+
+.app-theme-light .recommendation-panel-helper,
+.app-theme-light .recommendation-meta-line,
+.app-theme-light .recommendation-copy .muted-text {
+  color: #66707d !important;
+}
+
+.app-theme-light .home-recommendation-panel {
+  border-top-color: #dfe3e8 !important;
+}
+
+.app-theme-dark .recommendation-panel-card,
+.app-theme-dark .recommendation-column,
+.app-theme-dark .recommendation-item {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .recommendation-panel-title-row h2,
+.app-theme-dark .recommendation-column h3,
+.app-theme-dark .recommendation-copy strong {
+  color: var(--text-strong) !important;
+}
+
+/* Final theme pass for the lazy-loaded recommendation chunk. */
+.app-theme-light .recommendation-panel-card,
+.app-theme-light .recommendation-column,
+.app-theme-light .recommendation-item,
+.app-theme-light .recommendation-empty-state {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+  box-shadow: none !important;
+}
+
+.app-theme-light .recommendation-panel-title-row h2,
+.app-theme-light .recommendation-column h3,
+.app-theme-light .recommendation-copy strong {
+  color: #20242b !important;
+}
+
+.app-theme-light .recommendation-panel-helper,
+.app-theme-light .recommendation-meta-line,
+.app-theme-light .recommendation-copy .muted-text {
+  color: #66707d !important;
+}
+
+.app-theme-dark .recommendation-panel-card,
+.app-theme-dark .recommendation-column,
+.app-theme-dark .recommendation-item,
+.app-theme-dark .recommendation-empty-state {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16) !important;
+}
+
+.app-theme-dark .result-primary-column > .recommendation-panel-card {
+  background: var(--surface-raised) !important;
+}
+
+.app-theme-dark .recommendation-panel-title-row h2,
+.app-theme-dark .recommendation-column h3,
+.app-theme-dark .recommendation-copy strong {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .recommendation-panel-helper,
+.app-theme-dark .recommendation-meta-line,
+.app-theme-dark .recommendation-copy .muted-text {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .home-recommendation-panel {
+  border-top-color: var(--border-soft) !important;
+}

@@ -259,3 +259,90 @@
     color: #e5f0ff;
   }
 }
+
+/* Final theme pass for the lazy-loaded extension dialogs chunk. */
+.app-theme-light .extension-token-dialog-shell,
+.app-theme-light .extension-download-dialog-shell,
+.app-theme-light .install-help-dialog-shell,
+.app-theme-light .extension-token-panel-readable,
+.app-theme-light .extension-download-panel-readable,
+.app-theme-light .extension-token-panel-readable .extension-token-card-readable,
+.app-theme-light .extension-download-panel-readable .extension-download-card-readable,
+.app-theme-light .extension-token-panel-readable .extension-token-row-readable {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+}
+
+.app-theme-light .extension-token-dialog-shell .overlay-dialog-title h2,
+.app-theme-light .extension-download-dialog-shell .overlay-dialog-title h2,
+.app-theme-light .install-help-dialog-shell .overlay-dialog-title h2,
+.app-theme-light .extension-token-panel-readable .bookmark-composer-section-header h3,
+.app-theme-light .extension-download-panel-readable .bookmark-composer-section-header h3,
+.app-theme-light .extension-token-panel-readable label,
+.app-theme-light .extension-token-panel-readable .extension-token-copy strong {
+  color: #20242b !important;
+}
+
+.app-theme-light .extension-token-dialog-shell .workspace-panel-kicker,
+.app-theme-light .extension-download-dialog-shell .workspace-panel-kicker,
+.app-theme-light .install-help-dialog-shell .workspace-panel-kicker,
+.app-theme-light .extension-token-panel-readable .bookmark-composer-section-header p,
+.app-theme-light .extension-download-panel-readable .bookmark-composer-section-header p,
+.app-theme-light .extension-download-panel-readable .extension-download-steps,
+.app-theme-light .extension-token-panel-readable .extension-token-copy span {
+  color: #66707d !important;
+}
+
+.app-theme-dark .extension-token-dialog-shell,
+.app-theme-dark .extension-download-dialog-shell,
+.app-theme-dark .install-help-dialog-shell,
+.app-theme-dark .extension-token-panel-readable,
+.app-theme-dark .extension-download-panel-readable,
+.app-theme-dark .extension-token-panel-readable .extension-token-card-readable,
+.app-theme-dark .extension-download-panel-readable .extension-download-card-readable,
+.app-theme-dark .extension-token-panel-readable .extension-token-row-readable {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .extension-token-dialog-shell .overlay-dialog-title h2,
+.app-theme-dark .extension-download-dialog-shell .overlay-dialog-title h2,
+.app-theme-dark .install-help-dialog-shell .overlay-dialog-title h2,
+.app-theme-dark .extension-token-panel-readable .bookmark-composer-section-header h3,
+.app-theme-dark .extension-download-panel-readable .bookmark-composer-section-header h3,
+.app-theme-dark .extension-token-panel-readable label,
+.app-theme-dark .extension-token-panel-readable .extension-token-copy strong {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .extension-token-dialog-shell .workspace-panel-kicker,
+.app-theme-dark .extension-download-dialog-shell .workspace-panel-kicker,
+.app-theme-dark .install-help-dialog-shell .workspace-panel-kicker,
+.app-theme-dark .extension-token-panel-readable .bookmark-composer-section-header p,
+.app-theme-dark .extension-download-panel-readable .bookmark-composer-section-header p,
+.app-theme-dark .extension-download-panel-readable .extension-download-steps,
+.app-theme-dark .extension-token-panel-readable .extension-token-copy span {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .extension-token-panel-readable input,
+.app-theme-dark .extension-token-panel-readable .extension-token-row-readable > .ghost-button {
+  border-color: var(--border-soft) !important;
+  background: rgba(23, 30, 42, 0.9) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .extension-token-secret-card code,
+.app-theme-dark .extension-download-panel-readable .extension-download-steps code {
+  border-color: rgba(158, 199, 255, 0.18) !important;
+  background: rgba(9, 14, 22, 0.92) !important;
+  color: #d7ecff !important;
+}
+
+.app-theme-dark .extension-token-connection-status {
+  border-color: rgba(158, 199, 255, 0.2) !important;
+  background: rgba(158, 199, 255, 0.12) !important;
+  color: var(--accent) !important;
+}

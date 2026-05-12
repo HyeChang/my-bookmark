@@ -90,6 +90,7 @@ export type MobileSidebarTabsProps = {
   activePanel: MobileSidebarPanelId;
   items: MobileSidebarTabItem[];
   onSelectPanel: (panelId: MobileSidebarPanelId) => FolderOverviewActionResult;
+  onPreloadPanel?: (panelId: MobileSidebarPanelId) => void;
 };
 
 function getFolderIconGlyph(icon: string | null | undefined) {
@@ -574,7 +575,8 @@ export function FolderOverviewPanel({
 export function MobileSidebarTabs({
   activePanel,
   items,
-  onSelectPanel
+  onSelectPanel,
+  onPreloadPanel
 }: MobileSidebarTabsProps) {
   return (
     <div className="sidebar-segmented-panels">
@@ -593,6 +595,8 @@ export function MobileSidebarTabs({
               aria-label={item.heading}
               aria-selected={isSelected}
               aria-controls={panelId}
+              onMouseEnter={() => onPreloadPanel?.(item.panelId)}
+              onFocus={() => onPreloadPanel?.(item.panelId)}
               onClick={() => void onSelectPanel(item.panelId)}
             >
               <span className="sidebar-segment-copy">

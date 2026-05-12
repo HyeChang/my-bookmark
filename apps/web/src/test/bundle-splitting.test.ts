@@ -89,7 +89,11 @@ describe("bundle splitting", () => {
       "utf8"
     );
 
-    expect(dashboardSource).toContain('lazy(() => import("./BookmarkDetailPanel"))');
+    expect(dashboardSource).toContain(
+      "const loadBookmarkDetailPanel = createDashboardPanelChunkLoader(() =>"
+    );
+    expect(dashboardSource).toContain('import("./BookmarkDetailPanel")');
+    expect(dashboardSource).toContain("const LazyBookmarkDetailPanel = lazy(loadBookmarkDetailPanel);");
     expect(dashboardSource).not.toContain("function renderVisibleSelectedBookmarkDetail");
     expect(dashboardSource).not.toContain("getBookmarkPreviewArticleBlocks");
     expect(dashboardSource).not.toContain("getBookmarkPreviewFieldRows");
@@ -132,7 +136,11 @@ describe("bundle splitting", () => {
       bookmarkResultsSource.indexOf("bookmark-pagination-bar")
     );
 
-    expect(dashboardSource).toContain('lazy(() => import("./BookmarkResultsPanel"))');
+    expect(dashboardSource).toContain(
+      "const loadBookmarkResultsPanel = createDashboardPanelChunkLoader(() =>"
+    );
+    expect(dashboardSource).toContain('import("./BookmarkResultsPanel")');
+    expect(dashboardSource).toContain("const LazyBookmarkResultsPanel = lazy(loadBookmarkResultsPanel);");
     expect(dashboardSource).toContain("<LazyBookmarkResultsPanel");
     expect(dashboardSource).toContain("BookmarkListRowActions");
     expect(dashboardSource).not.toContain("const MemoizedBookmarkListRow = memo(BookmarkListRow);");
@@ -145,6 +153,26 @@ describe("bundle splitting", () => {
     expect(bookmarkResultsSource).toContain('import "./BookmarkResultsPanel.css";');
     expect(bookmarkResultsSource).toContain("<MemoizedBookmarkListRow");
     expect(bookmarkListSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
+  });
+
+  it("keeps bookmark sort and view controls inside the lazy results panel", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const bookmarkResultsSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
+      "utf8"
+    );
+
+    expect(dashboardSource).not.toContain("function renderBookmarkSortControl");
+    expect(dashboardSource).not.toContain("function renderBookmarkViewControl");
+    expect(dashboardSource).not.toContain("renderBookmarkSortControl=");
+    expect(dashboardSource).not.toContain("renderBookmarkViewControl=");
+    expect(bookmarkResultsSource).toContain("function BookmarkSortControl");
+    expect(bookmarkResultsSource).toContain("function BookmarkViewControl");
+    expect(bookmarkResultsSource).toContain("bookmarkSortOptions.map");
+    expect(bookmarkResultsSource).toContain("bookmarkViewModeOptions.map");
   });
 
   it("reuses bookmark list row view models when unrelated asset cache entries change", () => {
@@ -167,17 +195,30 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
-    const homeSectionSource = dashboardSource.slice(
-      dashboardSource.indexOf("const homeSection = ("),
-      dashboardSource.indexOf("const homeSection = (") + 9000
+    const homePanelSource = readFileSync(
+      join(process.cwd(), "src", "components", "HomePanel.tsx"),
+      "utf8"
     );
 
-    expect(dashboardSource).toContain("type HomeFavoriteCardViewModel =");
-    expect(dashboardSource).toContain("const MemoizedHomeFavoriteCard = memo(HomeFavoriteCard);");
+    expect(dashboardSource).toContain(
+      "const loadHomePanel = createDashboardPanelChunkLoader(() => import(\"./HomePanel\"));"
+    );
+    expect(dashboardSource).toContain("const LazyHomePanel = lazy(loadHomePanel);");
+    expect(dashboardSource).toContain("<LazyHomePanel");
+    expect(dashboardSource).toContain("HomeFavoriteCardViewModel");
+    expect(dashboardSource).not.toContain("type HomeFavoriteCardViewModel =");
     expect(dashboardSource).toContain("const homeFavoriteCards = useMemo<HomeFavoriteCardViewModel[]>(");
-    expect(dashboardSource).toContain("<MemoizedHomeFavoriteCard");
-    expect(homeSectionSource).not.toContain("visibleHomeFavoriteBookmarks.map((bookmark) => {");
-    expect(homeSectionSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
+    expect(dashboardSource).not.toContain("function HomeFavoriteCard(");
+    expect(dashboardSource).not.toContain("const MemoizedHomeFavoriteCard = memo(HomeFavoriteCard);");
+    expect(dashboardSource).not.toContain("const homeSection = (");
+    expect(dashboardSource).not.toContain("<MemoizedHomeFavoriteCard");
+    expect(homePanelSource).toContain('import "./HomePanel.css";');
+    expect(homePanelSource).toContain("export type HomeFavoriteCardViewModel =");
+    expect(homePanelSource).toContain("export type HomePanelActions =");
+    expect(homePanelSource).toContain("const MemoizedHomeFavoriteCard = memo(HomeFavoriteCard);");
+    expect(homePanelSource).toContain("<MemoizedHomeFavoriteCard");
+    expect(homePanelSource).not.toContain("visibleHomeFavoriteBookmarks.map((bookmark) => {");
+    expect(homePanelSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
   });
 
   it("loads recommendations through a lazy panel chunk with memoized cards", () => {
@@ -276,5 +317,46 @@ describe("bundle splitting", () => {
     expect(dashboardCss).not.toContain(".folder-overview-card");
     expect(dashboardCss).not.toContain(".folder-overview-trigger");
     expect(dashboardCss).not.toContain(".sidebar-segment-tab");
+  });
+
+  it("preloads lazy dashboard panel chunks from navigation intent", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const folderOverviewSource = readFileSync(
+      join(process.cwd(), "src", "components", "FolderOverviewPanel.tsx"),
+      "utf8"
+    );
+
+    expect(dashboardSource).toContain(
+      "const loadHomePanel = createDashboardPanelChunkLoader(() => import(\"./HomePanel\"));"
+    );
+    expect(dashboardSource).toContain(
+      "const loadBookmarkResultsPanel = createDashboardPanelChunkLoader(() =>"
+    );
+    expect(dashboardSource).toContain('import("./BookmarkResultsPanel")');
+    expect(dashboardSource).toContain(
+      "const loadFolderOverviewPanel = createDashboardPanelChunkLoader(() =>"
+    );
+    expect(dashboardSource).toContain('import("./FolderOverviewPanel")');
+    expect(dashboardSource).toContain(
+      "const loadBookmarkDetailPanel = createDashboardPanelChunkLoader(() =>"
+    );
+    expect(dashboardSource).toContain('import("./BookmarkDetailPanel")');
+    expect(dashboardSource).toContain("function preloadDashboardPanelChunk");
+    expect(dashboardSource).toContain('preloadDashboardPanelChunk("home");');
+    expect(dashboardSource).toContain('preloadDashboardPanelChunk("bookmarks");');
+    expect(dashboardSource).toContain('preloadDashboardPanelChunk("folder");');
+    expect(dashboardSource).toContain('preloadDashboardPanelChunk("detail");');
+    expect(folderOverviewSource).toContain(
+      "onPreloadPanel?: (panelId: MobileSidebarPanelId) => void;"
+    );
+    expect(folderOverviewSource).toContain(
+      "onMouseEnter={() => onPreloadPanel?.(item.panelId)}"
+    );
+    expect(folderOverviewSource).toContain(
+      "onFocus={() => onPreloadPanel?.(item.panelId)}"
+    );
   });
 });

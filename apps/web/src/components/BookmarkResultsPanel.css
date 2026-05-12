@@ -888,6 +888,75 @@
   }
 }
 
+.app-theme-light .search-grid-surface,
+.app-theme-light .search-filter-group,
+.app-theme-light .search-toolbar-shell,
+.app-theme-light .bookmark-list-row {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+  box-shadow: none;
+}
+
+.app-theme-light .search-panel-heading h2,
+.app-theme-light .search-filter-group h3,
+.app-theme-light .filter-summary-count,
+.app-theme-light .bookmark-list-row .bookmark-card-title-block strong {
+  color: #20242b !important;
+}
+
+.app-theme-light .search-panel-helper,
+.app-theme-light .bookmark-pagination-summary,
+.app-theme-light .bookmark-sort-trigger-label,
+.app-theme-light .bookmark-row-url {
+  color: #66707d !important;
+}
+
+.app-theme-light .search-toolbar-field input,
+.app-theme-light .search-toolbar-field select,
+.app-theme-light .search-grid input,
+.app-theme-light .search-grid select,
+.app-theme-light .search-grid textarea,
+.app-theme-light .bookmark-page-size-control {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+  box-shadow: none;
+}
+
+.app-theme-light .search-mode-segmented {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+}
+
+.app-theme-light .search-mode-button {
+  color: #66707d !important;
+}
+
+.app-theme-light .search-mode-button-active {
+  background: rgba(22, 131, 232, 0.1) !important;
+  color: #1683e8 !important;
+  box-shadow: none;
+}
+
+.app-theme-dark .search-grid-surface,
+.app-theme-dark .search-filter-group,
+.app-theme-dark .bookmark-list-row {
+  border-color: var(--border-soft) !important;
+  background: rgba(21, 28, 39, 0.48) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .search-toolbar-field input,
+.app-theme-dark .search-toolbar-field select,
+.app-theme-dark .search-grid input,
+.app-theme-dark .search-grid select,
+.app-theme-dark .search-grid textarea {
+  border-color: var(--border-soft) !important;
+  background: rgba(23, 30, 42, 0.9) !important;
+  color: var(--text-primary) !important;
+}
+
 .search-grid-surface,
 .search-filter-group,
 .bookmark-list-row {
@@ -1548,7 +1617,113 @@
     max-width: 100%;
   }
 
-  .bookmark-list-row {
+.bookmark-list-row {
     width: 100%;
   }
+}
+
+/* Final theme pass for the lazy-loaded bookmark results chunk. */
+.app-theme-light .search-toolbar-shell,
+.app-theme-light .search-grid-surface,
+.app-theme-light .search-filter-group,
+.app-theme-light .filter-summary-card,
+.app-theme-light .bookmark-list-table,
+.app-theme-light .bookmark-list-row,
+.app-theme-light .bookmark-pagination-bar,
+.app-theme-light .bookmark-page-size-control,
+.app-theme-light .search-mode-segmented,
+.app-theme-light .bookmark-sort-menu {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+  box-shadow: none !important;
+}
+
+.app-theme-light .search-panel-heading h2,
+.app-theme-light .search-filter-group h3,
+.app-theme-light .filter-summary-count,
+.app-theme-light .bookmark-list-row .bookmark-card-title-block strong {
+  color: #20242b !important;
+}
+
+.app-theme-light .search-panel-helper,
+.app-theme-light .bookmark-pagination-summary,
+.app-theme-light .bookmark-sort-trigger-label,
+.app-theme-light .bookmark-row-url,
+.app-theme-light .bookmark-row-summary,
+.app-theme-light .bookmark-row-meta-line {
+  color: #66707d !important;
+}
+
+.app-theme-dark .search-toolbar-shell,
+.app-theme-dark .search-grid-surface,
+.app-theme-dark .search-filter-group,
+.app-theme-dark .filter-summary-card,
+.app-theme-dark .bookmark-list-table,
+.app-theme-dark .bookmark-list-row,
+.app-theme-dark .bookmark-pagination-bar,
+.app-theme-dark .bookmark-page-size-control,
+.app-theme-dark .search-mode-segmented,
+.app-theme-dark .bookmark-sort-menu {
+  border-color: var(--border-soft) !important;
+  background: rgba(21, 28, 39, 0.72) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16) !important;
+}
+
+.app-theme-dark .search-toolbar-shell {
+  background: var(--surface-toolbar) !important;
+}
+
+.app-theme-dark .search-panel-heading h2,
+.app-theme-dark .search-filter-group h3,
+.app-theme-dark .filter-summary-count,
+.app-theme-dark .bookmark-list-row .bookmark-card-title-block strong,
+.app-theme-dark .bookmark-title-line,
+.app-theme-dark .bookmark-title-line strong {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .search-panel-helper,
+.app-theme-dark .bookmark-pagination-summary,
+.app-theme-dark .bookmark-sort-trigger-label,
+.app-theme-dark .bookmark-row-url,
+.app-theme-dark .bookmark-row-summary,
+.app-theme-dark .bookmark-row-meta-line {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .search-toolbar-field input,
+.app-theme-dark .search-toolbar-field select,
+.app-theme-dark .search-grid input,
+.app-theme-dark .search-grid select,
+.app-theme-dark .search-grid textarea,
+.app-theme-dark .bookmark-page-size-control,
+.app-theme-dark .bookmark-sort-trigger {
+  border-color: var(--border-soft) !important;
+  background: rgba(23, 30, 42, 0.9) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .search-mode-button {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .search-mode-button-active {
+  background: rgba(158, 199, 255, 0.14) !important;
+  color: var(--accent) !important;
+}
+
+.app-theme-dark .bookmark-row-list-thumbnail img,
+.app-theme-dark .bookmark-row-assets img {
+  border-color: var(--border-soft) !important;
+  background: rgba(12, 18, 28, 0.72) !important;
+}
+
+.app-theme-dark .bookmark-url-copy-button,
+.app-theme-dark .bookmark-row-detail-action,
+.app-theme-dark .bookmark-card-secondary-actions .overflow-trigger {
+  border-color: var(--border-soft) !important;
+  background: rgba(40, 48, 61, 0.86) !important;
+  color: var(--text-primary) !important;
 }
