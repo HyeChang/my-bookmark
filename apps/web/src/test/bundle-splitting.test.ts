@@ -600,4 +600,23 @@ describe("bundle splitting", () => {
     expect(preloadSource).toContain("export async function preloadMissingBookmarkAssets");
     expect(preloadSource).toContain("export function queueBookmarkAssetPreload");
   });
+
+  it("keeps bookmark detail preview cache helpers outside the dashboard component shell", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const detailSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-bookmark-detail.ts"),
+      "utf8"
+    );
+
+    expect(dashboardSource).toContain('from "./dashboard-bookmark-detail"');
+    expect(dashboardSource).not.toContain("type BookmarkDetailPreviewResult =");
+    expect(dashboardSource).not.toContain("function getBookmarkDetailFieldRows");
+    expect(dashboardSource).not.toContain("async function resolveSelectedBookmarkPreview");
+    expect(detailSource).toContain("export function createBookmarkDetailPreviewCaches");
+    expect(detailSource).toContain("export function getBookmarkDetailFieldRows");
+    expect(detailSource).toContain("export async function resolveBookmarkDetailPreview");
+  });
 });

@@ -111,10 +111,15 @@ import {
 import {
   getBookmarkPreviewStoredSourceFields,
   getBookmarkPreviewWorkerFallbackMessage,
-  hasTextContent,
-  isJsRequiredBookmarkPreview,
-  sanitizeExtractedDisplayText
+  isJsRequiredBookmarkPreview
 } from "./bookmark-preview-utils";
+import {
+  createBookmarkDetailPreviewCaches,
+  getBookmarkDetailFieldRows,
+  invalidateBookmarkDetailPreviewCache,
+  resolveBookmarkDetailPreview,
+  type BookmarkExtensionRenderedPreviewAttempt
+} from "./dashboard-bookmark-detail";
 import type {
   BookmarkDisplaySettings as BookmarkCardDisplaySettings,
   BookmarkListRowActionResult,
@@ -175,23 +180,6 @@ type FolderDraft = {
   icon: string;
   isHidden: boolean;
   parentFolderId: string;
-};
-
-type BookmarkExtensionRenderedPreviewAttempt =
-  | {
-      status: "success";
-      presence: "installed";
-      preview: BookmarkExtractPreview;
-    }
-  | {
-      status: "missing" | "failed";
-      presence: BookmarkExtensionPresenceStatus;
-    };
-
-type BookmarkDetailPreviewResult = {
-  preview: BookmarkExtractPreview;
-  notice: string | null;
-  extensionPresence: BookmarkExtensionPresenceStatus | null;
 };
 
 type TagDraft = {
@@ -293,28 +281,6 @@ function getIsMobileSearchViewport() {
   return (
     globalThis.document?.documentElement?.clientWidth ?? globalThis.innerWidth ?? 1024
   ) <= MOBILE_SEARCH_BREAKPOINT;
-}
-
-function getBookmarkDetailFieldRows(bookmark: Bookmark, mode: "user" | "source") {
-  const rows =
-    mode === "user"
-      ? [
-          { label: "제목", value: bookmark.userTitle },
-          { label: "내용", value: bookmark.userContent },
-          { label: "요약", value: bookmark.userSummary }
-        ]
-      : [
-          { label: "제목", value: bookmark.sourceTitle },
-          { label: "내용", value: bookmark.sourceContent },
-          { label: "요약", value: bookmark.sourceSummary }
-        ];
-
-  return rows
-    .map((row) => ({
-      ...row,
-      value: mode === "source" ? sanitizeExtractedDisplayText(row.value) : row.value
-    }))
-    .filter((row) => hasTextContent(row.value));
 }
 
 const LazyInstallHelpDialog = lazy(() => import("./InstallHelpDialog"));
@@ -803,10 +769,7 @@ export default function AuthenticatedDashboardApp({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const bookmarkDetailRequestIdRef = useRef(0);
   const bookmarkPreviewRequestIdRef = useRef(0);
-  const selectedBookmarkPreviewCacheRef =
-    useRef<Map<string, BookmarkDetailPreviewResult>>(new Map());
-  const selectedBookmarkPreviewPromiseRef =
-    useRef<Map<string, Promise<BookmarkDetailPreviewResult>>>(new Map());
+  const selectedBookmarkPreviewCachesRef = useRef(createBookmarkDetailPreviewCaches());
   const recommendationRequestIdRef = useRef(0);
   const bookmarkListElementRef = useRef<HTMLUListElement | null>(null);
   const preloadingBookmarkAssetIdsRef = useRef<Set<string>>(new Set());
@@ -3239,78 +3202,14 @@ export default function AuthenticatedDashboardApp({
   }
 
   function invalidateSelectedBookmarkPreviewCache(bookmarkId?: string) {
-    if (!bookmarkId) {
-      selectedBookmarkPreviewCacheRef.current.clear();
-      selectedBookmarkPreviewPromiseRef.current.clear();
-      return;
-    }
-
-    selectedBookmarkPreviewCacheRef.current.delete(bookmarkId);
-    selectedBookmarkPreviewPromiseRef.current.delete(bookmarkId);
-  }
-
-  async function resolveSelectedBookmarkPreview(
-    bookmarkId: string,
-    onJsRequiredPreview?: () => void
-  ) {
-    const cachedPreview = selectedBookmarkPreviewCacheRef.current.get(bookmarkId);
-    if (cachedPreview) {
-      return cachedPreview;
-    }
-
-    const inFlightPreview = selectedBookmarkPreviewPromiseRef.current.get(bookmarkId);
-    if (inFlightPreview) {
-      return inFlightPreview;
-    }
-
-    const previewPromise = (async (): Promise<BookmarkDetailPreviewResult> => {
-      const preview = await loadBookmarkPreview(bookmarkId);
-      let resolvedPreview = preview;
-      let previewNotice: string | null = null;
-      let extensionPresence: BookmarkExtensionPresenceStatus | null = null;
-
-      if (isJsRequiredBookmarkPreview(preview)) {
-        onJsRequiredPreview?.();
-        const renderedPreview = await requestRenderedBookmarkPreview(
-          preview.normalizedUrl || preview.url
-        );
-        extensionPresence = renderedPreview.presence;
-
-        if (renderedPreview.status === "success") {
-          resolvedPreview = renderedPreview.preview;
-        } else {
-          previewNotice = getBookmarkPreviewWorkerFallbackMessage(renderedPreview.status);
-        }
-      }
-
-      const previewResult = {
-        preview: resolvedPreview,
-        notice: previewNotice,
-        extensionPresence
-      };
-      return previewResult;
-    })();
-
-    selectedBookmarkPreviewPromiseRef.current.set(bookmarkId, previewPromise);
-
-    try {
-      const previewResult = await previewPromise;
-      if (selectedBookmarkPreviewPromiseRef.current.get(bookmarkId) === previewPromise) {
-        selectedBookmarkPreviewCacheRef.current.set(bookmarkId, previewResult);
-      }
-      return previewResult;
-    } finally {
-      if (selectedBookmarkPreviewPromiseRef.current.get(bookmarkId) === previewPromise) {
-        selectedBookmarkPreviewPromiseRef.current.delete(bookmarkId);
-      }
-    }
+    invalidateBookmarkDetailPreviewCache(selectedBookmarkPreviewCachesRef.current, bookmarkId);
   }
 
   async function loadSelectedBookmarkPreview(bookmarkId: string) {
     const requestId = bookmarkPreviewRequestIdRef.current + 1;
     bookmarkPreviewRequestIdRef.current = requestId;
 
-    const cachedPreview = selectedBookmarkPreviewCacheRef.current.get(bookmarkId);
+    const cachedPreview = selectedBookmarkPreviewCachesRef.current.previewCache.get(bookmarkId);
     if (cachedPreview) {
       if (cachedPreview.extensionPresence) {
         setBookmarkExtensionPresence(cachedPreview.extensionPresence);
@@ -3330,11 +3229,19 @@ export default function AuthenticatedDashboardApp({
     setSelectedBookmarkPreviewNotice(null);
 
     try {
-      const previewResult = await resolveSelectedBookmarkPreview(bookmarkId, () => {
-        if (bookmarkPreviewRequestIdRef.current === requestId) {
-          setBookmarkExtensionPresence("checking");
+      const previewResult = await resolveBookmarkDetailPreview(
+        bookmarkId,
+        selectedBookmarkPreviewCachesRef.current,
+        {
+          loadBookmarkPreview,
+          requestRenderedBookmarkPreview,
+          onJsRequiredPreview: () => {
+            if (bookmarkPreviewRequestIdRef.current === requestId) {
+              setBookmarkExtensionPresence("checking");
+            }
+          }
         }
-      });
+      );
       if (bookmarkPreviewRequestIdRef.current !== requestId) {
         return;
       }
