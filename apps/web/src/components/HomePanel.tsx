@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from "react";
+import { memo, type MouseEvent, type ReactNode } from "react";
 import type { Bookmark, BookmarkAsset } from "@bookmark/shared";
 import {
   getBookmarkAssetCardImageUrl,
@@ -9,7 +9,13 @@ import {
   hasTextContent,
   renderHiddenBookmarkIndicator
 } from "./bookmark-preview-utils";
+import {
+  useActionMenuPlacement
+} from "./action-menu-placement";
+import "./BookmarkCard.css";
 import "./HomePanel.css";
+
+const HOME_FAVORITE_ACTION_MENU_ESTIMATED_HEIGHT = 96;
 
 type HomeFavoriteTagItem = {
   id: string;
@@ -68,10 +74,20 @@ function HomeFavoriteCard({
     menuId
   } = card;
   const cardTitle = bookmark.displayTitle || bookmark.url;
+  const { actionMenuPlacement, updateActionMenuPlacement } =
+    useActionMenuPlacement("below", HOME_FAVORITE_ACTION_MENU_ESTIMATED_HEIGHT);
+  const handleActionMenuToggle = (event: MouseEvent<HTMLButtonElement>) => {
+    if (!isActionMenuOpen && typeof window !== "undefined") {
+      updateActionMenuPlacement(event);
+    }
+
+    void actions.onToggleActionMenu(menuId);
+  };
 
   return (
     <li
       className="bookmark-card home-favorite-card"
+      data-open-action-menu={isActionMenuOpen ? "true" : undefined}
       style={
         bookmark.bookmarkColor
           ? {
@@ -155,7 +171,7 @@ function HomeFavoriteCard({
               className="ghost-button folder-action-trigger overflow-trigger"
               aria-label={`${cardTitle} 북마크 더보기`}
               aria-expanded={isActionMenuOpen}
-              onClick={() => actions.onToggleActionMenu(menuId)}
+              onClick={handleActionMenuToggle}
             >
               ...
             </button>
@@ -164,6 +180,7 @@ function HomeFavoriteCard({
                 role="menu"
                 aria-label={`${cardTitle} 북마크 메뉴`}
                 className="folder-action-menu bookmark-card-action-menu"
+                data-menu-placement={actionMenuPlacement}
               >
                 <button
                   type="button"

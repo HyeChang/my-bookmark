@@ -356,12 +356,68 @@ describe("bundle splitting", () => {
     expect(dashboardSource).not.toContain("const homeSection = (");
     expect(dashboardSource).not.toContain("<MemoizedHomeFavoriteCard");
     expect(homePanelSource).toContain('import "./HomePanel.css";');
+    expect(homePanelSource).toContain('import "./BookmarkCard.css";');
     expect(homePanelSource).toContain("export type HomeFavoriteCardViewModel =");
     expect(homePanelSource).toContain("export type HomePanelActions =");
     expect(homePanelSource).toContain("const MemoizedHomeFavoriteCard = memo(HomeFavoriteCard);");
     expect(homePanelSource).toContain("<MemoizedHomeFavoriteCard");
     expect(homePanelSource).not.toContain("visibleHomeFavoriteBookmarks.map((bookmark) => {");
     expect(homePanelSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
+  });
+
+  it("loads shared bookmark card styles with lazy bookmark panels", () => {
+    const dashboardCss = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.css"),
+      "utf8"
+    );
+    const homePanelSource = readFileSync(
+      join(process.cwd(), "src", "components", "HomePanel.tsx"),
+      "utf8"
+    );
+    const bookmarkResultsSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
+      "utf8"
+    );
+    const bookmarkCardCss = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkCard.css"),
+      "utf8"
+    );
+
+    expect(homePanelSource).toContain('import "./BookmarkCard.css";');
+    expect(bookmarkResultsSource).toContain('import "./BookmarkCard.css";');
+    expect(bookmarkCardCss).toContain(".bookmark-card {");
+    expect(bookmarkCardCss).toContain(".bookmark-card-action-menu");
+    expect(bookmarkCardCss).toContain(".bookmark-url-copy-button");
+    expect(dashboardCss).not.toContain(".bookmark-card {");
+    expect(dashboardCss).not.toContain(".bookmark-card-action-menu");
+    expect(dashboardCss).not.toContain(".bookmark-url-copy-button");
+  });
+
+  it("shares action menu placement state across bookmark surfaces", () => {
+    const actionMenuPlacementSource = readFileSync(
+      join(process.cwd(), "src", "components", "action-menu-placement.ts"),
+      "utf8"
+    );
+    const homePanelSource = readFileSync(
+      join(process.cwd(), "src", "components", "HomePanel.tsx"),
+      "utf8"
+    );
+    const bookmarkResultsSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
+      "utf8"
+    );
+    const bookmarkDetailSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkDetailPanel.tsx"),
+      "utf8"
+    );
+
+    expect(actionMenuPlacementSource).toContain("export function useActionMenuPlacement");
+    expect(homePanelSource).toContain("useActionMenuPlacement(");
+    expect(bookmarkResultsSource).toContain("useActionMenuPlacement(");
+    expect(bookmarkDetailSource).toContain("useActionMenuPlacement(");
+    expect(homePanelSource).not.toContain("getBoundingClientRect()");
+    expect(bookmarkResultsSource).not.toContain("getBoundingClientRect()");
+    expect(bookmarkDetailSource).not.toContain("getBoundingClientRect()");
   });
 
   it("loads recommendations through a lazy panel chunk with memoized cards", () => {

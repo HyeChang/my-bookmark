@@ -33,6 +33,7 @@ describe("CSS budget", () => {
     );
     const lazyCssFiles = [
       "BookmarkResultsPanel.css",
+      "BookmarkCard.css",
       "BookmarkAdvancedSearchFields.css",
       "DashboardFormControls.css",
       "BookmarkPreviewContent.css",
@@ -60,6 +61,9 @@ describe("CSS budget", () => {
     expect(dashboardCss).not.toContain(".bookmark-list-table");
     expect(dashboardCss).not.toContain(".bookmark-pagination-bar");
     expect(dashboardCss).not.toContain(".bookmark-row-actions-mobile-compact");
+    expect(dashboardCss).not.toContain(".bookmark-card {");
+    expect(dashboardCss).not.toContain(".bookmark-card-action-menu");
+    expect(dashboardCss).not.toContain(".bookmark-url-copy-button");
     expect(dashboardCss).not.toContain(".stack-form {");
     expect(dashboardCss).not.toContain(".checkbox-field {");
     expect(dashboardCss).not.toContain(".tag-fieldset {");

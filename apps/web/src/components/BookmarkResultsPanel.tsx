@@ -2,7 +2,6 @@ import {
   lazy,
   memo,
   Suspense,
-  useState,
   type CSSProperties,
   type FormEvent,
   type MouseEvent,
@@ -28,10 +27,10 @@ import {
   renderHiddenBookmarkIndicator
 } from "./bookmark-preview-utils";
 import {
-  getActionMenuPlacement,
-  type ActionMenuPlacement
+  useActionMenuPlacement
 } from "./action-menu-placement";
 import "./ChoiceControls.css";
+import "./BookmarkCard.css";
 import "./BookmarkResultsPanel.css";
 
 const LazyBookmarkAdvancedSearchFields = lazy(() => import("./BookmarkAdvancedSearchFields"));
@@ -477,8 +476,8 @@ function BookmarkListRow({
   imageLoadingPriority,
   actions
 }: BookmarkListRowProps) {
-  const [actionMenuPlacement, setActionMenuPlacement] =
-    useState<ActionMenuPlacement>("below");
+  const { actionMenuPlacement, updateActionMenuPlacement } =
+    useActionMenuPlacement("below", BOOKMARK_CARD_ACTION_MENU_ESTIMATED_HEIGHT);
   const {
     bookmark,
     assetCount,
@@ -499,16 +498,7 @@ function BookmarkListRow({
   const rowTitle = bookmark.displayTitle || bookmark.url;
   const handleActionMenuToggle = (event: MouseEvent<HTMLButtonElement>) => {
     if (!isActionMenuOpen && typeof window !== "undefined") {
-      const triggerRect = event.currentTarget.getBoundingClientRect();
-
-      setActionMenuPlacement(
-        getActionMenuPlacement({
-          triggerTop: triggerRect.top,
-          triggerBottom: triggerRect.bottom,
-          viewportHeight: window.innerHeight,
-          estimatedMenuHeight: BOOKMARK_CARD_ACTION_MENU_ESTIMATED_HEIGHT
-        })
-      );
+      updateActionMenuPlacement(event);
     }
 
     void actions.onToggleActionMenu(bookmark.id);

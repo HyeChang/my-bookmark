@@ -1,3 +1,5 @@
+import { useState, type MouseEvent } from "react";
+
 export type ActionMenuPlacement = "below" | "above";
 
 export type ActionMenuPlacementOptions = {
@@ -21,4 +23,31 @@ export function getActionMenuPlacement(
   }
 
   return spaceAbove > spaceBelow ? "above" : "below";
+}
+
+export function useActionMenuPlacement(
+  initialPlacement: ActionMenuPlacement,
+  estimatedMenuHeight: number
+) {
+  const [actionMenuPlacement, setActionMenuPlacement] =
+    useState<ActionMenuPlacement>(initialPlacement);
+
+  function updateActionMenuPlacement(event: MouseEvent<HTMLElement>) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const triggerRect = event.currentTarget.getBoundingClientRect();
+
+    setActionMenuPlacement(
+      getActionMenuPlacement({
+        triggerTop: triggerRect.top,
+        triggerBottom: triggerRect.bottom,
+        viewportHeight: window.innerHeight,
+        estimatedMenuHeight
+      })
+    );
+  }
+
+  return { actionMenuPlacement, updateActionMenuPlacement };
 }

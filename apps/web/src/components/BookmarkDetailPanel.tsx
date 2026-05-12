@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from "react";
+import type { MouseEvent } from "react";
 import type {
   Bookmark,
   BookmarkAsset,
@@ -13,8 +13,7 @@ import {
   renderHiddenBookmarkIndicator
 } from "./bookmark-preview-utils";
 import {
-  getActionMenuPlacement,
-  type ActionMenuPlacement
+  useActionMenuPlacement
 } from "./action-menu-placement";
 import "./BookmarkPreviewContent.css";
 import "./BookmarkDetailPanel.css";
@@ -110,8 +109,8 @@ export default function BookmarkDetailPanel({
   onResetUserContent,
   onBookmarkDelete
 }: BookmarkDetailPanelProps) {
-  const [actionMenuPlacement, setActionMenuPlacement] =
-    useState<ActionMenuPlacement>("above");
+  const { actionMenuPlacement, updateActionMenuPlacement } =
+    useActionMenuPlacement("above", BOOKMARK_DETAIL_ACTION_MENU_ESTIMATED_HEIGHT);
 
   if (!bookmark) {
     return <BookmarkDetailPlaceholder />;
@@ -125,16 +124,7 @@ export default function BookmarkDetailPanel({
   const title = bookmark.displayTitle || bookmark.url;
   const handleActionMenuToggle = (event: MouseEvent<HTMLButtonElement>) => {
     if (!isActionMenuOpen && typeof window !== "undefined") {
-      const triggerRect = event.currentTarget.getBoundingClientRect();
-
-      setActionMenuPlacement(
-        getActionMenuPlacement({
-          triggerTop: triggerRect.top,
-          triggerBottom: triggerRect.bottom,
-          viewportHeight: window.innerHeight,
-          estimatedMenuHeight: BOOKMARK_DETAIL_ACTION_MENU_ESTIMATED_HEIGHT
-        })
-      );
+      updateActionMenuPlacement(event);
     }
 
     onToggleActionMenu();
