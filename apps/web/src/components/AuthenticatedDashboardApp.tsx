@@ -28,7 +28,6 @@ import type {
   Tag
 } from "@bookmark/shared";
 
-import { getBookmarkAssetPreloadBatches } from "../lib/bookmark-asset-preload";
 import type { BookmarkPage } from "../lib/bookmarks";
 import type { BookmarkExtensionPresenceStatus } from "../lib/extension-presence";
 import { extractImageFilesFromDataTransfer } from "../lib/clipboard-images";
@@ -53,6 +52,10 @@ import {
   type HomeFavoriteCardCacheEntry,
   type RecommendationCardCacheEntry
 } from "./dashboard-bookmark-view-models";
+import {
+  loadBookmarkAssetsForBookmarks,
+  queueBookmarkAssetPreload as queueDashboardBookmarkAssetPreload
+} from "./dashboard-bookmark-asset-preload";
 import {
   DEFAULT_BOOKMARK_PAGE_SIZE,
   DEFAULT_BOOKMARK_VIEW_MODE,
@@ -98,8 +101,6 @@ import {
   type RecommendationKind
 } from "./dashboard-bookmark-utils";
 import {
-  BOOKMARK_VIRTUALIZATION_THRESHOLD,
-  BOOKMARK_VIRTUAL_WINDOW_SIZE,
   getBookmarkVirtualWindow,
   getBookmarkVirtualWindowStartForScroll
 } from "./dashboard-bookmark-virtualization";
@@ -866,127 +867,24 @@ export default function AuthenticatedDashboardApp({
     closeOpenMenus();
   }
 
-  async function loadBookmarkAssetsByBookmark(bookmarksToLoad: Bookmark[]) {
-    const bookmarkIds = bookmarksToLoad.map((bookmark) => bookmark.id);
-
-    try {
-      return await loadBookmarkAssetsByBookmarks(bookmarkIds);
-    } catch {
-      const assetEntries = await Promise.all(
-        bookmarksToLoad.map(async (bookmark) => {
-          try {
-            const assets = await loadBookmarkAssets(bookmark.id);
-            return [bookmark.id, assets] as const;
-          } catch {
-            return [bookmark.id, [] as BookmarkAsset[]] as const;
-          }
-        })
-      );
-
-      return Object.fromEntries(assetEntries) as Record<string, BookmarkAsset[]>;
-    }
-  }
-
-  async function preloadBookmarkAssets(
-    bookmarksToLoad: Bookmark[],
-    currentAssetsByBookmarkId: Record<string, BookmarkAsset[]>
-  ) {
-    const bookmarksMissingAssets = bookmarksToLoad.filter(
-      (bookmark) =>
-        currentAssetsByBookmarkId[bookmark.id] === undefined &&
-        !preloadingBookmarkAssetIdsRef.current.has(bookmark.id)
-    );
-    if (bookmarksMissingAssets.length === 0) {
-      return;
-    }
-
-    for (const bookmark of bookmarksMissingAssets) {
-      preloadingBookmarkAssetIdsRef.current.add(bookmark.id);
-    }
-
-    try {
-      const nextBookmarkAssetsByBookmarkId = await loadBookmarkAssetsByBookmark(bookmarksMissingAssets);
-
-      startTransition(() => {
-        setBookmarkAssetsByBookmarkId((latestAssetsByBookmarkId) => {
-          const missingAssetEntries = Object.entries(nextBookmarkAssetsByBookmarkId).filter(
-            ([bookmarkId]) => latestAssetsByBookmarkId[bookmarkId] === undefined
-          );
-          if (missingAssetEntries.length === 0) {
-            return latestAssetsByBookmarkId;
-          }
-
-          return {
-            ...latestAssetsByBookmarkId,
-            ...Object.fromEntries(missingAssetEntries)
-          };
-        });
-      });
-    } finally {
-      for (const bookmark of bookmarksMissingAssets) {
-        preloadingBookmarkAssetIdsRef.current.delete(bookmark.id);
-      }
-    }
-  }
-
-  function getBookmarkAssetPreloadCandidates(
-    bookmarksToLoad: Bookmark[],
-    dashboardView: DashboardView
-  ) {
-    if (
-      dashboardView === "bookmarks" &&
-      (bookmarkViewMode === "list" || bookmarkViewMode === "title") &&
-      bookmarksToLoad.length > BOOKMARK_VIRTUALIZATION_THRESHOLD
-    ) {
-      const visibleWindowSize = shouldUseCompactMobileCards
-        ? 28
-        : BOOKMARK_VIRTUAL_WINDOW_SIZE;
-      return bookmarksToLoad.slice(0, visibleWindowSize);
-    }
-
-    return bookmarksToLoad;
-  }
-
-  function queueBookmarkAssetPreload(
+  const queueBookmarkAssetPreload = (
     bookmarksToLoad: Bookmark[],
     currentAssetsByBookmarkId: Record<string, BookmarkAsset[]>,
     dashboardView: DashboardView = activeDashboardView
-  ) {
-    if (deferredBookmarkAssetPreloadTimerRef.current) {
-      globalThis.clearTimeout(deferredBookmarkAssetPreloadTimerRef.current);
-      deferredBookmarkAssetPreloadTimerRef.current = null;
-    }
-
-    const preloadCandidates = getBookmarkAssetPreloadCandidates(
+  ) => {
+    queueDashboardBookmarkAssetPreload({
       bookmarksToLoad,
-      dashboardView
-    ).filter(
-      (bookmark) =>
-        currentAssetsByBookmarkId[bookmark.id] === undefined &&
-        !preloadingBookmarkAssetIdsRef.current.has(bookmark.id)
-    );
-    if (preloadCandidates.length === 0) {
-      return;
-    }
-
-    const batches = getBookmarkAssetPreloadBatches(preloadCandidates, {
+      currentAssetsByBookmarkId,
       dashboardView,
-      bookmarkViewMode
+      bookmarkViewMode,
+      shouldUseCompactMobileCards,
+      preloadingBookmarkAssetIds: preloadingBookmarkAssetIdsRef.current,
+      deferredBookmarkAssetPreloadTimerRef,
+      loadBookmarkAssetsByBookmarks,
+      loadBookmarkAssets,
+      setBookmarkAssetsByBookmarkId
     });
-
-    if (batches.eager.length > 0) {
-      void preloadBookmarkAssets(batches.eager, currentAssetsByBookmarkId);
-    }
-
-    if (batches.deferred.length === 0) {
-      return;
-    }
-
-    deferredBookmarkAssetPreloadTimerRef.current = globalThis.setTimeout(() => {
-      void preloadBookmarkAssets(batches.deferred, currentAssetsByBookmarkId);
-      deferredBookmarkAssetPreloadTimerRef.current = null;
-    }, 500);
-  }
+  };
 
   function resetBookmarkListPagination(nextPageSize = bookmarkListPageSize) {
     setBookmarkListVisibleCount(nextPageSize);
@@ -3306,7 +3204,10 @@ export default function AuthenticatedDashboardApp({
         loadFolders(),
         loadTags()
       ]);
-      const exportBookmarkAssetsByBookmarkId = await loadBookmarkAssetsByBookmark(exportBookmarks);
+      const exportBookmarkAssetsByBookmarkId = await loadBookmarkAssetsForBookmarks(exportBookmarks, {
+        loadBookmarkAssetsByBookmarks,
+        loadBookmarkAssets
+      });
       const exportPayload = {
         exportedAt: new Date().toISOString(),
         bookmarks: exportBookmarks,

@@ -580,4 +580,24 @@ describe("bundle splitting", () => {
     expect(virtualizationSource).toContain("export function getBookmarkVirtualWindow");
     expect(virtualizationSource).toContain("export function getBookmarkVirtualWindowStartForScroll");
   });
+
+  it("keeps bookmark asset preload queue state outside the dashboard component shell", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const preloadSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-bookmark-asset-preload.ts"),
+      "utf8"
+    );
+
+    expect(dashboardSource).toContain('from "./dashboard-bookmark-asset-preload"');
+    expect(dashboardSource).not.toContain("async function loadBookmarkAssetsByBookmark");
+    expect(dashboardSource).not.toContain("async function preloadBookmarkAssets(");
+    expect(dashboardSource).not.toContain("function getBookmarkAssetPreloadCandidates");
+    expect(dashboardSource).not.toContain("function queueBookmarkAssetPreload(");
+    expect(preloadSource).toContain("export async function loadBookmarkAssetsForBookmarks");
+    expect(preloadSource).toContain("export async function preloadMissingBookmarkAssets");
+    expect(preloadSource).toContain("export function queueBookmarkAssetPreload");
+  });
 });
