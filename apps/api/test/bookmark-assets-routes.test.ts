@@ -243,6 +243,10 @@ describe("bookmark asset routes", () => {
       "file",
       new File(["fake-image-data"], "capture.png", { type: "image/png" })
     );
+    formData.set(
+      "thumbnail",
+      new File(["fake-thumbnail-data"], "capture-thumb.webp", { type: "image/webp" })
+    );
 
     const uploadRes = await authenticatedRequest(
       app,
@@ -260,12 +264,14 @@ describe("bookmark asset routes", () => {
         bookmarkId: string;
         mimeType: string;
         contentUrl: string;
+        thumbnailUrl: string;
       };
     };
     expect(uploaded.asset).toMatchObject({
       bookmarkId: created.bookmark.id,
       mimeType: "image/png",
-      contentUrl: `/api/bookmarks/${created.bookmark.id}/assets/asset-1/content`
+      contentUrl: `/api/bookmarks/${created.bookmark.id}/assets/asset-1/content`,
+      thumbnailUrl: `/api/bookmarks/${created.bookmark.id}/assets/asset-1/thumbnail`
     });
 
     const listRes = await authenticatedRequest(
@@ -278,10 +284,20 @@ describe("bookmark asset routes", () => {
       assets: [
         {
           id: uploaded.asset.id,
-          bookmarkId: created.bookmark.id
+          bookmarkId: created.bookmark.id,
+          thumbnailUrl: `/api/bookmarks/${created.bookmark.id}/assets/asset-1/thumbnail`
         }
       ]
     });
+
+    const thumbnailRes = await authenticatedRequest(app, uploaded.asset.thumbnailUrl);
+
+    expect(thumbnailRes.status).toBe(200);
+    expect(thumbnailRes.headers.get("content-type")).toContain("image/webp");
+    expect(thumbnailRes.headers.get("cache-control")).toBe(
+      "private, max-age=2592000, immutable"
+    );
+    await expect(thumbnailRes.text()).resolves.toBe("fake-thumbnail-data");
 
     const contentRes = await authenticatedRequest(app, uploaded.asset.contentUrl);
 
@@ -352,17 +368,68 @@ describe("bookmark asset routes", () => {
         [firstCreated.bookmark.id]: [
           {
             bookmarkId: firstCreated.bookmark.id,
-            contentUrl: `/api/bookmarks/${firstCreated.bookmark.id}/assets/asset-1/content`
+            contentUrl: `/api/bookmarks/${firstCreated.bookmark.id}/assets/asset-1/content`,
+            thumbnailUrl: `/api/bookmarks/${firstCreated.bookmark.id}/assets/asset-1/thumbnail`
           }
         ],
         [secondCreated.bookmark.id]: [
           {
             bookmarkId: secondCreated.bookmark.id,
-            contentUrl: `/api/bookmarks/${secondCreated.bookmark.id}/assets/asset-2/content`
+            contentUrl: `/api/bookmarks/${secondCreated.bookmark.id}/assets/asset-2/content`,
+            thumbnailUrl: `/api/bookmarks/${secondCreated.bookmark.id}/assets/asset-2/thumbnail`
           }
         ]
       }
     });
+  });
+
+  it("falls back to original asset content for legacy assets without thumbnails", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository(),
+      bookmarkAssetRepository: createInMemoryAssetRepository(),
+      assetStorage: createInMemoryAssetStorage()
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        url: "https://example.com/legacy-asset",
+        userTitle: "Legacy asset"
+      })
+    });
+    const created = (await createRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const formData = new FormData();
+    formData.set(
+      "file",
+      new File(["legacy-image-data"], "legacy.png", { type: "image/png" })
+    );
+
+    const uploadRes = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}/assets`,
+      {
+        method: "POST",
+        body: formData
+      }
+    );
+    const uploaded = (await uploadRes.json()) as {
+      asset: {
+        thumbnailUrl: string;
+      };
+    };
+
+    const thumbnailRes = await authenticatedRequest(app, uploaded.asset.thumbnailUrl);
+
+    expect(thumbnailRes.status).toBe(200);
+    expect(thumbnailRes.headers.get("content-type")).toContain("image/png");
+    await expect(thumbnailRes.text()).resolves.toBe("legacy-image-data");
   });
 
   it("deletes a bookmark asset for the authenticated user", async () => {

@@ -4,6 +4,7 @@ import type {
   BookmarkAssetListResponse,
   BookmarkAssetResponse
 } from "@bookmark/shared";
+import { createBookmarkAssetThumbnail } from "./bookmark-asset-thumbnails";
 
 function normalizeBookmarkIds(bookmarkIds: string[]) {
   return Array.from(
@@ -56,6 +57,10 @@ export async function loadBookmarkAssetsByBookmarks(bookmarkIds: string[]) {
 export async function uploadBookmarkAsset(bookmarkId: string, file: File) {
   const formData = new FormData();
   formData.set("file", file);
+  const thumbnail = await createBookmarkAssetThumbnail(file);
+  if (thumbnail) {
+    formData.set("thumbnail", thumbnail);
+  }
 
   const res = await fetch(`/api/bookmarks/${bookmarkId}/assets`, {
     method: "POST",

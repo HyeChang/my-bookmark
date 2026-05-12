@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import type { BookmarkAsset } from "@bookmark/shared";
 
 import {
+  getBookmarkAssetCardImageUrl,
   getBookmarkListImageLoadingPriority,
   getHomeFavoriteImageLoadingPriority
 } from "../lib/bookmark-image-loading";
@@ -14,6 +16,23 @@ const lazyImageComponentFiles = [
 ];
 
 describe("bookmark image loading priority", () => {
+  it("uses thumbnail URLs for bookmark card and favorite covers when available", () => {
+    const asset = {
+      contentUrl: "/api/bookmarks/bookmark-1/assets/asset-1/content",
+      thumbnailUrl: "/api/bookmarks/bookmark-1/assets/asset-1/thumbnail"
+    } as BookmarkAsset;
+
+    expect(getBookmarkAssetCardImageUrl(asset)).toBe(
+      "/api/bookmarks/bookmark-1/assets/asset-1/thumbnail"
+    );
+    expect(
+      getBookmarkAssetCardImageUrl({
+        ...asset,
+        thumbnailUrl: undefined
+      })
+    ).toBe("/api/bookmarks/bookmark-1/assets/asset-1/content");
+  });
+
   it("keeps non-list preview images lazy decoded low-priority resources", () => {
     for (const fileName of lazyImageComponentFiles) {
       const source = readFileSync(
@@ -71,10 +90,12 @@ describe("bookmark image loading priority", () => {
 
     expect(bookmarkResultsSource).toContain("getBookmarkListImageLoadingPriority(index, {");
     expect(bookmarkResultsSource).toContain("virtualWindowStart: bookmarkImageStartIndex");
+    expect(bookmarkResultsSource).toContain("getBookmarkAssetCardImageUrl(coverAsset)");
     expect(bookmarkResultsSource).toContain("loading={imageLoadingPriority.loading}");
     expect(bookmarkResultsSource).toContain("fetchPriority={imageLoadingPriority.fetchPriority}");
     expect(bookmarkResultsSource).toContain('sizes="(max-width: 720px) 100vw, var(--bookmark-cover-size)"');
     expect(homePanelSource).toContain("getHomeFavoriteImageLoadingPriority(index)");
+    expect(homePanelSource).toContain("getBookmarkAssetCardImageUrl(coverAsset)");
     expect(homePanelSource).toContain("loading={imageLoadingPriority.loading}");
     expect(homePanelSource).toContain("fetchPriority={imageLoadingPriority.fetchPriority}");
     expect(homePanelSource).toContain('sizes="(max-width: 720px) 100vw, 180px"');

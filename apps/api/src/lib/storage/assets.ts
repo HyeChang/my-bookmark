@@ -9,6 +9,10 @@ export type BookmarkAssetStorage = {
   delete(objectKey: string): Promise<void>;
 };
 
+export function getBookmarkAssetThumbnailObjectKey(objectKey: string) {
+  return `${objectKey}.thumbnail.webp`;
+}
+
 export function createR2BookmarkAssetStorage(bucket: R2Bucket): BookmarkAssetStorage {
   return {
     async put(objectKey, body, contentType) {

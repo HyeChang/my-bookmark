@@ -1,10 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { requestJson } from "../lib/api";
-import { loadBookmarkAssetsByBookmarks } from "../lib/bookmark-assets";
+import { loadBookmarkAssetsByBookmarks, uploadBookmarkAsset } from "../lib/bookmark-assets";
+import { createBookmarkAssetThumbnail } from "../lib/bookmark-asset-thumbnails";
 import { extractBookmarkPreview } from "../lib/bookmark-extract";
 import { loadBookmarkCounts, loadBookmarkPage, loadBookmarkPreview } from "../lib/bookmarks";
 import { createTag } from "../lib/tags";
+
+vi.mock("../lib/bookmark-asset-thumbnails", () => ({
+  createBookmarkAssetThumbnail: vi.fn()
+}));
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -339,5 +344,51 @@ describe("api client", () => {
         credentials: "include"
       }
     );
+  });
+
+  it("uploads a generated bookmark asset thumbnail with the original image", async () => {
+    vi.mocked(createBookmarkAssetThumbnail).mockResolvedValue(
+      new File(["thumbnail"], "cover-thumb.webp", { type: "image/webp" })
+    );
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          asset: {
+            id: "asset-1",
+            bookmarkId: "bookmark-1",
+            assetType: "image",
+            mimeType: "image/png",
+            width: null,
+            height: null,
+            sortOrder: 0,
+            contentUrl: "/api/bookmarks/bookmark-1/assets/asset-1/content",
+            thumbnailUrl: "/api/bookmarks/bookmark-1/assets/asset-1/thumbnail",
+            createdAt: "2026-04-13T08:00:00.000Z",
+            updatedAt: "2026-04-13T08:00:00.000Z"
+          }
+        }),
+        {
+          status: 201,
+          headers: {
+            "content-type": "application/json"
+          }
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["original"], "cover.png", { type: "image/png" });
+
+    await expect(uploadBookmarkAsset("bookmark-1", file)).resolves.toMatchObject({
+      id: "asset-1",
+      thumbnailUrl: "/api/bookmarks/bookmark-1/assets/asset-1/thumbnail"
+    });
+
+    expect(createBookmarkAssetThumbnail).toHaveBeenCalledWith(file);
+    const requestBody = fetchMock.mock.calls[0]?.[1]?.body;
+    expect(requestBody).toBeInstanceOf(FormData);
+    expect((requestBody as FormData).get("file")).toBe(file);
+    const thumbnail = (requestBody as FormData).get("thumbnail");
+    expect(thumbnail).toBeInstanceOf(File);
+    expect((thumbnail as File).name).toBe("cover-thumb.webp");
   });
 });

@@ -54,6 +54,7 @@ import {
 import { syncAuthenticatedUser } from "../lib/repositories/users";
 import {
   createR2BookmarkAssetStorage,
+  getBookmarkAssetThumbnailObjectKey,
   type BookmarkAssetStorage
 } from "../lib/storage/assets";
 
@@ -81,6 +82,8 @@ const bookmarkSortModes: BookmarkSortMode[] = [
 const bookmarkRelativeDateRanges: BookmarkRelativeDateRange[] = ["all", "7d", "30d"];
 const bookmarkTagModes: BookmarkTagMode[] = ["and", "or"];
 const bookmarkPageSizes = [20, 50, 100] as const;
+const BOOKMARK_ASSET_CONTENT_CACHE_CONTROL = "private, max-age=604800, immutable";
+const BOOKMARK_ASSET_THUMBNAIL_CACHE_CONTROL = "private, max-age=2592000, immutable";
 
 function normalizeTagQueryValues(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
@@ -148,6 +151,19 @@ function collectDescendantFolderIds(
 function sanitizeFileName(fileName: string) {
   const normalizedFileName = fileName.trim().replace(/\s+/g, "-");
   return normalizedFileName.replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 80) || "asset";
+}
+
+async function getStoredBookmarkAssetObject(
+  assetStorage: BookmarkAssetStorage,
+  objectKey: string,
+  options?: { fallbackObjectKey?: string }
+) {
+  const object = await assetStorage.get(objectKey);
+  if (object || !options?.fallbackObjectKey) {
+    return object;
+  }
+
+  return assetStorage.get(options.fallbackObjectKey);
 }
 
 function compareText(left: string, right: string) {
@@ -872,6 +888,7 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       if (assetStorage) {
         for (const asset of assets) {
           await assetStorage.delete(asset.objectKey);
+          await assetStorage.delete(getBookmarkAssetThumbnailObjectKey(asset.objectKey));
         }
       }
 
@@ -1054,10 +1071,30 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         return c.json({ error: "unsupported_file_type" }, 400);
       }
 
+      const thumbnailFile = formData?.get("thumbnail");
+      if (
+        thumbnailFile !== null &&
+        thumbnailFile !== undefined &&
+        !(
+          thumbnailFile instanceof File &&
+          thumbnailFile.size > 0 &&
+          thumbnailFile.type.startsWith("image/")
+        )
+      ) {
+        return c.json({ error: "unsupported_thumbnail_type" }, 400);
+      }
+
       const assetType = formData?.get("assetType") === "capture" ? "capture" : "image";
       const objectKey = `${user.uid}/${bookmark.id}/${crypto.randomUUID()}-${sanitizeFileName(file.name)}`;
 
       await assetStorage.put(objectKey, await file.arrayBuffer(), file.type);
+      if (thumbnailFile instanceof File) {
+        await assetStorage.put(
+          getBookmarkAssetThumbnailObjectKey(objectKey),
+          await thumbnailFile.arrayBuffer(),
+          thumbnailFile.type
+        );
+      }
 
       const asset = await assetRepository.create({
         bookmarkId: bookmark.id,
@@ -1075,6 +1112,65 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         },
         201
       );
+    })
+    .get("/:bookmarkId/assets/:assetId/thumbnail", async (c) => {
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const assetRepository =
+        options.bookmarkAssetRepository ??
+        (c.env?.bookmark ? createBookmarkAssetRepository(c.env.bookmark) : null);
+      const assetStorage =
+        options.assetStorage ??
+        (c.env?.bookmark_assets ? createR2BookmarkAssetStorage(c.env.bookmark_assets) : null);
+
+      if (!bookmarkRepository || !assetRepository || !assetStorage) {
+        return c.json({ error: "bookmark_asset_repository_unavailable" }, 500);
+      }
+
+      const bookmark = await bookmarkRepository.getByUserAndId(
+        user.uid,
+        c.req.param("bookmarkId")
+      );
+      if (!bookmark) {
+        return c.json({ error: "bookmark_not_found" }, 404);
+      }
+
+      const asset = await assetRepository.getById(
+        user.uid,
+        bookmark.id,
+        c.req.param("assetId")
+      );
+      if (!asset) {
+        return c.json({ error: "bookmark_asset_not_found" }, 404);
+      }
+
+      const object = await getStoredBookmarkAssetObject(
+        assetStorage,
+        getBookmarkAssetThumbnailObjectKey(asset.objectKey),
+        {
+          fallbackObjectKey: asset.objectKey
+        }
+      );
+      if (!object) {
+        return c.json({ error: "bookmark_asset_content_not_found" }, 404);
+      }
+
+      return new Response(object.body, {
+        headers: {
+          "content-type": object.contentType,
+          "cache-control": BOOKMARK_ASSET_THUMBNAIL_CACHE_CONTROL
+        }
+      });
     })
     .get("/:bookmarkId/assets/:assetId/content", async (c) => {
       const user = await getAuthenticatedUser(
@@ -1117,7 +1213,7 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         return c.json({ error: "bookmark_asset_not_found" }, 404);
       }
 
-      const object = await assetStorage.get(asset.objectKey);
+      const object = await getStoredBookmarkAssetObject(assetStorage, asset.objectKey);
       if (!object) {
         return c.json({ error: "bookmark_asset_content_not_found" }, 404);
       }
@@ -1125,7 +1221,7 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       return new Response(object.body, {
         headers: {
           "content-type": object.contentType,
-          "cache-control": "private, max-age=604800, immutable"
+          "cache-control": BOOKMARK_ASSET_CONTENT_CACHE_CONTROL
         }
       });
     })
@@ -1168,6 +1264,7 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
 
       await assetRepository.delete(user.uid, bookmark.id, asset.id);
       await assetStorage.delete(asset.objectKey);
+      await assetStorage.delete(getBookmarkAssetThumbnailObjectKey(asset.objectKey));
 
       return c.body(null, 204);
     });

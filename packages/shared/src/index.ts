@@ -181,6 +181,7 @@ export type BookmarkAsset = {
   height: number | null;
   sortOrder: number;
   contentUrl: string;
+  thumbnailUrl?: string;
   createdAt: string;
   updatedAt: string;
 };

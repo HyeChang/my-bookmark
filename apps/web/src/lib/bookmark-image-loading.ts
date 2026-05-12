@@ -1,3 +1,5 @@
+import type { BookmarkAsset } from "@bookmark/shared";
+
 export type BookmarkImageLoadingPriority = {
   loading: "eager" | "lazy";
   fetchPriority: "high" | "low";
@@ -40,4 +42,8 @@ export function getHomeFavoriteImageLoadingPriority(
   index: number
 ): BookmarkImageLoadingPriority {
   return getImageLoadingPriorityForIndex(index, ABOVE_FOLD_HOME_FAVORITE_IMAGE_COUNT);
+}
+
+export function getBookmarkAssetCardImageUrl(asset: BookmarkAsset) {
+  return asset.thumbnailUrl ?? asset.contentUrl;
 }

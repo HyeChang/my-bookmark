@@ -90,6 +90,7 @@ export function toBookmarkAssetResponse(
       options?.bookmarkId
         ? `/api/bookmarks/${options.bookmarkId}/assets/${asset.id}/content`
         : asset.contentUrl,
+    thumbnailUrl: `/api/bookmarks/${options?.bookmarkId ?? asset.bookmarkId}/assets/${asset.id}/thumbnail`,
     createdAt: asset.createdAt,
     updatedAt: asset.updatedAt
   };

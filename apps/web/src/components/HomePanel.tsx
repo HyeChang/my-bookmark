@@ -1,6 +1,7 @@
 import { memo, type ReactNode } from "react";
 import type { Bookmark, BookmarkAsset } from "@bookmark/shared";
 import {
+  getBookmarkAssetCardImageUrl,
   getHomeFavoriteImageLoadingPriority,
   type BookmarkImageLoadingPriority
 } from "../lib/bookmark-image-loading";
@@ -83,7 +84,7 @@ function HomeFavoriteCard({
       {coverAsset ? (
         <div className="asset-grid home-favorite-cover">
           <img
-            src={coverAsset.contentUrl}
+            src={getBookmarkAssetCardImageUrl(coverAsset)}
             alt="업로드 이미지 1"
             loading={imageLoadingPriority.loading}
             decoding="async"

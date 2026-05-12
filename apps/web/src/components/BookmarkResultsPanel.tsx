@@ -17,6 +17,7 @@ import type {
   Tag
 } from "@bookmark/shared";
 import {
+  getBookmarkAssetCardImageUrl,
   getBookmarkListImageLoadingPriority,
   type BookmarkImageLoadingPriority
 } from "../lib/bookmark-image-loading";
@@ -505,7 +506,7 @@ function BookmarkListRow({
       {shouldShowListCover && coverAsset ? (
         <div className="asset-grid bookmark-row-assets bookmark-row-list-thumbnail">
           <img
-            src={coverAsset.contentUrl}
+            src={getBookmarkAssetCardImageUrl(coverAsset)}
             alt="업로드 이미지 1"
             loading={imageLoadingPriority.loading}
             decoding="async"
@@ -527,7 +528,7 @@ function BookmarkListRow({
         {shouldShowCover && coverAsset ? (
           <div className="asset-grid bookmark-row-assets">
             <img
-              src={coverAsset.contentUrl}
+              src={getBookmarkAssetCardImageUrl(coverAsset)}
               alt="업로드 이미지 1"
               loading={imageLoadingPriority.loading}
               decoding="async"
