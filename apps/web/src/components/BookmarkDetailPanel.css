@@ -126,6 +126,16 @@
   border-radius: 12px;
 }
 
+.bookmark-detail-action-menu[data-menu-placement="above"] {
+  top: auto;
+  bottom: calc(100% + 0.45rem);
+}
+
+.bookmark-detail-action-menu[data-menu-placement="below"] {
+  top: calc(100% + 0.45rem);
+  bottom: auto;
+}
+
 .bookmark-detail-action-menu-item {
   min-height: 2rem;
   padding: 0.32rem 0.56rem;
@@ -372,9 +382,7 @@
 
   .bookmark-detail-menu-shell .bookmark-detail-action-menu {
     position: absolute;
-    top: auto;
     right: 0;
-    bottom: calc(100% + 0.45rem);
     max-height: min(calc(100svh - 7rem), 17rem);
     overflow-y: auto;
     overscroll-behavior: contain;

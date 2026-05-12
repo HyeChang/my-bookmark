@@ -1525,13 +1525,23 @@ img {
   .bookmark-card-menu-shell .bookmark-card-action-menu {
     position: absolute;
     right: 0;
-    top: auto;
-    bottom: calc(100% + 0.45rem);
+    top: calc(100% + 0.45rem);
+    bottom: auto;
     min-width: min(9.4rem, calc(100vw - 1.4rem));
     max-width: calc(100vw - 1.4rem);
     gap: 0.34rem;
     padding: 0.44rem;
     box-shadow: 0 18px 34px rgba(20, 33, 61, 0.14);
+  }
+
+  .bookmark-card-menu-shell .bookmark-card-action-menu[data-menu-placement="above"] {
+    top: auto;
+    bottom: calc(100% + 0.45rem);
+  }
+
+  .bookmark-card-menu-shell .bookmark-card-action-menu[data-menu-placement="below"] {
+    top: calc(100% + 0.45rem);
+    bottom: auto;
   }
 
   .bookmark-card-action-menu-item {

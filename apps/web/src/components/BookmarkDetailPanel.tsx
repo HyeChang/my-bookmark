@@ -1,3 +1,4 @@
+import { useState, type MouseEvent } from "react";
 import type {
   Bookmark,
   BookmarkAsset,
@@ -11,11 +12,16 @@ import {
   renderBookmarkPreviewArticle,
   renderHiddenBookmarkIndicator
 } from "./bookmark-preview-utils";
+import {
+  getActionMenuPlacement,
+  type ActionMenuPlacement
+} from "./action-menu-placement";
 import "./BookmarkPreviewContent.css";
 import "./BookmarkDetailPanel.css";
 
 type BookmarkDetailTab = "detail" | "preview" | "extract";
 type MaybePromise = void | Promise<void>;
+const BOOKMARK_DETAIL_ACTION_MENU_ESTIMATED_HEIGHT = 240;
 
 export type BookmarkDetailFieldRow = {
   label: string;
@@ -104,6 +110,9 @@ export default function BookmarkDetailPanel({
   onResetUserContent,
   onBookmarkDelete
 }: BookmarkDetailPanelProps) {
+  const [actionMenuPlacement, setActionMenuPlacement] =
+    useState<ActionMenuPlacement>("above");
+
   if (!bookmark) {
     return <BookmarkDetailPlaceholder />;
   }
@@ -114,6 +123,22 @@ export default function BookmarkDetailPanel({
   const livePreviewBlocks = getBookmarkPreviewArticleBlocks(livePreview);
   const livePreviewRows = getBookmarkPreviewFieldRows(livePreview);
   const title = bookmark.displayTitle || bookmark.url;
+  const handleActionMenuToggle = (event: MouseEvent<HTMLButtonElement>) => {
+    if (!isActionMenuOpen && typeof window !== "undefined") {
+      const triggerRect = event.currentTarget.getBoundingClientRect();
+
+      setActionMenuPlacement(
+        getActionMenuPlacement({
+          triggerTop: triggerRect.top,
+          triggerBottom: triggerRect.bottom,
+          viewportHeight: window.innerHeight,
+          estimatedMenuHeight: BOOKMARK_DETAIL_ACTION_MENU_ESTIMATED_HEIGHT
+        })
+      );
+    }
+
+    onToggleActionMenu();
+  };
   const renderBookmarkPreviewFullscreenButton = (extraClassName = "") => (
     <button
       type="button"
@@ -407,7 +432,7 @@ export default function BookmarkDetailPanel({
                 className="ghost-button folder-action-trigger overflow-trigger"
                 aria-label="상세 작업 더보기"
                 aria-expanded={isActionMenuOpen}
-                onClick={onToggleActionMenu}
+                onClick={handleActionMenuToggle}
               >
                 ...
               </button>
@@ -416,6 +441,7 @@ export default function BookmarkDetailPanel({
                   role="menu"
                   aria-label="상세 작업 메뉴"
                   className="folder-action-menu bookmark-detail-action-menu"
+                  data-menu-placement={actionMenuPlacement}
                 >
                   {bookmark.isTrashed ? (
                     <>

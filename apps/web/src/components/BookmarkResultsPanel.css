@@ -707,6 +707,13 @@
     border-radius: 12px;
   }
 
+  .bookmark-list-row[data-open-action-menu="true"] {
+    position: relative;
+    z-index: 12;
+    overflow: visible;
+    content-visibility: visible;
+  }
+
   .bookmark-list-row .bookmark-card-title-block strong {
     font-size: 0.9rem;
     line-height: 1.24;

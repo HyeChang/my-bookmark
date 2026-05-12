@@ -2,8 +2,10 @@ import {
   lazy,
   memo,
   Suspense,
+  useState,
   type CSSProperties,
   type FormEvent,
+  type MouseEvent,
   type RefObject
 } from "react";
 import type {
@@ -25,10 +27,15 @@ import {
   hasTextContent,
   renderHiddenBookmarkIndicator
 } from "./bookmark-preview-utils";
+import {
+  getActionMenuPlacement,
+  type ActionMenuPlacement
+} from "./action-menu-placement";
 import "./ChoiceControls.css";
 import "./BookmarkResultsPanel.css";
 
 const LazyBookmarkAdvancedSearchFields = lazy(() => import("./BookmarkAdvancedSearchFields"));
+const BOOKMARK_CARD_ACTION_MENU_ESTIMATED_HEIGHT = 96;
 
 export type BookmarkSearchDraft = {
   query: string;
@@ -470,6 +477,8 @@ function BookmarkListRow({
   imageLoadingPriority,
   actions
 }: BookmarkListRowProps) {
+  const [actionMenuPlacement, setActionMenuPlacement] =
+    useState<ActionMenuPlacement>("below");
   const {
     bookmark,
     assetCount,
@@ -488,12 +497,29 @@ function BookmarkListRow({
     shouldShowInfo
   } = row;
   const rowTitle = bookmark.displayTitle || bookmark.url;
+  const handleActionMenuToggle = (event: MouseEvent<HTMLButtonElement>) => {
+    if (!isActionMenuOpen && typeof window !== "undefined") {
+      const triggerRect = event.currentTarget.getBoundingClientRect();
+
+      setActionMenuPlacement(
+        getActionMenuPlacement({
+          triggerTop: triggerRect.top,
+          triggerBottom: triggerRect.bottom,
+          viewportHeight: window.innerHeight,
+          estimatedMenuHeight: BOOKMARK_CARD_ACTION_MENU_ESTIMATED_HEIGHT
+        })
+      );
+    }
+
+    void actions.onToggleActionMenu(bookmark.id);
+  };
 
   return (
     <li
       className={`bookmark-card bookmark-list-row bookmark-list-row-view-${bookmarkViewMode}${
         isSelected ? " bookmark-list-row-selected" : ""
       }${shouldShowListCover ? " bookmark-list-row-has-cover" : ""}`}
+      data-open-action-menu={isActionMenuOpen ? "true" : undefined}
       style={
         bookmark.bookmarkColor
           ? {
@@ -680,7 +706,7 @@ function BookmarkListRow({
                   className="ghost-button folder-action-trigger overflow-trigger"
                   aria-label={`${rowTitle} 북마크 더보기`}
                   aria-expanded={isActionMenuOpen}
-                  onClick={() => actions.onToggleActionMenu(bookmark.id)}
+                  onClick={handleActionMenuToggle}
                 >
                   ...
                 </button>
@@ -689,6 +715,7 @@ function BookmarkListRow({
                     role="menu"
                     aria-label={`${rowTitle} 북마크 메뉴`}
                     className="folder-action-menu bookmark-card-action-menu"
+                    data-menu-placement={actionMenuPlacement}
                   >
                     <button
                       type="button"
