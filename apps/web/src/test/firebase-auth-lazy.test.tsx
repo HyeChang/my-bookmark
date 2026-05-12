@@ -166,4 +166,22 @@ describe("firebase auth lazy loading", () => {
       expect(firebaseAuthMock.signInWithGoogle).toHaveBeenCalledTimes(1);
     });
   });
+
+  it("keeps Firebase auth module loading behind shared auth actions", () => {
+    const authGateSource = readFileSync("src/components/AuthGate.tsx", "utf8");
+    const dashboardSource = readFileSync("src/components/AuthenticatedDashboardApp.tsx", "utf8");
+    const actionsSource = readFileSync("src/lib/firebase-auth-actions.ts", "utf8");
+
+    expect(authGateSource).toContain('from "../lib/firebase-auth-actions"');
+    expect(dashboardSource).toContain('from "../lib/firebase-auth-actions"');
+    expect(authGateSource).not.toContain('from "../lib/firebase-auth-loader"');
+    expect(dashboardSource).not.toContain('from "../lib/firebase-auth-loader"');
+    expect(authGateSource).not.toContain("const firebaseAuth = await");
+    expect(dashboardSource).not.toContain("const firebaseAuth = await");
+    expect(authGateSource).not.toContain("async function signInWithGoogle");
+    expect(dashboardSource).not.toContain("async function signInWithGoogle");
+    expect(dashboardSource).not.toContain("async function signOutFromGoogle");
+    expect(actionsSource).toContain('from "./firebase-auth-loader"');
+    expect(actionsSource).not.toContain('from "./firebase"');
+  });
 });

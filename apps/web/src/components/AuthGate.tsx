@@ -2,7 +2,7 @@ import { lazy, startTransition, Suspense, useEffect, useState } from "react";
 import type { AuthenticatedUser } from "@bookmark/shared";
 
 import { exchangeIdTokenForSession, loadSession } from "../lib/session";
-import { loadFirebaseAuth, preloadFirebaseAuth } from "../lib/firebase-auth-loader";
+import { preloadFirebaseAuth, signInWithGoogle } from "../lib/firebase-auth-actions";
 import "./AuthGate.css";
 
 function createAuthGateChunkLoader<TModule>(loadChunk: () => Promise<TModule>) {
@@ -29,11 +29,6 @@ type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
-
-async function signInWithGoogle() {
-  const firebaseAuth = await loadFirebaseAuth();
-  return firebaseAuth.signInWithGoogle();
-}
 
 function preloadAuthenticatedDashboardApp() {
   void loadAuthenticatedDashboardApp().catch(() => undefined);

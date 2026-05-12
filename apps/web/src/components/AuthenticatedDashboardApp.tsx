@@ -31,7 +31,11 @@ import type {
 import type { BookmarkPage } from "../lib/bookmarks";
 import type { BookmarkExtensionPresenceStatus } from "../lib/extension-presence";
 import { extractImageFilesFromDataTransfer } from "../lib/clipboard-images";
-import { loadFirebaseAuth, preloadFirebaseAuth } from "../lib/firebase-auth-loader";
+import {
+  preloadFirebaseAuth,
+  signInWithGoogle,
+  signOutFromGoogle
+} from "../lib/firebase-auth-actions";
 import { measureAsyncPerformance } from "../lib/performance-marks";
 import { DashboardHeader } from "./DashboardHeader";
 import {
@@ -311,16 +315,6 @@ function getBookmarkDetailFieldRows(bookmark: Bookmark, mode: "user" | "source")
       value: mode === "source" ? sanitizeExtractedDisplayText(row.value) : row.value
     }))
     .filter((row) => hasTextContent(row.value));
-}
-
-async function signInWithGoogle() {
-  const firebaseAuth = await loadFirebaseAuth();
-  return firebaseAuth.signInWithGoogle();
-}
-
-async function signOutFromGoogle() {
-  const firebaseAuth = await loadFirebaseAuth();
-  return firebaseAuth.signOutFromGoogle();
 }
 
 const LazyInstallHelpDialog = lazy(() => import("./InstallHelpDialog"));
