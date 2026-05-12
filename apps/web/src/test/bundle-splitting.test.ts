@@ -20,8 +20,42 @@ describe("bundle splitting", () => {
       'import("./components/AuthenticatedDashboardApp")'
     );
     expect(authGateSource).toContain(
-      'lazy(() => import("./AuthenticatedDashboardApp"))'
+      "const loadAuthenticatedDashboardApp = createAuthGateChunkLoader("
     );
+    expect(authGateSource).toContain(
+      '() => import("./AuthenticatedDashboardApp")'
+    );
+    expect(authGateSource).toContain(
+      "const LazyAuthenticatedDashboardApp = lazy(loadAuthenticatedDashboardApp);"
+    );
+    expect(authGateSource).toContain("function preloadAuthenticatedDashboardApp");
+    expect(authGateSource).toContain("preloadAuthenticatedDashboardApp();");
+  });
+
+  it("keeps PWA registration outside the initial entry module", () => {
+    const mainSource = readFileSync(join(process.cwd(), "src", "main.tsx"), "utf8");
+    const registerSource = readFileSync(
+      join(process.cwd(), "src", "pwa", "register.ts"),
+      "utf8"
+    );
+
+    expect(mainSource).not.toContain(
+      'import { registerPwaServiceWorker } from "./pwa/register";'
+    );
+    expect(mainSource).toContain("function schedulePwaServiceWorkerRegistration");
+    expect(mainSource).toContain('import("./pwa/register")');
+    expect(registerSource).toContain("function registerServiceWorker");
+    expect(registerSource).toContain('document.readyState === "complete"');
+  });
+
+  it("splits React and Firebase vendor code into cacheable manual chunks", () => {
+    const viteConfigSource = readFileSync(join(process.cwd(), "vite.config.ts"), "utf8");
+
+    expect(viteConfigSource).toContain("function getManualChunk");
+    expect(viteConfigSource).toContain('return "react-vendor";');
+    expect(viteConfigSource).toContain('return "firebase-auth";');
+    expect(viteConfigSource).toContain('return "firebase-app";');
+    expect(viteConfigSource).toContain("manualChunks: getManualChunk");
   });
 
   it("defers dashboard service modules behind dynamic imports", () => {
@@ -153,6 +187,23 @@ describe("bundle splitting", () => {
     expect(bookmarkResultsSource).toContain('import "./BookmarkResultsPanel.css";');
     expect(bookmarkResultsSource).toContain("<MemoizedBookmarkListRow");
     expect(bookmarkListSource).not.toContain("onClick={() => void handleBookmarkOpen(bookmark)}");
+  });
+
+  it("warms dashboard data modules before the first dashboard refresh", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+
+    expect(dashboardSource).toContain("function preloadDashboardCoreServiceModules");
+    expect(dashboardSource).toContain("Promise.allSettled([");
+    expect(dashboardSource).toContain("bookmarkAssetsModule.load()");
+    expect(dashboardSource).toContain("bookmarksModule.load()");
+    expect(dashboardSource).toContain("foldersModule.load()");
+    expect(dashboardSource).toContain("recommendationsModule.load()");
+    expect(dashboardSource).toContain("tagsModule.load()");
+    expect(dashboardSource).toContain("preloadDashboardCoreServiceModules();");
+    expect(dashboardSource).toContain("void refreshDashboardData().finally");
   });
 
   it("keeps bookmark sort and view controls inside the lazy results panel", () => {

@@ -4,7 +4,19 @@ import type { AuthenticatedUser } from "@bookmark/shared";
 import { exchangeIdTokenForSession, loadSession } from "../lib/session";
 import { loadFirebaseAuth, preloadFirebaseAuth } from "../lib/firebase-auth-loader";
 
-const LazyAuthenticatedDashboardApp = lazy(() => import("./AuthenticatedDashboardApp"));
+function createAuthGateChunkLoader<TModule>(loadChunk: () => Promise<TModule>) {
+  let chunkPromise: Promise<TModule> | null = null;
+
+  return () => {
+    chunkPromise ??= loadChunk();
+    return chunkPromise;
+  };
+}
+
+const loadAuthenticatedDashboardApp = createAuthGateChunkLoader(
+  () => import("./AuthenticatedDashboardApp")
+);
+const LazyAuthenticatedDashboardApp = lazy(loadAuthenticatedDashboardApp);
 const LazyInstallHelpDialog = lazy(() => import("./InstallHelpDialog"));
 
 type SessionState =
@@ -20,6 +32,10 @@ type BeforeInstallPromptEvent = Event & {
 async function signInWithGoogle() {
   const firebaseAuth = await loadFirebaseAuth();
   return firebaseAuth.signInWithGoogle();
+}
+
+function preloadAuthenticatedDashboardApp() {
+  void loadAuthenticatedDashboardApp().catch(() => undefined);
 }
 
 function renderDashboardFallback() {
@@ -62,6 +78,10 @@ export default function AuthGate() {
       .then((user) => {
         if (cancelled) {
           return;
+        }
+
+        if (user) {
+          preloadAuthenticatedDashboardApp();
         }
 
         startTransition(() => {
@@ -108,6 +128,8 @@ export default function AuthGate() {
       setIsLoggingIn(true);
       const idToken = await signInWithGoogle();
       const user = await exchangeIdTokenForSession(idToken);
+
+      preloadAuthenticatedDashboardApp();
 
       startTransition(() => {
         setSessionState({ status: "authenticated", user });
@@ -180,8 +202,9 @@ export default function AuthGate() {
                 type="button"
                 className="primary-button"
                 disabled={isLoggingIn}
-                onMouseEnter={preloadFirebaseAuth}
-                onFocus={preloadFirebaseAuth}
+                onMouseEnter={() => void preloadFirebaseAuth()}
+                onFocus={() => void preloadFirebaseAuth()}
+                onPointerDown={() => void preloadFirebaseAuth()}
                 onClick={() => void handleGoogleLogin()}
               >
                 {isLoggingIn ? "로그인 중" : "Google로 로그인"}

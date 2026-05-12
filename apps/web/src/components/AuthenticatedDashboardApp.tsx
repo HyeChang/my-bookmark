@@ -1579,13 +1579,13 @@ const tagsModule = createDeferredModuleLoader<TagsModule>(
 );
 
 function preloadDashboardCoreServiceModules() {
-  void Promise.all([
+  void Promise.allSettled([
     bookmarkAssetsModule.load(),
     bookmarksModule.load(),
     foldersModule.load(),
     recommendationsModule.load(),
     tagsModule.load()
-  ]).catch(() => undefined);
+  ]);
 }
 
 function deleteBookmarkAsset(
@@ -7387,8 +7387,9 @@ export default function AuthenticatedDashboardApp({
               <button
                 type="button"
                 className="primary-button"
-                onMouseEnter={preloadFirebaseAuth}
-                onFocus={preloadFirebaseAuth}
+                onMouseEnter={() => void preloadFirebaseAuth()}
+                onFocus={() => void preloadFirebaseAuth()}
+                onPointerDown={() => void preloadFirebaseAuth()}
                 onClick={() => void handleGoogleLogin()}
               >
                 Google로 로그인

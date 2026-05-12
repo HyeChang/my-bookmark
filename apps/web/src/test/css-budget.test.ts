@@ -50,11 +50,35 @@ describe("CSS budget", () => {
     expect(dashboardCss).not.toContain(".bookmark-pagination-bar");
     expect(dashboardCss).not.toContain(".bookmark-row-actions-mobile-compact");
     expect(dashboardCss).not.toContain(".tag-manager-dialog-shell");
+    expect(dashboardCss).not.toContain(".tag-list-item");
+    expect(dashboardCss).not.toContain(".tag-list-name");
 
     for (const fileName of lazyCssFiles) {
       const css = readFileSync(join(process.cwd(), "src", "components", fileName));
       expect(css.byteLength).toBeGreaterThan(0);
     }
+  });
+
+  it("gives long lazy lists browser-level render containment", () => {
+    const folderManagerCss = readFileSync(
+      join(process.cwd(), "src", "components", "FolderManagerDialog.css"),
+      "utf8"
+    );
+    const recommendationCss = readFileSync(
+      join(process.cwd(), "src", "components", "RecommendationPanel.css"),
+      "utf8"
+    );
+    const tagManagerCss = readFileSync(
+      join(process.cwd(), "src", "components", "TagManagerDialog.css"),
+      "utf8"
+    );
+
+    expect(folderManagerCss).toContain("content-visibility: auto;");
+    expect(folderManagerCss).toContain("contain-intrinsic-size: 0 3.9rem;");
+    expect(recommendationCss).toContain("content-visibility: auto;");
+    expect(recommendationCss).toContain("contain-intrinsic-size: 0 3.4rem;");
+    expect(tagManagerCss).toContain("content-visibility: auto;");
+    expect(tagManagerCss).toContain("contain-intrinsic-size: 0 4.5rem;");
   });
 
   it("keeps theme overrides available after desktop light rules in component styles", () => {

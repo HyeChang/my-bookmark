@@ -4,6 +4,41 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+function getManualChunk(id: string) {
+  const normalizedId = id.replaceAll("\\", "/");
+
+  if (!normalizedId.includes("/node_modules/")) {
+    return undefined;
+  }
+
+  if (
+    normalizedId.includes("/node_modules/react/") ||
+    normalizedId.includes("/node_modules/react-dom/") ||
+    normalizedId.includes("/node_modules/scheduler/")
+  ) {
+    return "react-vendor";
+  }
+
+  if (
+    normalizedId.includes("/node_modules/firebase/auth/") ||
+    normalizedId.includes("/node_modules/@firebase/auth/")
+  ) {
+    return "firebase-auth";
+  }
+
+  if (
+    normalizedId.includes("/node_modules/firebase/app/") ||
+    normalizedId.includes("/node_modules/@firebase/app/") ||
+    normalizedId.includes("/node_modules/@firebase/component/") ||
+    normalizedId.includes("/node_modules/@firebase/logger/") ||
+    normalizedId.includes("/node_modules/@firebase/util/")
+  ) {
+    return "firebase-app";
+  }
+
+  return undefined;
+}
+
 export default defineConfig({
   envDir: fileURLToPath(new URL("../..", import.meta.url)),
   plugins: [
@@ -48,6 +83,13 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: getManualChunk
+      }
+    }
+  },
   test: {
     environment: "happy-dom",
     globals: true,

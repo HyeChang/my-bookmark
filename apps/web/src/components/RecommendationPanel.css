@@ -105,6 +105,8 @@
 }
 
 .recommendation-item {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 3.4rem;
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
