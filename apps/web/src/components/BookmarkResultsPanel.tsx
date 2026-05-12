@@ -17,6 +17,10 @@ import type {
   Tag
 } from "@bookmark/shared";
 import {
+  getBookmarkListImageLoadingPriority,
+  type BookmarkImageLoadingPriority
+} from "../lib/bookmark-image-loading";
+import {
   hasTextContent,
   renderHiddenBookmarkIndicator
 } from "./bookmark-preview-utils";
@@ -107,30 +111,9 @@ type BookmarkListRowProps = {
   shouldUseCompactMobileCards: boolean;
   isSelected: boolean;
   isActionMenuOpen: boolean;
-  imageLoadingPriority: BookmarkRowImageLoadingPriority;
+  imageLoadingPriority: BookmarkImageLoadingPriority;
   actions: BookmarkListRowActions;
 };
-
-type BookmarkRowImageLoadingPriority = {
-  loading: "eager" | "lazy";
-  fetchPriority: "high" | "low";
-};
-
-const ABOVE_FOLD_BOOKMARK_IMAGE_COUNT = 4;
-const EAGER_BOOKMARK_IMAGE_LOADING_PRIORITY: BookmarkRowImageLoadingPriority = {
-  loading: "eager",
-  fetchPriority: "high"
-};
-const LAZY_BOOKMARK_IMAGE_LOADING_PRIORITY: BookmarkRowImageLoadingPriority = {
-  loading: "lazy",
-  fetchPriority: "low"
-};
-
-function getBookmarkRowImageLoadingPriority(index: number): BookmarkRowImageLoadingPriority {
-  return index < ABOVE_FOLD_BOOKMARK_IMAGE_COUNT
-    ? EAGER_BOOKMARK_IMAGE_LOADING_PRIORITY
-    : LAZY_BOOKMARK_IMAGE_LOADING_PRIORITY;
-}
 
 type FolderOption = {
   folder: Folder;
@@ -144,6 +127,7 @@ type BookmarkResultsPanelProps = {
   bookmarkCardDisplaySettings: BookmarkDisplaySettings;
   bookmarkListDisplaySettings: BookmarkDisplaySettings;
   bookmarkListElementRef: RefObject<HTMLUListElement | null>;
+  bookmarkImageStartIndex: number;
   bookmarkListPageSize: BookmarkPageSize;
   bookmarkListRows: BookmarkListRowViewModel[];
   bookmarkPageSizeOptions: BookmarkPageSize[];
@@ -739,6 +723,7 @@ export default function BookmarkResultsPanel({
   bookmarkCardDisplaySettings,
   bookmarkListDisplaySettings,
   bookmarkListElementRef,
+  bookmarkImageStartIndex,
   bookmarkListPageSize,
   bookmarkListRows,
   bookmarkPageSizeOptions,
@@ -1140,7 +1125,9 @@ export default function BookmarkResultsPanel({
           ) : null}
           {bookmarkListRows.map((bookmarkRow, index) => {
             const bookmarkId = bookmarkRow.bookmark.id;
-            const imageLoadingPriority = getBookmarkRowImageLoadingPriority(index);
+            const imageLoadingPriority = getBookmarkListImageLoadingPriority(index, {
+              virtualWindowStart: bookmarkImageStartIndex
+            });
 
             return (
               <MemoizedBookmarkListRow

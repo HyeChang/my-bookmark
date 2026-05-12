@@ -34,6 +34,7 @@ describe("CSS budget", () => {
     const lazyCssFiles = [
       "BookmarkResultsPanel.css",
       "BookmarkAdvancedSearchFields.css",
+      "DashboardFormControls.css",
       "BookmarkPreviewContent.css",
       "BookmarkComposerDialog.css",
       "BookmarkDetailPanel.css",
@@ -59,6 +60,11 @@ describe("CSS budget", () => {
     expect(dashboardCss).not.toContain(".bookmark-list-table");
     expect(dashboardCss).not.toContain(".bookmark-pagination-bar");
     expect(dashboardCss).not.toContain(".bookmark-row-actions-mobile-compact");
+    expect(dashboardCss).not.toContain(".stack-form {");
+    expect(dashboardCss).not.toContain(".checkbox-field {");
+    expect(dashboardCss).not.toContain(".tag-fieldset {");
+    expect(dashboardCss).not.toContain(".inline-file-list {");
+    expect(dashboardCss).not.toContain(".bookmark-tag-selected-chip {");
     expect(dashboardCss).not.toContain(".bookmark-preview-article");
     expect(dashboardCss).not.toContain(".bookmark-preview-fallback-card");
     expect(dashboardCss).not.toContain(".tag-manager-dialog-shell");
@@ -82,8 +88,24 @@ describe("CSS budget", () => {
       join(process.cwd(), "src", "components", "BookmarkComposerDialog.tsx"),
       "utf8"
     );
+    const folderManagerSource = readFileSync(
+      join(process.cwd(), "src", "components", "FolderManagerDialog.tsx"),
+      "utf8"
+    );
+    const tagManagerSource = readFileSync(
+      join(process.cwd(), "src", "components", "TagManagerDialog.tsx"),
+      "utf8"
+    );
+    const advancedSearchSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkAdvancedSearchFields.tsx"),
+      "utf8"
+    );
     expect(bookmarkDetailSource).toContain('import "./BookmarkPreviewContent.css";');
     expect(bookmarkComposerSource).toContain('import "./BookmarkPreviewContent.css";');
+    expect(bookmarkComposerSource).toContain('import "./DashboardFormControls.css";');
+    expect(folderManagerSource).toContain('import "./DashboardFormControls.css";');
+    expect(tagManagerSource).toContain('import "./DashboardFormControls.css";');
+    expect(advancedSearchSource).toContain('import "./DashboardFormControls.css";');
 
     for (const fileName of lazyCssFiles) {
       const css = readFileSync(join(process.cwd(), "src", "components", fileName));
@@ -154,6 +176,7 @@ describe("CSS budget", () => {
   it("keeps theme overrides available after desktop light rules in component styles", () => {
     const themedCssFiles = [
       "AuthenticatedDashboardTheme.css",
+      "DashboardFormControls.css",
       "HomePanel.css",
       "BookmarkAdvancedSearchFields.css",
       "BookmarkResultsPanel.css",

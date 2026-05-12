@@ -2,6 +2,7 @@ import {
   lazy,
   Suspense,
   startTransition,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -20,10 +21,7 @@ import type {
   BookmarkAsset,
   BookmarkCounts,
   BookmarkExtractPreview,
-  BookmarkRelativeDateRange,
-  BookmarkSearchMode,
   BookmarkSortMode,
-  BookmarkTagMode,
   CreateBookmarkRequest,
   ExtensionToken,
   Folder,
@@ -32,7 +30,6 @@ import type {
 
 import { getBookmarkAssetPreloadBatches } from "../lib/bookmark-asset-preload";
 import type { BookmarkPage } from "../lib/bookmarks";
-import { colorPresets } from "../lib/folder-presets";
 import type { BookmarkExtensionPresenceStatus } from "../lib/extension-presence";
 import { extractImageFilesFromDataTransfer } from "../lib/clipboard-images";
 import { loadFirebaseAuth, preloadFirebaseAuth } from "../lib/firebase-auth-loader";
@@ -57,12 +54,72 @@ import {
   type RecommendationCardCacheEntry
 } from "./dashboard-bookmark-view-models";
 import {
+  DEFAULT_BOOKMARK_PAGE_SIZE,
+  DEFAULT_BOOKMARK_VIEW_MODE,
+  bookmarkPageSizeOptions,
+  bookmarkSearchModeOptions,
+  bookmarkSortOptions,
+  bookmarkViewModeOptions,
+  canResolveFolderOverviewSearchLocally,
+  clampBookmarkCoverSize,
+  countUnfiledBookmarksFromCounts,
+  countVisibleActiveBookmarksFromCounts,
+  defaultBookmarkCardDisplaySettings,
+  defaultBookmarkListDisplaySettings,
+  emptyBookmarkRecommendations,
+  emptyBookmarkSearchDraft,
+  filterBookmarksByHiddenBookmarks,
+  filterBookmarksByHiddenFolders,
+  filterBookmarksForFolderOverviewSearch,
+  filterBookmarksForFolderOverviewSpecialFilter,
+  filterRecommendationsByHiddenBookmarks,
+  filterRecommendationsByHiddenFolders,
+  getBookmarkCountBucketValue,
+  getBookmarkSearchSummaryItems,
+  getExtensionFolderIds,
+  getFolderAncestorIds,
+  getFolderDescendantIds,
+  getFolderVisibleIdsForQuery,
+  getFoldersByParentId,
+  getHiddenFolderIds,
+  getHierarchicalFolderOptions,
+  getSiblingFolders,
+  hasActiveBookmarkAdvancedFilters,
+  hasActiveBookmarkSearch,
+  isBookmarkUnfiled,
+  isBookmarkVisibleUnderHiddenRules,
+  loadStoredBookmarkViewSettings,
+  moveFolderToSiblingPosition,
+  normalizeBookmarkSearchDraft,
+  reorderSiblingFolders,
+  upsertBookmarkById,
+  type BookmarkRecommendationsState,
+  type FolderReorderPosition,
+  type RecommendationKind
+} from "./dashboard-bookmark-utils";
+import {
+  BOOKMARK_VIRTUALIZATION_THRESHOLD,
+  BOOKMARK_VIRTUAL_WINDOW_SIZE,
+  getBookmarkVirtualWindow,
+  getBookmarkVirtualWindowStartForScroll
+} from "./dashboard-bookmark-virtualization";
+import {
   getBookmarkPreviewStoredSourceFields,
   getBookmarkPreviewWorkerFallbackMessage,
   hasTextContent,
   isJsRequiredBookmarkPreview,
   sanitizeExtractedDisplayText
 } from "./bookmark-preview-utils";
+import type {
+  BookmarkDisplaySettings as BookmarkCardDisplaySettings,
+  BookmarkListRowActionResult,
+  BookmarkListRowActions,
+  BookmarkListRowViewModel,
+  BookmarkPageSize,
+  BookmarkSearchDraft,
+  BookmarkSearchSummaryItem,
+  BookmarkViewMode
+} from "./BookmarkResultsPanel";
 import type {
   RecommendationCardViewModel,
   RecommendationPanelActions
@@ -137,96 +194,14 @@ type TagDraft = {
   color: string;
 };
 
-type BookmarkSearchDraft = {
-  query: string;
-  mode: BookmarkSearchMode;
-  sort: BookmarkSortMode;
-  createdWithin: BookmarkRelativeDateRange;
-  openedWithin: BookmarkRelativeDateRange;
-  favoriteOnly: boolean;
-  folderId: string;
-  includeDescendantFolders: boolean;
-  tagIds: string[];
-  tagMode: BookmarkTagMode;
-  bookmarkColor: string;
-  urlColor: string;
-  summaryState: "all" | "with" | "without";
-};
-
-type BookmarkRecommendationsState = {
-  favorites: Bookmark[];
-  recent: Bookmark[];
-  frequent: Bookmark[];
-};
-
-type RecommendationKind = keyof BookmarkRecommendationsState;
 type DashboardView = "home" | "bookmarks";
 type BookmarkDetailDisplayMode = "rail" | "dialog";
 type BookmarkDetailTab = "detail" | "preview" | "extract";
-type BookmarkViewMode = "list" | "card" | "title" | "moodboard";
-type BookmarkPageSize = 20 | 50 | 100;
 type AppThemeMode = "light" | "dark";
-
-type BookmarkSearchSummaryItem = {
-  key: string;
-  groupLabel: string;
-  valueLabel: string;
-  nextSearch: BookmarkSearchDraft;
-};
-
-type BookmarkCardDisplaySettings = {
-  coverImage: boolean;
-  title: boolean;
-  description: boolean;
-  tags: boolean;
-  bookmarkInfo: boolean;
-  coverSize: number;
-};
-
-type BookmarkListRowTagItem = {
-  id: string;
-  name: string;
-  color: string | null;
-};
-
-type BookmarkListRowViewModel = {
-  bookmark: Bookmark;
-  assets: BookmarkAsset[];
-  assetCount: number;
-  coverAsset: BookmarkAsset | null;
-  folderName: string;
-  previewText: string;
-  summaryStateLabel: string;
-  visibleTagItems: BookmarkListRowTagItem[];
-  remainingTagCount: number;
-  isTrashed: boolean;
-  shouldShowCover: boolean;
-  shouldShowListCover: boolean;
-  shouldShowTitle: boolean;
-  shouldShowDescription: boolean;
-  shouldShowTags: boolean;
-  shouldShowInfo: boolean;
-};
-
-type BookmarkListRowActionResult = void | Promise<void>;
-
-type BookmarkListRowActions = {
-  onToggleDetail: (bookmark: Bookmark) => BookmarkListRowActionResult;
-  onOpen: (bookmark: Bookmark) => BookmarkListRowActionResult;
-  onOpenDetailDialog: (bookmark: Bookmark) => BookmarkListRowActionResult;
-  onCopyUrl: (bookmark: Bookmark) => BookmarkListRowActionResult;
-  onToggleActionMenu: (bookmarkId: string) => BookmarkListRowActionResult;
-  onEdit: (bookmark: Bookmark) => BookmarkListRowActionResult;
-  onDelete: (bookmark: Bookmark) => BookmarkListRowActionResult;
-  onRestore: (bookmark: Bookmark) => BookmarkListRowActionResult;
-  onPermanentDelete: (bookmark: Bookmark) => BookmarkListRowActionResult;
-};
 
 const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
 const USERSCRIPT_DOWNLOAD_PATH = "/downloads/bookmark-saver.user.js?v=0.1.11";
 const APP_THEME_STORAGE_KEY = "bookmark-theme";
-const BOOKMARK_VIEW_SETTINGS_STORAGE_KEY = "bookmark-view-settings:v2";
-const DEFAULT_BOOKMARK_VIEW_MODE: BookmarkViewMode = "list";
 
 const emptyBookmarkDraft: BookmarkDraft = {
   url: "",
@@ -284,81 +259,6 @@ function areBookmarkDraftsEqual(left: BookmarkDraft, right: BookmarkDraft) {
   );
 }
 
-const emptyBookmarkSearchDraft: BookmarkSearchDraft = {
-  query: "",
-  mode: "all",
-  sort: "created_desc",
-  createdWithin: "all",
-  openedWithin: "all",
-  favoriteOnly: false,
-  folderId: "",
-  includeDescendantFolders: false,
-  tagIds: [],
-  tagMode: "and",
-  bookmarkColor: "",
-  urlColor: "",
-  summaryState: "all"
-};
-
-const emptyBookmarkRecommendations: BookmarkRecommendationsState = {
-  favorites: [],
-  recent: [],
-  frequent: []
-};
-
-const bookmarkSearchModeOptions: Array<{ value: BookmarkSearchMode; label: string }> = [
-  { value: "all", label: "전체" },
-  { value: "title", label: "제목" },
-  { value: "content", label: "내용" },
-  { value: "folder", label: "폴더" }
-];
-
-const bookmarkSortOptions: Array<{ value: BookmarkSortMode; label: string; shortLabel: string }> = [
-  { value: "created_desc", label: "날짜순으로 ↓", shortLabel: "날짜 ↓" },
-  { value: "created_asc", label: "날짜순으로 ↑", shortLabel: "날짜 ↑" },
-  { value: "opened_desc", label: "최근 열람순", shortLabel: "열람" },
-  { value: "title_asc", label: "이름순으로 (A-Z)", shortLabel: "이름 A-Z" },
-  { value: "title_desc", label: "이름순으로 (Z-A)", shortLabel: "이름 Z-A" },
-  { value: "site_asc", label: "사이트 (A-Z)", shortLabel: "사이트 A-Z" },
-  { value: "site_desc", label: "사이트 (Z-A)", shortLabel: "사이트 Z-A" }
-];
-
-const bookmarkViewModeOptions: Array<{ value: BookmarkViewMode; label: string; icon: string }> = [
-  { value: "list", label: "리스트", icon: "☷" },
-  { value: "card", label: "카드", icon: "▦" },
-  { value: "title", label: "제목", icon: "☰" },
-  { value: "moodboard", label: "무드보드", icon: "▧" }
-];
-const bookmarkPageSizeOptions: BookmarkPageSize[] = [20, 50, 100];
-const DEFAULT_BOOKMARK_PAGE_SIZE: BookmarkPageSize = 20;
-const BOOKMARK_VIRTUALIZATION_THRESHOLD = 60;
-const BOOKMARK_VIRTUAL_WINDOW_SIZE = 40;
-const BOOKMARK_VIRTUAL_OVERSCAN = 8;
-const bookmarkVirtualRowHeightByMode: Record<BookmarkViewMode, number> = {
-  list: 112,
-  title: 76,
-  card: 260,
-  moodboard: 320
-};
-
-const defaultBookmarkCardDisplaySettings: BookmarkCardDisplaySettings = {
-  coverImage: true,
-  title: true,
-  description: true,
-  tags: true,
-  bookmarkInfo: true,
-  coverSize: 132
-};
-
-const defaultBookmarkListDisplaySettings: BookmarkCardDisplaySettings = {
-  coverImage: true,
-  title: true,
-  description: false,
-  tags: true,
-  bookmarkInfo: true,
-  coverSize: 132
-};
-
 function loadStoredAppTheme(): AppThemeMode {
   try {
     return globalThis.localStorage?.getItem(APP_THEME_STORAGE_KEY) === "dark"
@@ -379,7 +279,6 @@ function storeAppTheme(theme: AppThemeMode) {
 
 const MOBILE_SEARCH_BREAKPOINT = 720;
 const MOBILE_SEARCH_MEDIA_QUERY = `(max-width: ${MOBILE_SEARCH_BREAKPOINT}px)`;
-const EXTENSION_FOLDER_NAME = "확장";
 
 function getIsMobileSearchViewport() {
   if (typeof globalThis.matchMedia === "function") {
@@ -389,251 +288,6 @@ function getIsMobileSearchViewport() {
   return (
     globalThis.document?.documentElement?.clientWidth ?? globalThis.innerWidth ?? 1024
   ) <= MOBILE_SEARCH_BREAKPOINT;
-}
-
-function normalizeBookmarkSearchDraft(search: BookmarkSearchDraft): BookmarkSearchDraft {
-  return {
-    query: search.query.trim(),
-    mode: search.mode,
-    sort: search.sort,
-    createdWithin: search.createdWithin,
-    openedWithin: search.openedWithin,
-    favoriteOnly: search.favoriteOnly,
-    folderId: search.folderId.trim(),
-    includeDescendantFolders: search.folderId.trim()
-      ? search.includeDescendantFolders
-      : false,
-    tagIds: Array.from(new Set(search.tagIds.map((tagId) => tagId.trim()).filter(Boolean))),
-    tagMode: search.tagMode === "or" ? "or" : "and",
-    bookmarkColor: search.bookmarkColor.trim(),
-    urlColor: search.urlColor.trim(),
-    summaryState: search.summaryState
-  };
-}
-
-function hasActiveBookmarkAdvancedFilters(search: BookmarkSearchDraft) {
-  const normalizedSearch = normalizeBookmarkSearchDraft(search);
-  return Boolean(
-      normalizedSearch.createdWithin !== "all" ||
-      normalizedSearch.openedWithin !== "all" ||
-      normalizedSearch.favoriteOnly ||
-      normalizedSearch.folderId ||
-      (normalizedSearch.folderId && normalizedSearch.includeDescendantFolders) ||
-      normalizedSearch.tagIds.length > 0 ||
-      (normalizedSearch.tagIds.length > 0 && normalizedSearch.tagMode !== "and") ||
-      normalizedSearch.bookmarkColor ||
-      normalizedSearch.urlColor ||
-      normalizedSearch.summaryState !== "all"
-  );
-}
-
-function hasActiveBookmarkSearch(search: BookmarkSearchDraft) {
-  const normalizedSearch = normalizeBookmarkSearchDraft(search);
-  return Boolean(
-    normalizedSearch.query ||
-    normalizedSearch.sort !== "created_desc" ||
-    hasActiveBookmarkAdvancedFilters(normalizedSearch)
-  );
-}
-
-function canResolveFolderOverviewSearchLocally(search: BookmarkSearchDraft) {
-  const normalizedSearch = normalizeBookmarkSearchDraft(search);
-  return (
-    !normalizedSearch.query &&
-    normalizedSearch.sort === "created_desc" &&
-    normalizedSearch.createdWithin === "all" &&
-    normalizedSearch.openedWithin === "all" &&
-    !normalizedSearch.favoriteOnly &&
-    normalizedSearch.tagIds.length === 0 &&
-    !normalizedSearch.bookmarkColor &&
-    !normalizedSearch.urlColor &&
-    normalizedSearch.summaryState === "all"
-  );
-}
-
-function filterBookmarksForFolderOverviewSearch(
-  bookmarks: Bookmark[],
-  folders: Folder[],
-  search: BookmarkSearchDraft
-) {
-  const normalizedSearch = normalizeBookmarkSearchDraft(search);
-  if (!normalizedSearch.folderId) {
-    return bookmarks;
-  }
-
-  if (!normalizedSearch.includeDescendantFolders) {
-    return bookmarks.filter((bookmark) => bookmark.folderId === normalizedSearch.folderId);
-  }
-
-  const descendantFolderIds = getFolderDescendantIds(folders, normalizedSearch.folderId);
-  return bookmarks.filter(
-    (bookmark) =>
-      bookmark.folderId === normalizedSearch.folderId ||
-      (bookmark.folderId ? descendantFolderIds.has(bookmark.folderId) : false)
-  );
-}
-
-function isExtensionFolder(folder: Folder) {
-  return folder.name.trim() === EXTENSION_FOLDER_NAME;
-}
-
-function getExtensionFolderIds(folders: Folder[]) {
-  const extensionFolderIds = new Set<string>();
-
-  for (const folder of folders) {
-    if (!isExtensionFolder(folder)) {
-      continue;
-    }
-
-    extensionFolderIds.add(folder.id);
-    for (const descendantId of getFolderDescendantIds(folders, folder.id)) {
-      extensionFolderIds.add(descendantId);
-    }
-  }
-
-  return extensionFolderIds;
-}
-
-function isBookmarkUnfiled(bookmark: Bookmark, extensionFolderIds: Set<string>) {
-  return !bookmark.folderId || extensionFolderIds.has(bookmark.folderId);
-}
-
-function upsertBookmarkById(bookmarks: Bookmark[], nextBookmark: Bookmark) {
-  return bookmarks.some((bookmark) => bookmark.id === nextBookmark.id)
-    ? bookmarks.map((bookmark) => (bookmark.id === nextBookmark.id ? nextBookmark : bookmark))
-    : [nextBookmark, ...bookmarks];
-}
-
-function filterBookmarksForFolderOverviewSpecialFilter(
-  bookmarks: Bookmark[],
-  filter: FolderOverviewSpecialFilter,
-  extensionFolderIds: Set<string>
-) {
-  switch (filter) {
-    case "unfiled":
-      return bookmarks.filter((bookmark) => isBookmarkUnfiled(bookmark, extensionFolderIds));
-    case "trash":
-      return [];
-    default:
-      return bookmarks;
-  }
-}
-
-function getBookmarkSearchModeLabel(mode: BookmarkSearchMode) {
-  switch (mode) {
-    case "title":
-      return "제목";
-    case "content":
-      return "내용";
-    case "folder":
-      return "폴더";
-    default:
-      return "전체";
-  }
-}
-
-function getColorPresetLabel(color: string | null | undefined) {
-  if (!color) {
-    return null;
-  }
-
-  const normalizedColor = color.toLowerCase();
-  return colorPresets.find((preset) => preset.value.toLowerCase() === normalizedColor)?.label ?? color;
-}
-
-function getBookmarkSortLabel(sort: BookmarkSortMode) {
-  return bookmarkSortOptions.find((option) => option.value === sort)?.label ?? "날짜순으로 ↓";
-}
-
-function clampBookmarkCoverSize(value: number) {
-  if (!Number.isFinite(value)) {
-    return defaultBookmarkCardDisplaySettings.coverSize;
-  }
-
-  return Math.min(220, Math.max(80, Math.round(value)));
-}
-
-function isBookmarkViewMode(value: unknown): value is BookmarkViewMode {
-  return bookmarkViewModeOptions.some((option) => option.value === value);
-}
-
-function normalizeBookmarkDisplaySettings(
-  parsedSettings: Partial<BookmarkCardDisplaySettings> | undefined,
-  defaultSettings: BookmarkCardDisplaySettings
-): BookmarkCardDisplaySettings {
-  return {
-    coverImage:
-      typeof parsedSettings?.coverImage === "boolean"
-        ? parsedSettings.coverImage
-        : defaultSettings.coverImage,
-    title:
-      typeof parsedSettings?.title === "boolean"
-        ? parsedSettings.title
-        : defaultSettings.title,
-    description:
-      typeof parsedSettings?.description === "boolean"
-        ? parsedSettings.description
-        : defaultSettings.description,
-    tags:
-      typeof parsedSettings?.tags === "boolean" ? parsedSettings.tags : defaultSettings.tags,
-    bookmarkInfo:
-      typeof parsedSettings?.bookmarkInfo === "boolean"
-        ? parsedSettings.bookmarkInfo
-        : defaultSettings.bookmarkInfo,
-    coverSize: clampBookmarkCoverSize(
-      Number(parsedSettings?.coverSize ?? defaultSettings.coverSize)
-    )
-  };
-}
-
-function loadStoredBookmarkViewSettings() {
-  try {
-    const storedSettings = globalThis.localStorage?.getItem(BOOKMARK_VIEW_SETTINGS_STORAGE_KEY);
-    if (!storedSettings) {
-      return {
-        mode: DEFAULT_BOOKMARK_VIEW_MODE,
-        list: defaultBookmarkListDisplaySettings,
-        card: defaultBookmarkCardDisplaySettings
-      };
-    }
-
-    const parsedSettings = JSON.parse(storedSettings) as {
-      mode?: unknown;
-      list?: Partial<BookmarkCardDisplaySettings>;
-      card?: Partial<BookmarkCardDisplaySettings>;
-    };
-
-    return {
-      mode: isBookmarkViewMode(parsedSettings.mode)
-        ? parsedSettings.mode
-        : DEFAULT_BOOKMARK_VIEW_MODE,
-      list: normalizeBookmarkDisplaySettings(
-        parsedSettings.list,
-        defaultBookmarkListDisplaySettings
-      ),
-      card: normalizeBookmarkDisplaySettings(
-        parsedSettings.card,
-        defaultBookmarkCardDisplaySettings
-      )
-    };
-  } catch {
-    return {
-      mode: DEFAULT_BOOKMARK_VIEW_MODE,
-      list: defaultBookmarkListDisplaySettings,
-      card: defaultBookmarkCardDisplaySettings
-    };
-  }
-}
-
-function getBookmarkRelativeDateRangeValue(range: BookmarkRelativeDateRange) {
-  switch (range) {
-    case "7d":
-      return "최근 7일";
-    case "30d":
-      return "최근 30일";
-    default:
-      return null;
-  }
 }
 
 function getBookmarkDetailFieldRows(bookmark: Bookmark, mode: "user" | "source") {
@@ -656,490 +310,6 @@ function getBookmarkDetailFieldRows(bookmark: Bookmark, mode: "user" | "source")
       value: mode === "source" ? sanitizeExtractedDisplayText(row.value) : row.value
     }))
     .filter((row) => hasTextContent(row.value));
-}
-
-function getBookmarkSearchSummaryItems(
-  search: BookmarkSearchDraft,
-  options: {
-    getFolderName: (folderId: string | null) => string;
-    getTagNames: (tagIds: string[]) => string[];
-  }
-) {
-  const normalizedSearch = normalizeBookmarkSearchDraft(search);
-  const items: BookmarkSearchSummaryItem[] = [];
-  const push = (
-    key: string,
-    groupLabel: string,
-    valueLabel: string,
-    buildNextSearch: (currentSearch: BookmarkSearchDraft) => BookmarkSearchDraft
-  ) => {
-    items.push({
-      key,
-      groupLabel,
-      valueLabel,
-      nextSearch: normalizeBookmarkSearchDraft(buildNextSearch(normalizedSearch))
-    });
-  };
-
-  if (normalizedSearch.query) {
-    push(
-      `query:${normalizedSearch.query}`,
-      "검색어",
-      normalizedSearch.query,
-      (currentSearch) => ({
-        ...currentSearch,
-        query: ""
-      })
-    );
-    if (normalizedSearch.mode !== "all") {
-      push(
-        `mode:${normalizedSearch.mode}`,
-        "검색",
-        getBookmarkSearchModeLabel(normalizedSearch.mode),
-        (currentSearch) => ({
-          ...currentSearch,
-          mode: "all"
-        })
-      );
-    }
-  }
-
-  if (normalizedSearch.sort !== "created_desc") {
-    push(
-      `sort:${normalizedSearch.sort}`,
-      "정렬",
-      getBookmarkSortLabel(normalizedSearch.sort),
-      (currentSearch) => ({
-        ...currentSearch,
-        sort: "created_desc"
-      })
-    );
-  }
-
-  const createdWithinValue = getBookmarkRelativeDateRangeValue(normalizedSearch.createdWithin);
-  if (createdWithinValue) {
-    push(
-      `createdWithin:${normalizedSearch.createdWithin}`,
-      "기간",
-      `최근 추가 ${createdWithinValue}`,
-      (currentSearch) => ({
-        ...currentSearch,
-        createdWithin: "all"
-      })
-    );
-  }
-
-  const openedWithinValue = getBookmarkRelativeDateRangeValue(normalizedSearch.openedWithin);
-  if (openedWithinValue) {
-    push(
-      `openedWithin:${normalizedSearch.openedWithin}`,
-      "기간",
-      `최근 열람 ${openedWithinValue}`,
-      (currentSearch) => ({
-        ...currentSearch,
-        openedWithin: "all"
-      })
-    );
-  }
-
-  if (normalizedSearch.favoriteOnly) {
-    push("favoriteOnly", "상태", "즐겨찾기만", (currentSearch) => ({
-      ...currentSearch,
-      favoriteOnly: false
-    }));
-  }
-
-  if (normalizedSearch.folderId) {
-    push(
-      `folder:${normalizedSearch.folderId}`,
-      "분류",
-      `폴더 ${options.getFolderName(normalizedSearch.folderId)}`,
-      (currentSearch) => ({
-        ...currentSearch,
-        folderId: "",
-        includeDescendantFolders: false
-      })
-    );
-    if (normalizedSearch.includeDescendantFolders) {
-      push("includeDescendantFolders", "분류", "하위 폴더 포함", (currentSearch) => ({
-        ...currentSearch,
-        includeDescendantFolders: false
-      }));
-    }
-  }
-
-  if (normalizedSearch.tagIds.length > 0) {
-    const tagNames = options.getTagNames(normalizedSearch.tagIds);
-    normalizedSearch.tagIds.forEach((tagId, index) => {
-      push(
-        `tag:${tagId}`,
-        "분류",
-        `태그 ${tagNames[index] ?? tagId}`,
-        (currentSearch) => {
-          const nextTagIds = currentSearch.tagIds.filter((currentTagId) => currentTagId !== tagId);
-
-          return {
-            ...currentSearch,
-            tagIds: nextTagIds,
-            tagMode: nextTagIds.length === 0 ? "and" : currentSearch.tagMode
-          };
-        }
-      );
-    });
-
-    if (normalizedSearch.tagMode !== "and") {
-      push("tagMode", "분류", "하나라도 포함", (currentSearch) => ({
-        ...currentSearch,
-        tagMode: "and"
-      }));
-    }
-  }
-
-  if (normalizedSearch.bookmarkColor) {
-    push(
-      `bookmarkColor:${normalizedSearch.bookmarkColor}`,
-      "상태",
-      `북마크 ${getColorPresetLabel(normalizedSearch.bookmarkColor)}`,
-      (currentSearch) => ({
-        ...currentSearch,
-        bookmarkColor: ""
-      })
-    );
-  }
-
-  if (normalizedSearch.urlColor) {
-    push(
-      `urlColor:${normalizedSearch.urlColor}`,
-      "상태",
-      `URL ${getColorPresetLabel(normalizedSearch.urlColor)}`,
-      (currentSearch) => ({
-        ...currentSearch,
-        urlColor: ""
-      })
-    );
-  }
-
-  if (normalizedSearch.summaryState === "with") {
-    push("summaryState:with", "상태", "요약 있음", (currentSearch) => ({
-      ...currentSearch,
-      summaryState: "all"
-    }));
-  }
-
-  if (normalizedSearch.summaryState === "without") {
-    push("summaryState:without", "상태", "요약 없음", (currentSearch) => ({
-      ...currentSearch,
-      summaryState: "all"
-    }));
-  }
-
-  return items;
-}
-
-function getFolderDescendantIds(folders: Folder[], rootFolderId: string) {
-  const descendants = new Set<string>();
-  const pendingFolderIds = [rootFolderId];
-
-  while (pendingFolderIds.length > 0) {
-    const currentFolderId = pendingFolderIds.pop();
-    if (!currentFolderId) {
-      continue;
-    }
-
-    for (const folder of folders) {
-      if (folder.parentFolderId !== currentFolderId || descendants.has(folder.id)) {
-        continue;
-      }
-
-      descendants.add(folder.id);
-      pendingFolderIds.push(folder.id);
-    }
-  }
-
-  return descendants;
-}
-
-function getHiddenFolderIds(folders: Folder[]) {
-  const hiddenFolderIds = new Set<string>();
-
-  for (const folder of folders) {
-    if (folder.isHidden === true) {
-      hiddenFolderIds.add(folder.id);
-      for (const descendantId of getFolderDescendantIds(folders, folder.id)) {
-        hiddenFolderIds.add(descendantId);
-      }
-    }
-  }
-
-  return hiddenFolderIds;
-}
-
-function filterBookmarksByHiddenFolders(
-  bookmarks: Bookmark[],
-  hiddenFolderIds: Set<string>,
-  showHiddenFolders: boolean
-) {
-  if (showHiddenFolders || hiddenFolderIds.size === 0) {
-    return bookmarks;
-  }
-
-  return bookmarks.filter(
-    (bookmark) => !bookmark.folderId || !hiddenFolderIds.has(bookmark.folderId)
-  );
-}
-
-function filterRecommendationsByHiddenFolders(
-  nextRecommendations: BookmarkRecommendationsState,
-  hiddenFolderIds: Set<string>,
-  showHiddenFolders: boolean
-) {
-  if (showHiddenFolders || hiddenFolderIds.size === 0) {
-    return nextRecommendations;
-  }
-
-  return {
-    favorites: filterBookmarksByHiddenFolders(
-      nextRecommendations.favorites,
-      hiddenFolderIds,
-      showHiddenFolders
-    ),
-    recent: filterBookmarksByHiddenFolders(
-      nextRecommendations.recent,
-      hiddenFolderIds,
-      showHiddenFolders
-    ),
-    frequent: filterBookmarksByHiddenFolders(
-      nextRecommendations.frequent,
-      hiddenFolderIds,
-      showHiddenFolders
-    )
-  };
-}
-
-function filterBookmarksByHiddenBookmarks(bookmarks: Bookmark[], showHiddenBookmarks: boolean) {
-  if (showHiddenBookmarks) {
-    return bookmarks;
-  }
-
-  return bookmarks.filter((bookmark) => bookmark.isHidden !== true);
-}
-
-function filterRecommendationsByHiddenBookmarks(
-  nextRecommendations: BookmarkRecommendationsState,
-  showHiddenBookmarks: boolean
-) {
-  if (showHiddenBookmarks) {
-    return nextRecommendations;
-  }
-
-  return {
-    favorites: filterBookmarksByHiddenBookmarks(nextRecommendations.favorites, showHiddenBookmarks),
-    recent: filterBookmarksByHiddenBookmarks(nextRecommendations.recent, showHiddenBookmarks),
-    frequent: filterBookmarksByHiddenBookmarks(nextRecommendations.frequent, showHiddenBookmarks)
-  };
-}
-
-function isBookmarkVisibleUnderHiddenRules(
-  bookmark: Bookmark,
-  hiddenFolderIds: Set<string>,
-  showHiddenFolders: boolean,
-  showHiddenBookmarks: boolean
-) {
-  const isFolderVisible =
-    !bookmark.folderId || showHiddenFolders || !hiddenFolderIds.has(bookmark.folderId);
-  const isBookmarkVisible = bookmark.isHidden !== true || showHiddenBookmarks;
-
-  return isFolderVisible && isBookmarkVisible;
-}
-
-function getHierarchicalFolderOptions(folders: Folder[], excludedFolderIds = new Set<string>()) {
-  const foldersByParentId = getFoldersByParentId(folders, excludedFolderIds);
-  const options: Array<{ folder: Folder; label: string }> = [];
-
-  function visit(parentFolderId: string | null, depth: number) {
-    for (const folder of foldersByParentId.get(parentFolderId) ?? []) {
-      options.push({
-        folder,
-        label: `${"-- ".repeat(depth)}${folder.name}`
-      });
-      visit(folder.id, depth + 1);
-    }
-  }
-
-  visit(null, 0);
-  return options;
-}
-
-function getFoldersByParentId(folders: Folder[], excludedFolderIds = new Set<string>()) {
-  const foldersByParentId = new Map<string | null, Folder[]>();
-  const knownFolderIds = new Set(folders.map((folder) => folder.id));
-  const sortedFolders = [...folders].sort(
-    (leftFolder, rightFolder) =>
-      leftFolder.sortOrder - rightFolder.sortOrder || leftFolder.name.localeCompare(rightFolder.name)
-  );
-
-  for (const folder of sortedFolders) {
-    if (excludedFolderIds.has(folder.id)) {
-      continue;
-    }
-
-    const parentKey =
-      folder.parentFolderId && knownFolderIds.has(folder.parentFolderId)
-        ? folder.parentFolderId
-        : null;
-    const currentFolders = foldersByParentId.get(parentKey) ?? [];
-    currentFolders.push(folder);
-    foldersByParentId.set(parentKey, currentFolders);
-  }
-
-  return foldersByParentId;
-}
-
-function getFolderAncestorIds(folders: Folder[], folderId: string) {
-  const foldersById = new Map(folders.map((folder) => [folder.id, folder]));
-  const ancestors: string[] = [];
-  let currentFolder = foldersById.get(folderId) ?? null;
-
-  while (currentFolder?.parentFolderId) {
-    ancestors.push(currentFolder.parentFolderId);
-    currentFolder = foldersById.get(currentFolder.parentFolderId) ?? null;
-  }
-
-  return ancestors;
-}
-
-function getFolderVisibleIdsForQuery(folders: Folder[], query: string) {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) {
-    return new Set(folders.map((folder) => folder.id));
-  }
-
-  const visibleFolderIds = new Set<string>();
-
-  for (const folder of folders) {
-    if (!folder.name.toLowerCase().includes(normalizedQuery)) {
-      continue;
-    }
-
-    visibleFolderIds.add(folder.id);
-    for (const ancestorId of getFolderAncestorIds(folders, folder.id)) {
-      visibleFolderIds.add(ancestorId);
-    }
-  }
-
-  return visibleFolderIds;
-}
-
-function getBookmarkCountBucketValue(
-  bucket: { total: number; visible: number } | undefined,
-  showHiddenBookmarks: boolean
-) {
-  if (!bucket) {
-    return 0;
-  }
-
-  return showHiddenBookmarks ? bucket.total : bucket.visible;
-}
-
-function countVisibleActiveBookmarksFromCounts(
-  counts: BookmarkCounts,
-  hiddenFolderIds: Set<string>,
-  showHiddenFolders: boolean,
-  showHiddenBookmarks: boolean
-) {
-  let total = getBookmarkCountBucketValue(counts.unfiled, showHiddenBookmarks);
-
-  for (const [folderId, bucket] of Object.entries(counts.byFolderId)) {
-    if (!showHiddenFolders && hiddenFolderIds.has(folderId)) {
-      continue;
-    }
-
-    total += getBookmarkCountBucketValue(bucket, showHiddenBookmarks);
-  }
-
-  return total;
-}
-
-function countUnfiledBookmarksFromCounts(
-  counts: BookmarkCounts,
-  extensionFolderIds: Set<string>,
-  showHiddenBookmarks: boolean
-) {
-  let total = getBookmarkCountBucketValue(counts.unfiled, showHiddenBookmarks);
-
-  for (const folderId of extensionFolderIds) {
-    total += getBookmarkCountBucketValue(counts.byFolderId[folderId], showHiddenBookmarks);
-  }
-
-  return total;
-}
-
-function getSiblingFolders(folders: Folder[], parentFolderId: string | null) {
-  return folders
-    .filter((folder) => folder.parentFolderId === parentFolderId)
-    .sort(
-      (leftFolder, rightFolder) =>
-        leftFolder.sortOrder - rightFolder.sortOrder ||
-        leftFolder.name.localeCompare(rightFolder.name)
-    );
-}
-
-function reorderSiblingFolders(
-  siblingFolders: Folder[],
-  draggedFolderId: string,
-  targetFolderId: string
-) {
-  const draggedFolderIndex = siblingFolders.findIndex((folder) => folder.id === draggedFolderId);
-  const targetFolderIndex = siblingFolders.findIndex((folder) => folder.id === targetFolderId);
-
-  if (
-    draggedFolderIndex === -1 ||
-    targetFolderIndex === -1 ||
-    draggedFolderIndex === targetFolderIndex
-  ) {
-    return siblingFolders;
-  }
-
-  const draggedFolder = siblingFolders[draggedFolderIndex];
-  const remainingFolders = siblingFolders.filter((folder) => folder.id !== draggedFolderId);
-  const insertionIndex =
-    draggedFolderIndex < targetFolderIndex ? targetFolderIndex : targetFolderIndex;
-
-  remainingFolders.splice(insertionIndex, 0, draggedFolder);
-  return remainingFolders;
-}
-
-type FolderReorderPosition = "top" | "up" | "down" | "bottom";
-
-function moveFolderToSiblingPosition(
-  siblingFolders: Folder[],
-  folderId: string,
-  position: FolderReorderPosition
-) {
-  const currentIndex = siblingFolders.findIndex((folder) => folder.id === folderId);
-
-  if (currentIndex === -1) {
-    return siblingFolders;
-  }
-
-  const lastIndex = siblingFolders.length - 1;
-  const targetIndex =
-    position === "top"
-      ? 0
-      : position === "up"
-        ? Math.max(0, currentIndex - 1)
-        : position === "down"
-          ? Math.min(lastIndex, currentIndex + 1)
-          : lastIndex;
-
-  if (targetIndex === currentIndex) {
-    return siblingFolders;
-  }
-
-  const nextFolders = [...siblingFolders];
-  const [folder] = nextFolders.splice(currentIndex, 1);
-  nextFolders.splice(targetIndex, 0, folder);
-  return nextFolders;
 }
 
 async function signInWithGoogle() {
@@ -5366,24 +4536,30 @@ export default function AuthenticatedDashboardApp({
   const visibleBookmarkTotalCount = bookmarkListTotalCount ?? visibleBookmarks.length;
   const hasMoreVisibleBookmarks =
     bookmarkListNextOffset !== null || visiblePagedBookmarks.length < visibleBookmarks.length;
-  const canVirtualizeBookmarkList =
-    (bookmarkViewMode === "list" || bookmarkViewMode === "title") &&
-    visiblePagedBookmarks.length > BOOKMARK_VIRTUALIZATION_THRESHOLD;
-  const bookmarkVirtualWindowSize = shouldUseCompactMobileCards ? 28 : BOOKMARK_VIRTUAL_WINDOW_SIZE;
-  const bookmarkVirtualRowHeight = bookmarkVirtualRowHeightByMode[bookmarkViewMode];
-  const bookmarkVirtualWindowStartMax = Math.max(
-    0,
-    visiblePagedBookmarks.length - bookmarkVirtualWindowSize
+  const bookmarkVirtualWindow = useMemo(
+    () =>
+      getBookmarkVirtualWindow({
+        bookmarkViewMode,
+        itemCount: visiblePagedBookmarks.length,
+        requestedStart: bookmarkVirtualWindowStart,
+        shouldUseCompactMobileCards
+      }),
+    [
+      bookmarkViewMode,
+      bookmarkVirtualWindowStart,
+      shouldUseCompactMobileCards,
+      visiblePagedBookmarks.length
+    ]
   );
-  const normalizedBookmarkVirtualWindowStart = canVirtualizeBookmarkList
-    ? Math.min(bookmarkVirtualWindowStart, bookmarkVirtualWindowStartMax)
-    : 0;
-  const bookmarkVirtualWindowEnd = canVirtualizeBookmarkList
-    ? Math.min(
-        visiblePagedBookmarks.length,
-        normalizedBookmarkVirtualWindowStart + bookmarkVirtualWindowSize
-      )
-    : visiblePagedBookmarks.length;
+  const {
+    canVirtualize: canVirtualizeBookmarkList,
+    rowHeight: bookmarkVirtualRowHeight,
+    windowStartMax: bookmarkVirtualWindowStartMax,
+    windowStart: normalizedBookmarkVirtualWindowStart,
+    windowEnd: bookmarkVirtualWindowEnd,
+    topSpacerHeight: bookmarkVirtualTopSpacerHeight,
+    bottomSpacerHeight: bookmarkVirtualBottomSpacerHeight
+  } = bookmarkVirtualWindow;
   const renderedPagedBookmarks = useMemo(
     () =>
       canVirtualizeBookmarkList
@@ -5400,12 +4576,6 @@ export default function AuthenticatedDashboardApp({
     () => renderedPagedBookmarks.map((bookmark) => bookmark.id).join("|"),
     [renderedPagedBookmarks]
   );
-  const bookmarkVirtualTopSpacerHeight = canVirtualizeBookmarkList
-    ? normalizedBookmarkVirtualWindowStart * bookmarkVirtualRowHeight
-    : 0;
-  const bookmarkVirtualBottomSpacerHeight = canVirtualizeBookmarkList
-    ? Math.max(0, visiblePagedBookmarks.length - bookmarkVirtualWindowEnd) * bookmarkVirtualRowHeight
-    : 0;
   const visibleBookmarkInventory = useMemo(
     () =>
       filterBookmarksByHiddenBookmarks(
@@ -5457,7 +4627,10 @@ export default function AuthenticatedDashboardApp({
     () => new Set(bookmarkDraft.tagIds),
     [bookmarkDraft.tagIds]
   );
-  const normalizedBookmarkTagSearchQuery = bookmarkTagSearchQuery.trim().toLocaleLowerCase();
+  const deferredBookmarkTagSearchQuery = useDeferredValue(bookmarkTagSearchQuery);
+  const normalizedBookmarkTagSearchQuery = deferredBookmarkTagSearchQuery
+    .trim()
+    .toLocaleLowerCase();
   const composerSelectedTagItems = useMemo(
     () => getTagDisplayItems(bookmarkDraft.tagIds),
     [bookmarkDraft.tagIds, tagsById]
@@ -5739,15 +4912,11 @@ export default function AuthenticatedDashboardApp({
 
       frameId = requestFrame(() => {
         frameId = null;
-        const listTop = listElement.getBoundingClientRect().top;
-        const scrolledPastListTop = Math.max(0, -listTop);
-        const nextWindowStart = Math.max(
-          0,
-          Math.min(
-            bookmarkVirtualWindowStartMax,
-            Math.floor(scrolledPastListTop / bookmarkVirtualRowHeight) - BOOKMARK_VIRTUAL_OVERSCAN
-          )
-        );
+        const nextWindowStart = getBookmarkVirtualWindowStartForScroll({
+          listTop: listElement.getBoundingClientRect().top,
+          rowHeight: bookmarkVirtualRowHeight,
+          startMax: bookmarkVirtualWindowStartMax
+        });
 
         setBookmarkVirtualWindowStart((currentStart) =>
           currentStart === nextWindowStart ? currentStart : nextWindowStart
@@ -5800,13 +4969,14 @@ export default function AuthenticatedDashboardApp({
     [visibleFolders]
   );
   const quickFolderParentOptions = visibleFolderOptions;
-  const isFolderOverviewSearchActive = Boolean(folderOverviewQuery.trim());
+  const deferredFolderOverviewQuery = useDeferredValue(folderOverviewQuery);
+  const isFolderOverviewSearchActive = Boolean(deferredFolderOverviewQuery.trim());
   const folderOverviewVisibleFolderIds = useMemo(
     () => getFolderVisibleIdsForQuery(
       visibleFolders,
-      folderOverviewQuery
+      deferredFolderOverviewQuery
     ),
-    [folderOverviewQuery, visibleFolders]
+    [deferredFolderOverviewQuery, visibleFolders]
   );
   const folderOverviewChildrenByParentId = useMemo(
     () => getFoldersByParentId(
@@ -6340,6 +5510,7 @@ export default function AuthenticatedDashboardApp({
           bookmarkCardDisplaySettings={bookmarkCardDisplaySettings}
           bookmarkListDisplaySettings={bookmarkListDisplaySettings}
           bookmarkListElementRef={bookmarkListElementRef}
+          bookmarkImageStartIndex={normalizedBookmarkVirtualWindowStart}
           bookmarkListPageSize={bookmarkListPageSize}
           bookmarkListRows={bookmarkListRows}
           bookmarkPageSizeOptions={bookmarkPageSizeOptions}

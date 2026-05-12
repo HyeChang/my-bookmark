@@ -1124,7 +1124,8 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
 
       return new Response(object.body, {
         headers: {
-          "content-type": object.contentType
+          "content-type": object.contentType,
+          "cache-control": "private, max-age=604800, immutable"
         }
       });
     })

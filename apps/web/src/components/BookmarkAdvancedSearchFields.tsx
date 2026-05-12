@@ -11,6 +11,7 @@ import type {
 import type { BookmarkSearchDraft } from "./BookmarkResultsPanel";
 import { ColorSelectField } from "./ColorSelectField";
 import { renderColorSwatch } from "./ColorSelectField";
+import "./DashboardFormControls.css";
 import "./BookmarkAdvancedSearchFields.css";
 
 type CheckboxFieldProps = {

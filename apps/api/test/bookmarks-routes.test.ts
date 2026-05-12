@@ -2037,4 +2037,53 @@ describe("bookmark routes", () => {
     const finalTrashListRes = await authenticatedRequest(app, "/api/bookmarks?trashed=1");
     await expect(finalTrashListRes.json()).resolves.toEqual({ bookmarks: [] });
   });
+
+  it("serves bookmark asset content with a private immutable cache policy", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository(),
+      bookmarkAssetRepository: createInMemoryBookmarkAssetRepository(),
+      assetStorage: createInMemoryAssetStorage()
+    } as Parameters<typeof createApp>[0]);
+
+    const createRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/cover",
+        userTitle: "Cover bookmark"
+      })
+    });
+    const created = (await createRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+    const formData = new FormData();
+    formData.set("file", new File(["image-bytes"], "cover.png", { type: "image/png" }));
+
+    const sessionValue = await createSessionValue(fakeUser, sessionSecret);
+    const uploadRes = await app.request(
+      `http://example.com/api/bookmarks/${created.bookmark.id}/assets`,
+      {
+        method: "POST",
+        headers: {
+          cookie: `bookmark_session=${sessionValue}`
+        },
+        body: formData
+      }
+    );
+    const uploaded = (await uploadRes.json()) as {
+      asset: { id: string };
+    };
+
+    const contentRes = await authenticatedRequest(
+      app,
+      `/api/bookmarks/${created.bookmark.id}/assets/${uploaded.asset.id}/content`
+    );
+
+    expect(contentRes.status).toBe(200);
+    expect(contentRes.headers.get("content-type")).toBe("image/png");
+    expect(contentRes.headers.get("cache-control")).toBe(
+      "private, max-age=604800, immutable"
+    );
+    expect(await contentRes.text()).toBe("image-bytes");
+  });
 });

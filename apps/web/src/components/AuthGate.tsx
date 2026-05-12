@@ -229,7 +229,6 @@ export default function AuthGate() {
                 type="button"
                 className="primary-button"
                 disabled={isLoggingIn}
-                onMouseEnter={() => void preloadFirebaseAuth()}
                 onFocus={() => void preloadFirebaseAuth()}
                 onPointerDown={() => void preloadFirebaseAuth()}
                 onClick={() => void handleGoogleLogin()}

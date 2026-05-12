@@ -2,17 +2,20 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const imageComponentFiles = [
-  "AuthenticatedDashboardApp.tsx",
+import {
+  getBookmarkListImageLoadingPriority,
+  getHomeFavoriteImageLoadingPriority
+} from "../lib/bookmark-image-loading";
+
+const lazyImageComponentFiles = [
   "BookmarkComposerDialog.tsx",
   "BookmarkDetailPanel.tsx",
-  "HomePanel.tsx",
   "bookmark-preview-utils.tsx"
 ];
 
-describe("bookmark image loading", () => {
-  it("marks bookmark images as lazy decoded low-priority resources", () => {
-    for (const fileName of imageComponentFiles) {
+describe("bookmark image loading priority", () => {
+  it("keeps non-list preview images lazy decoded low-priority resources", () => {
+    for (const fileName of lazyImageComponentFiles) {
       const source = readFileSync(
         join(process.cwd(), "src", "components", fileName),
         "utf8"
@@ -30,19 +33,51 @@ describe("bookmark image loading", () => {
     }
   });
 
-  it("prioritizes only above-the-fold bookmark result thumbnails", () => {
-    const source = readFileSync(
+  it("keeps only the first real bookmark list covers eager", () => {
+    expect(getBookmarkListImageLoadingPriority(0)).toEqual({
+      loading: "eager",
+      fetchPriority: "high"
+    });
+    expect(getBookmarkListImageLoadingPriority(3)).toEqual({
+      loading: "eager",
+      fetchPriority: "high"
+    });
+    expect(getBookmarkListImageLoadingPriority(4)).toEqual({
+      loading: "lazy",
+      fetchPriority: "low"
+    });
+  });
+
+  it("does not promote virtualized mid-list covers to high priority", () => {
+    expect(
+      getBookmarkListImageLoadingPriority(0, {
+        virtualWindowStart: 80
+      })
+    ).toEqual({
+      loading: "lazy",
+      fetchPriority: "low"
+    });
+  });
+
+  it("wires dynamic image priority into bookmark result and home covers", () => {
+    const bookmarkResultsSource = readFileSync(
       join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
       "utf8"
     );
+    const homePanelSource = readFileSync(
+      join(process.cwd(), "src", "components", "HomePanel.tsx"),
+      "utf8"
+    );
 
-    expect(source).toContain("ABOVE_FOLD_BOOKMARK_IMAGE_COUNT = 4");
-    expect(source).toContain('loading: "eager"');
-    expect(source).toContain('fetchPriority: "high"');
-    expect(source).toContain('loading: "lazy"');
-    expect(source).toContain('fetchPriority: "low"');
-    expect(source).toContain("getBookmarkRowImageLoadingPriority(index)");
-    expect(source).toContain('sizes="(max-width: 720px) 100vw, var(--bookmark-cover-size)"');
+    expect(bookmarkResultsSource).toContain("getBookmarkListImageLoadingPriority(index, {");
+    expect(bookmarkResultsSource).toContain("virtualWindowStart: bookmarkImageStartIndex");
+    expect(bookmarkResultsSource).toContain("loading={imageLoadingPriority.loading}");
+    expect(bookmarkResultsSource).toContain("fetchPriority={imageLoadingPriority.fetchPriority}");
+    expect(bookmarkResultsSource).toContain('sizes="(max-width: 720px) 100vw, var(--bookmark-cover-size)"');
+    expect(homePanelSource).toContain("getHomeFavoriteImageLoadingPriority(index)");
+    expect(homePanelSource).toContain("loading={imageLoadingPriority.loading}");
+    expect(homePanelSource).toContain("fetchPriority={imageLoadingPriority.fetchPriority}");
+    expect(homePanelSource).toContain('sizes="(max-width: 720px) 100vw, 180px"');
   });
 
   it("uses a stable placeholder background for bookmark asset thumbnails", () => {
@@ -86,5 +121,20 @@ describe("bookmark image loading", () => {
 
       expect(source).toContain(size);
     }
+  });
+
+  it("prioritizes only above-the-fold home favorite covers", () => {
+    expect(getHomeFavoriteImageLoadingPriority(0)).toEqual({
+      loading: "eager",
+      fetchPriority: "high"
+    });
+    expect(getHomeFavoriteImageLoadingPriority(1)).toEqual({
+      loading: "eager",
+      fetchPriority: "high"
+    });
+    expect(getHomeFavoriteImageLoadingPriority(2)).toEqual({
+      loading: "lazy",
+      fetchPriority: "low"
+    });
   });
 });

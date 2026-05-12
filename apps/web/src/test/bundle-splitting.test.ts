@@ -164,8 +164,9 @@ describe("bundle splitting", () => {
     expect(viewModelSource).toContain("bookmarks.map((bookmark) => {");
     expect(bookmarkResultsSource).toContain("{bookmarkListRows.map((bookmarkRow, index) => {");
     expect(bookmarkResultsSource).toContain(
-      "const imageLoadingPriority = getBookmarkRowImageLoadingPriority(index);"
+      "const imageLoadingPriority = getBookmarkListImageLoadingPriority(index, {"
     );
+    expect(bookmarkResultsSource).toContain("virtualWindowStart: bookmarkImageStartIndex");
     expect(dashboardSource).not.toContain("{renderedPagedBookmarks.map((bookmark) => {");
   });
 
@@ -552,5 +553,31 @@ describe("bundle splitting", () => {
     expect(viewModelSource).toContain("export function buildBookmarkListRows");
     expect(viewModelSource).toContain("export function buildHomeFavoriteCards");
     expect(viewModelSource).toContain("export function buildRecommendationCardsByKind");
+  });
+
+  it("keeps bookmark search and virtualization helpers outside the dashboard state owner", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const utilsSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-bookmark-utils.ts"),
+      "utf8"
+    );
+    const virtualizationSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-bookmark-virtualization.ts"),
+      "utf8"
+    );
+
+    expect(dashboardSource).toContain('from "./dashboard-bookmark-utils"');
+    expect(dashboardSource).toContain('from "./dashboard-bookmark-virtualization"');
+    expect(dashboardSource).not.toContain("function normalizeBookmarkSearchDraft");
+    expect(dashboardSource).not.toContain("function getFolderDescendantIds");
+    expect(dashboardSource).not.toContain("const BOOKMARK_VIRTUALIZATION_THRESHOLD");
+    expect(dashboardSource).toContain("useDeferredValue(");
+    expect(utilsSource).toContain("export function normalizeBookmarkSearchDraft");
+    expect(utilsSource).toContain("export function getFolderDescendantIds");
+    expect(virtualizationSource).toContain("export function getBookmarkVirtualWindow");
+    expect(virtualizationSource).toContain("export function getBookmarkVirtualWindowStartForScroll");
   });
 });

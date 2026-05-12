@@ -142,11 +142,15 @@ describe("firebase auth lazy loading", () => {
     const authGateSource = readFileSync("src/components/AuthGate.tsx", "utf8");
     const dashboardSource = readFileSync("src/components/AuthenticatedDashboardApp.tsx", "utf8");
     const dashboardHeaderSource = readFileSync("src/components/DashboardHeader.tsx", "utf8");
-    expect(authGateSource).toContain("onMouseEnter={() => void preloadFirebaseAuth()}");
+    fireEvent.mouseEnter(loginButton);
+    await Promise.resolve();
+    expect(firebaseAuthMock.moduleLoadCount).toBe(0);
+
+    expect(authGateSource).not.toContain("onMouseEnter={() => void preloadFirebaseAuth()}");
     expect(authGateSource).toContain("onFocus={() => void preloadFirebaseAuth()}");
     expect(authGateSource).toContain("onPointerDown={() => void preloadFirebaseAuth()}");
     expect(dashboardSource).toContain("onFirebaseAuthPreload={preloadFirebaseAuth}");
-    expect(dashboardHeaderSource).toContain("onMouseEnter={() => void onFirebaseAuthPreload()}");
+    expect(dashboardHeaderSource).not.toContain("onMouseEnter={() => void onFirebaseAuthPreload()}");
     expect(dashboardHeaderSource).toContain("onFocus={() => void onFirebaseAuthPreload()}");
     expect(dashboardHeaderSource).toContain("onPointerDown={() => void onFirebaseAuthPreload()}");
 

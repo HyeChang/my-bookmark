@@ -267,7 +267,6 @@ export function DashboardHeader({
             <button
               type="button"
               className="primary-button"
-              onMouseEnter={() => void onFirebaseAuthPreload()}
               onFocus={() => void onFirebaseAuthPreload()}
               onPointerDown={() => void onFirebaseAuthPreload()}
               onClick={() => void onGoogleLogin()}

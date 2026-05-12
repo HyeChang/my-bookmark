@@ -2,6 +2,7 @@ import type { FormEvent } from "react";
 import type { Tag } from "@bookmark/shared";
 
 import { ColorSelectField, renderColorSwatch } from "./ColorSelectField";
+import "./DashboardFormControls.css";
 import "./ManagerDialog.css";
 import "./TagManagerDialog.css";
 

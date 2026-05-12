@@ -1,6 +1,10 @@
 import { memo, type ReactNode } from "react";
 import type { Bookmark, BookmarkAsset } from "@bookmark/shared";
 import {
+  getHomeFavoriteImageLoadingPriority,
+  type BookmarkImageLoadingPriority
+} from "../lib/bookmark-image-loading";
+import {
   hasTextContent,
   renderHiddenBookmarkIndicator
 } from "./bookmark-preview-utils";
@@ -32,6 +36,7 @@ export type HomePanelActions = {
 
 type HomeFavoriteCardProps = {
   card: HomeFavoriteCardViewModel;
+  imageLoadingPriority: BookmarkImageLoadingPriority;
   isActionMenuOpen: boolean;
   actions: HomePanelActions;
 };
@@ -49,6 +54,7 @@ type HomePanelProps = {
 
 function HomeFavoriteCard({
   card,
+  imageLoadingPriority,
   isActionMenuOpen,
   actions
 }: HomeFavoriteCardProps) {
@@ -79,9 +85,9 @@ function HomeFavoriteCard({
           <img
             src={coverAsset.contentUrl}
             alt="업로드 이미지 1"
-            loading="lazy"
+            loading={imageLoadingPriority.loading}
             decoding="async"
-            fetchPriority="low"
+            fetchPriority={imageLoadingPriority.fetchPriority}
             sizes="(max-width: 720px) 100vw, 180px"
           />
         </div>
@@ -229,14 +235,19 @@ export default function HomePanel({
       ) : null}
       {!isLoadingDashboard && homeFavoriteCards.length > 0 ? (
         <ul className="home-favorite-grid">
-          {homeFavoriteCards.map((card) => (
-            <MemoizedHomeFavoriteCard
-              key={card.menuId}
-              card={card}
-              isActionMenuOpen={openBookmarkActionMenuId === card.menuId}
-              actions={actions}
-            />
-          ))}
+          {homeFavoriteCards.map((card, index) => {
+            const imageLoadingPriority = getHomeFavoriteImageLoadingPriority(index);
+
+            return (
+              <MemoizedHomeFavoriteCard
+                key={card.menuId}
+                card={card}
+                imageLoadingPriority={imageLoadingPriority}
+                isActionMenuOpen={openBookmarkActionMenuId === card.menuId}
+                actions={actions}
+              />
+            );
+          })}
         </ul>
       ) : null}
       {isHomeRecommendationOpen ? recommendationPanel : null}
