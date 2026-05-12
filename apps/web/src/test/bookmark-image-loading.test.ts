@@ -57,4 +57,34 @@ describe("bookmark image loading", () => {
 
     expect(assetImageRule).toContain("background:");
   });
+
+  it("declares responsive sizes for lazy preview and favorite images", () => {
+    const expectedSizes = [
+      {
+        fileName: "HomePanel.tsx",
+        size: 'sizes="(max-width: 720px) 100vw, 180px"'
+      },
+      {
+        fileName: "BookmarkDetailPanel.tsx",
+        size: 'sizes="(max-width: 720px) 100vw, 640px"'
+      },
+      {
+        fileName: "BookmarkComposerDialog.tsx",
+        size: 'sizes="(max-width: 720px) 100vw, 640px"'
+      },
+      {
+        fileName: "bookmark-preview-utils.tsx",
+        size: 'sizes="(max-width: 720px) 100vw, 640px"'
+      }
+    ];
+
+    for (const { fileName, size } of expectedSizes) {
+      const source = readFileSync(
+        join(process.cwd(), "src", "components", fileName),
+        "utf8"
+      );
+
+      expect(source).toContain(size);
+    }
+  });
 });

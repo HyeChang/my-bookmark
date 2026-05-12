@@ -291,6 +291,7 @@ export default function BookmarkDetailPanel({
                   loading="lazy"
                   decoding="async"
                   fetchPriority="low"
+                  sizes="(max-width: 720px) 100vw, 640px"
                 />
               ))}
             </div>
@@ -334,6 +335,7 @@ export default function BookmarkDetailPanel({
                 loading="lazy"
                 decoding="async"
                 fetchPriority="low"
+                sizes="(max-width: 720px) 100vw, 640px"
               />
             ) : null}
             {livePreview ? renderBookmarkPreviewArticle(livePreview) : null}

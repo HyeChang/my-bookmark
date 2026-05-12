@@ -82,6 +82,7 @@ function HomeFavoriteCard({
             loading="lazy"
             decoding="async"
             fetchPriority="low"
+            sizes="(max-width: 720px) 100vw, 180px"
           />
         </div>
       ) : null}

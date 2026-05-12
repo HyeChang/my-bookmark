@@ -69,10 +69,15 @@ describe("dashboard performance marks", () => {
     expect(appSource).toContain('import { initRealUserMonitoring } from "./lib/rum";');
     expect(appSource).toContain("initRealUserMonitoring();");
     expect(rumSource).toContain("PerformanceObserver");
+    expect(rumSource).toContain('import.meta.env.MODE === "test"');
     expect(rumSource).toContain("navigator.sendBeacon");
     expect(rumSource).toContain('fetch("/api/rum"');
     expect(rumSource).toContain('"largest-contentful-paint"');
     expect(rumSource).toContain('"layout-shift"');
     expect(rumSource).toContain('"navigation"');
+    expect(rumSource).toContain('"measure"');
+    expect(rumSource).toContain('"dashboard-data-refresh"');
+    expect(rumSource).toContain('"dashboard-panel-preload"');
+    expect(rumSource).toContain("bookmark:dashboard:panel-preload:");
   });
 });

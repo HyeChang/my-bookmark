@@ -3,7 +3,9 @@ type RumMetricName =
   | "first-contentful-paint"
   | "largest-contentful-paint"
   | "layout-shift"
-  | "interaction";
+  | "interaction"
+  | "dashboard-data-refresh"
+  | "dashboard-panel-preload";
 
 type RumMetricRating = "good" | "needs-improvement" | "poor";
 
@@ -12,11 +14,14 @@ type RumMetricPayload = {
   value: number;
   rating: RumMetricRating;
   navigation?: string;
+  detail?: string;
 };
 
 let hasInitializedRealUserMonitoring = false;
 let cumulativeLayoutShift = 0;
 let longestInteraction = 0;
+const DASHBOARD_DATA_REFRESH_MEASURE = "bookmark:dashboard:data-refresh";
+const DASHBOARD_PANEL_PRELOAD_MEASURE_PREFIX = "bookmark:dashboard:panel-preload:";
 
 function getRating(metric: RumMetricName, value: number): RumMetricRating {
   if (metric === "largest-contentful-paint") {
@@ -33,6 +38,10 @@ function getRating(metric: RumMetricName, value: number): RumMetricRating {
 
   if (metric === "first-contentful-paint") {
     return value <= 1800 ? "good" : value <= 3000 ? "needs-improvement" : "poor";
+  }
+
+  if (metric === "dashboard-data-refresh" || metric === "dashboard-panel-preload") {
+    return value <= 500 ? "good" : value <= 1500 ? "needs-improvement" : "poor";
   }
 
   return value <= 2500 ? "good" : value <= 4500 ? "needs-improvement" : "poor";
@@ -131,8 +140,32 @@ function reportInteractionMetric() {
   });
 }
 
+function reportDashboardMeasureMetrics(entries: PerformanceEntry[]) {
+  for (const entry of entries) {
+    if (entry.name === DASHBOARD_DATA_REFRESH_MEASURE) {
+      sendRumMetric({
+        metric: "dashboard-data-refresh",
+        value: entry.duration,
+        rating: getRating("dashboard-data-refresh", entry.duration)
+      });
+      continue;
+    }
+
+    if (entry.name.startsWith(DASHBOARD_PANEL_PRELOAD_MEASURE_PREFIX)) {
+      const detail = entry.name.slice(DASHBOARD_PANEL_PRELOAD_MEASURE_PREFIX.length);
+      sendRumMetric({
+        metric: "dashboard-panel-preload",
+        value: entry.duration,
+        rating: getRating("dashboard-panel-preload", entry.duration),
+        detail
+      });
+    }
+  }
+}
+
 export function initRealUserMonitoring() {
   if (
+    import.meta.env.MODE === "test" ||
     hasInitializedRealUserMonitoring ||
     typeof window === "undefined" ||
     typeof performance === "undefined"
@@ -191,6 +224,8 @@ export function initRealUserMonitoring() {
     },
     { durationThreshold: 40 }
   );
+
+  observePerformanceEntry("measure", reportDashboardMeasureMetrics);
 
   window.addEventListener("load", reportNavigationMetric, { once: true });
   window.addEventListener("pagehide", () => {

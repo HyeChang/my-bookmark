@@ -48,6 +48,15 @@ import {
   preloadDashboardPanelChunk
 } from "./dashboard-panel-chunks";
 import {
+  buildBookmarkListRows,
+  buildHomeFavoriteCards,
+  buildRecommendationCardsByKind,
+  getBookmarkSummaryStateLabel,
+  type BookmarkListRowCacheEntry,
+  type HomeFavoriteCardCacheEntry,
+  type RecommendationCardCacheEntry
+} from "./dashboard-bookmark-view-models";
+import {
   getBookmarkPreviewStoredSourceFields,
   getBookmarkPreviewWorkerFallbackMessage,
   hasTextContent,
@@ -199,24 +208,6 @@ type BookmarkListRowViewModel = {
   shouldShowInfo: boolean;
 };
 
-type BookmarkListRowCacheEntry = {
-  row: BookmarkListRowViewModel;
-  bookmark: Bookmark;
-  assets: BookmarkAsset[];
-  folderName: string;
-  previewText: string;
-  summaryStateLabel: string;
-  tagSignature: string;
-  remainingTagCount: number;
-  isTrashed: boolean;
-  shouldShowCover: boolean;
-  shouldShowListCover: boolean;
-  shouldShowTitle: boolean;
-  shouldShowDescription: boolean;
-  shouldShowTags: boolean;
-  shouldShowInfo: boolean;
-};
-
 type BookmarkListRowActionResult = void | Promise<void>;
 
 type BookmarkListRowActions = {
@@ -231,29 +222,11 @@ type BookmarkListRowActions = {
   onPermanentDelete: (bookmark: Bookmark) => BookmarkListRowActionResult;
 };
 
-type HomeFavoriteCardCacheEntry = {
-  card: HomeFavoriteCardViewModel;
-  bookmark: Bookmark;
-  assets: BookmarkAsset[];
-  folderName: string;
-  previewText: string;
-  tagSignature: string;
-};
-
-type RecommendationCardCacheEntry = {
-  card: RecommendationCardViewModel;
-  bookmark: Bookmark;
-  reasonLabel: string;
-  folderName: string;
-  summaryText: string;
-};
-
 const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
 const USERSCRIPT_DOWNLOAD_PATH = "/downloads/bookmark-saver.user.js?v=0.1.11";
 const APP_THEME_STORAGE_KEY = "bookmark-theme";
 const BOOKMARK_VIEW_SETTINGS_STORAGE_KEY = "bookmark-view-settings:v2";
 const DEFAULT_BOOKMARK_VIEW_MODE: BookmarkViewMode = "list";
-const EMPTY_BOOKMARK_ASSETS: BookmarkAsset[] = [];
 
 const emptyBookmarkDraft: BookmarkDraft = {
   url: "",
@@ -663,62 +636,6 @@ function getBookmarkRelativeDateRangeValue(range: BookmarkRelativeDateRange) {
   }
 }
 
-function getBookmarkPreviewText(bookmark: Bookmark) {
-  if (hasTextContent(bookmark.userSummary)) {
-    return bookmark.userSummary ?? "";
-  }
-
-  if (hasTextContent(bookmark.userContent)) {
-    return bookmark.userContent ?? "";
-  }
-
-  if (hasTextContent(bookmark.sourceSummary)) {
-    return bookmark.sourceSummary ?? "";
-  }
-
-  if (hasTextContent(bookmark.displaySummary)) {
-    return bookmark.displaySummary;
-  }
-
-  if (hasTextContent(bookmark.sourceContent)) {
-    return bookmark.sourceContent ?? "";
-  }
-
-  if (hasTextContent(bookmark.displayContent)) {
-    return bookmark.displayContent;
-  }
-
-  return "";
-}
-
-function getBookmarkSummaryStateLabel(bookmark: Bookmark) {
-  if (hasTextContent(bookmark.userSummary)) {
-    return "직접 요약";
-  }
-
-  if (hasTextContent(bookmark.userContent)) {
-    return "직접 정리";
-  }
-
-  if (hasTextContent(bookmark.sourceSummary)) {
-    return "자동 요약";
-  }
-
-  if (hasTextContent(bookmark.displaySummary)) {
-    return "요약";
-  }
-
-  if (hasTextContent(bookmark.sourceContent)) {
-    return "자동 추출";
-  }
-
-  if (hasTextContent(bookmark.displayContent)) {
-    return "내용";
-  }
-
-  return "요약 없음";
-}
-
 function getBookmarkDetailFieldRows(bookmark: Bookmark, mode: "user" | "source") {
   const rows =
     mode === "user"
@@ -739,19 +656,6 @@ function getBookmarkDetailFieldRows(bookmark: Bookmark, mode: "user" | "source")
       value: mode === "source" ? sanitizeExtractedDisplayText(row.value) : row.value
     }))
     .filter((row) => hasTextContent(row.value));
-}
-
-function getRecommendationReasonLabel(kind: RecommendationKind) {
-  switch (kind) {
-    case "favorites":
-      return "즐겨찾기 기반";
-    case "recent":
-      return "최근 열람 기반";
-    case "frequent":
-      return "반복 열람 기반";
-    default:
-      return "추천";
-  }
 }
 
 function getBookmarkSearchSummaryItems(
@@ -5527,64 +5431,17 @@ export default function AuthenticatedDashboardApp({
   const homeFavoriteCardCacheRef = useRef(new Map<string, HomeFavoriteCardCacheEntry>());
   const homeFavoriteCards = useMemo<HomeFavoriteCardViewModel[]>(
     () => {
-      const previousHomeFavoriteCardCache = homeFavoriteCardCacheRef.current;
-      const nextHomeFavoriteCardCache = new Map<string, HomeFavoriteCardCacheEntry>();
-      const cards = visibleHomeFavoriteBookmarks.map((bookmark) => {
-        const assets = bookmarkAssetsByBookmarkId[bookmark.id] ?? EMPTY_BOOKMARK_ASSETS;
-        const visibleTagItems = hasLoadedTags
-          ? bookmark.tagIds.slice(0, 2).map((tagId) => {
-              const tag = tagsById.get(tagId);
-              return {
-                id: tagId,
-                name: tag?.name ?? tagId,
-                color: tag?.color ?? null
-              };
-            })
-          : [];
-        const tagSignature = visibleTagItems
-          .map((tag) => `${tag.id}\u001f${tag.name}\u001f${tag.color ?? ""}`)
-          .join("\u001e");
-        const folderName =
-          !bookmark.folderId || extensionFolderIds.has(bookmark.folderId)
-            ? "미분류"
-            : foldersById.get(bookmark.folderId)?.name ?? bookmark.folderId;
-        const previewText = getBookmarkPreviewText(bookmark);
-        const previousCardEntry = previousHomeFavoriteCardCache.get(bookmark.id);
-
-        if (
-          previousCardEntry &&
-          previousCardEntry.bookmark === bookmark &&
-          previousCardEntry.assets === assets &&
-          previousCardEntry.folderName === folderName &&
-          previousCardEntry.previewText === previewText &&
-          previousCardEntry.tagSignature === tagSignature
-        ) {
-          nextHomeFavoriteCardCache.set(bookmark.id, previousCardEntry);
-          return previousCardEntry.card;
-        }
-
-        const card = {
-          bookmark,
-          coverAsset: assets[0] ?? null,
-          folderName,
-          previewText,
-          visibleTagItems,
-          menuId: `home:${bookmark.id}`
-        };
-        const nextCardEntry = {
-          card,
-          bookmark,
-          assets,
-          folderName,
-          previewText,
-          tagSignature
-        };
-
-        nextHomeFavoriteCardCache.set(bookmark.id, nextCardEntry);
-        return card;
+      const { cards, cache } = buildHomeFavoriteCards({
+        bookmarks: visibleHomeFavoriteBookmarks,
+        bookmarkAssetsByBookmarkId,
+        extensionFolderIds,
+        foldersById,
+        hasLoadedTags,
+        previousCache: homeFavoriteCardCacheRef.current,
+        tagsById
       });
 
-      homeFavoriteCardCacheRef.current = nextHomeFavoriteCardCache;
+      homeFavoriteCardCacheRef.current = cache;
       return cards;
     },
     [
@@ -5736,117 +5593,21 @@ export default function AuthenticatedDashboardApp({
   );
   const bookmarkListRows = useMemo<BookmarkListRowViewModel[]>(
     () => {
-      const previousBookmarkListRowCache = bookmarkListRowCacheRef.current;
-      const nextBookmarkListRowCache = new Map<string, BookmarkListRowCacheEntry>();
-      const rows = renderedPagedBookmarks.map((bookmark) => {
-        const assets = bookmarkAssetsByBookmarkId[bookmark.id] ?? EMPTY_BOOKMARK_ASSETS;
-        const tagItems = bookmark.tagIds.map((tagId) => {
-          const tag = tagsById.get(tagId);
-          return {
-            id: tagId,
-            name: tag?.name ?? tagId,
-            color: tag?.color ?? null
-          };
-        });
-        const tagSignature = tagItems
-          .map((tag) => `${tag.id}\u001f${tag.name}\u001f${tag.color ?? ""}`)
-          .join("\u001e");
-        const displaySettings =
-          bookmarkViewMode === "list"
-            ? bookmarkListDisplaySettings
-            : bookmarkCardDisplaySettings;
-        const appliesDisplaySettings = bookmarkViewMode !== "title";
-        const shouldShowCover =
-          (bookmarkViewMode === "card" || bookmarkViewMode === "moodboard") &&
-          displaySettings.coverImage &&
-          assets.length > 0;
-        const shouldShowListCover =
-          bookmarkViewMode === "list" &&
-          displaySettings.coverImage &&
-          assets.length > 0;
-        const shouldShowTitle =
-          !appliesDisplaySettings || displaySettings.title;
-        const shouldShowDescription =
-          bookmarkViewMode !== "title" &&
-          (!appliesDisplaySettings || displaySettings.description);
-        const shouldShowTags =
-          !appliesDisplaySettings || displaySettings.tags;
-        const shouldShowInfo =
-          bookmarkViewMode !== "title" &&
-          (!appliesDisplaySettings || displaySettings.bookmarkInfo);
-        const visibleTagItems = tagItems.slice(0, shouldUseCompactMobileCards ? 1 : 2);
-        const folderName =
-          !bookmark.folderId || extensionFolderIds.has(bookmark.folderId)
-            ? "미분류"
-            : foldersById.get(bookmark.folderId)?.name ?? bookmark.folderId;
-        const previewText = getBookmarkPreviewText(bookmark);
-        const summaryStateLabel = getBookmarkSummaryStateLabel(bookmark);
-        const remainingTagCount = Math.max(0, tagItems.length - visibleTagItems.length);
-        const isTrashed = bookmark.isTrashed || isTrashBookmarkView;
-        const previousRowEntry = previousBookmarkListRowCache.get(bookmark.id);
-
-        if (
-          previousRowEntry &&
-          previousRowEntry.bookmark === bookmark &&
-          previousRowEntry.assets === assets &&
-          previousRowEntry.folderName === folderName &&
-          previousRowEntry.previewText === previewText &&
-          previousRowEntry.summaryStateLabel === summaryStateLabel &&
-          previousRowEntry.tagSignature === tagSignature &&
-          previousRowEntry.remainingTagCount === remainingTagCount &&
-          previousRowEntry.isTrashed === isTrashed &&
-          previousRowEntry.shouldShowCover === shouldShowCover &&
-          previousRowEntry.shouldShowListCover === shouldShowListCover &&
-          previousRowEntry.shouldShowTitle === shouldShowTitle &&
-          previousRowEntry.shouldShowDescription === shouldShowDescription &&
-          previousRowEntry.shouldShowTags === shouldShowTags &&
-          previousRowEntry.shouldShowInfo === shouldShowInfo
-        ) {
-          nextBookmarkListRowCache.set(bookmark.id, previousRowEntry);
-          return previousRowEntry.row;
-        }
-
-        const row = {
-          bookmark,
-          assets,
-          assetCount: assets.length,
-          coverAsset: assets[0] ?? null,
-          folderName,
-          previewText,
-          summaryStateLabel,
-          visibleTagItems,
-          remainingTagCount,
-          isTrashed,
-          shouldShowCover,
-          shouldShowListCover,
-          shouldShowTitle,
-          shouldShowDescription,
-          shouldShowTags,
-          shouldShowInfo
-        };
-        const nextRowEntry = {
-          row,
-          bookmark,
-          assets,
-          folderName,
-          previewText,
-          summaryStateLabel,
-          tagSignature,
-          remainingTagCount,
-          isTrashed,
-          shouldShowCover,
-          shouldShowListCover,
-          shouldShowTitle,
-          shouldShowDescription,
-          shouldShowTags,
-          shouldShowInfo
-        };
-
-        nextBookmarkListRowCache.set(bookmark.id, nextRowEntry);
-        return row;
+      const { rows, cache } = buildBookmarkListRows({
+        bookmarkAssetsByBookmarkId,
+        bookmarkCardDisplaySettings,
+        bookmarkListDisplaySettings,
+        bookmarks: renderedPagedBookmarks,
+        bookmarkViewMode,
+        extensionFolderIds,
+        foldersById,
+        isTrashBookmarkView,
+        previousCache: bookmarkListRowCacheRef.current,
+        shouldUseCompactMobileCards,
+        tagsById
       });
 
-      bookmarkListRowCacheRef.current = nextBookmarkListRowCache;
+      bookmarkListRowCacheRef.current = cache;
       return rows;
     },
     [
@@ -5873,63 +5634,14 @@ export default function AuthenticatedDashboardApp({
   const recommendationCardCacheRef = useRef(new Map<string, RecommendationCardCacheEntry>());
   const recommendationCardsByKind = useMemo<Record<RecommendationKind, RecommendationCardViewModel[]>>(
     () => {
-      const previousRecommendationCardCache = recommendationCardCacheRef.current;
-      const nextRecommendationCardCache = new Map<string, RecommendationCardCacheEntry>();
+      const { cardsByKind, cache } = buildRecommendationCardsByKind({
+        extensionFolderIds,
+        foldersById,
+        previousCache: recommendationCardCacheRef.current,
+        recommendations: visibleRecommendations
+      });
 
-      function createRecommendationCards(
-        kind: RecommendationKind,
-        recommendationBookmarks: Bookmark[]
-      ) {
-        const reasonLabel = getRecommendationReasonLabel(kind);
-
-        return recommendationBookmarks.map((bookmark) => {
-          const itemKey = `${kind}-${bookmark.id}`;
-          const folderName =
-            !bookmark.folderId || extensionFolderIds.has(bookmark.folderId)
-              ? "미분류"
-              : foldersById.get(bookmark.folderId)?.name ?? bookmark.folderId;
-          const previewText = getBookmarkPreviewText(bookmark);
-          const summaryText = hasTextContent(previewText) ? previewText : "요약 없음";
-          const previousCardEntry = previousRecommendationCardCache.get(itemKey);
-
-          if (
-            previousCardEntry &&
-            previousCardEntry.bookmark === bookmark &&
-            previousCardEntry.reasonLabel === reasonLabel &&
-            previousCardEntry.folderName === folderName &&
-            previousCardEntry.summaryText === summaryText
-          ) {
-            nextRecommendationCardCache.set(itemKey, previousCardEntry);
-            return previousCardEntry.card;
-          }
-
-          const card = {
-            itemKey,
-            bookmark,
-            reasonLabel,
-            folderName,
-            summaryText
-          };
-          const nextCardEntry = {
-            card,
-            bookmark,
-            reasonLabel,
-            folderName,
-            summaryText
-          };
-
-          nextRecommendationCardCache.set(itemKey, nextCardEntry);
-          return card;
-        });
-      }
-
-      const cardsByKind = {
-        favorites: createRecommendationCards("favorites", visibleRecommendations.favorites),
-        recent: createRecommendationCards("recent", visibleRecommendations.recent),
-        frequent: createRecommendationCards("frequent", visibleRecommendations.frequent)
-      };
-
-      recommendationCardCacheRef.current = nextRecommendationCardCache;
+      recommendationCardCacheRef.current = cache;
       return cardsByKind;
     },
     [extensionFolderIds, foldersById, visibleRecommendations]

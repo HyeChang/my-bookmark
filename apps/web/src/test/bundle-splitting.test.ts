@@ -152,11 +152,16 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
       "utf8"
     );
+    const viewModelSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-bookmark-view-models.ts"),
+      "utf8"
+    );
 
     expect(dashboardSource).toMatch(
       /const bookmarkListRows = useMemo(?:<BookmarkListRowViewModel\[\]>)?\(/
     );
-    expect(dashboardSource).toContain("renderedPagedBookmarks.map((bookmark) => {");
+    expect(dashboardSource).toContain("buildBookmarkListRows({");
+    expect(viewModelSource).toContain("bookmarks.map((bookmark) => {");
     expect(bookmarkResultsSource).toContain("{bookmarkListRows.map((bookmarkRow, index) => {");
     expect(bookmarkResultsSource).toContain(
       "const imageLoadingPriority = getBookmarkRowImageLoadingPriority(index);"
@@ -309,13 +314,17 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
+    const viewModelSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-bookmark-view-models.ts"),
+      "utf8"
+    );
 
-    expect(dashboardSource).toContain("type BookmarkListRowCacheEntry =");
-    expect(dashboardSource).toContain("const EMPTY_BOOKMARK_ASSETS: BookmarkAsset[] = [];");
+    expect(viewModelSource).toContain("export type BookmarkListRowCacheEntry =");
+    expect(viewModelSource).toContain("const EMPTY_BOOKMARK_ASSETS: BookmarkAsset[] = [];");
     expect(dashboardSource).toContain("const bookmarkListRowCacheRef = useRef");
-    expect(dashboardSource).toContain("const previousBookmarkListRowCache = bookmarkListRowCacheRef.current;");
-    expect(dashboardSource).toContain("const previousRowEntry = previousBookmarkListRowCache.get(bookmark.id);");
-    expect(dashboardSource).toContain("return previousRowEntry.row;");
+    expect(dashboardSource).toContain("previousCache: bookmarkListRowCacheRef.current");
+    expect(viewModelSource).toContain("const previousRowEntry = previousCache.get(bookmark.id);");
+    expect(viewModelSource).toContain("return previousRowEntry.row;");
     expect(dashboardSource).not.toContain("const assets = bookmarkAssetsByBookmarkId[bookmark.id] ?? [];");
   });
 
@@ -521,5 +530,27 @@ describe("bundle splitting", () => {
     expect(dashboardSource).not.toContain('<header className="app-hero">');
     expect(dashboardHeaderSource).toContain('<header className="app-hero">');
     expect(dashboardHeaderSource).toContain('aria-label="quick-actions-toolbar"');
+  });
+
+  it("keeps bookmark dashboard view model builders outside the dashboard component shell", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const viewModelSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-bookmark-view-models.ts"),
+      "utf8"
+    );
+
+    expect(dashboardSource).toContain('from "./dashboard-bookmark-view-models"');
+    expect(dashboardSource).not.toContain(
+      "const previousBookmarkListRowCache = bookmarkListRowCacheRef.current"
+    );
+    expect(dashboardSource).not.toContain(
+      "const previousHomeFavoriteCardCache = homeFavoriteCardCacheRef.current"
+    );
+    expect(viewModelSource).toContain("export function buildBookmarkListRows");
+    expect(viewModelSource).toContain("export function buildHomeFavoriteCards");
+    expect(viewModelSource).toContain("export function buildRecommendationCardsByKind");
   });
 });

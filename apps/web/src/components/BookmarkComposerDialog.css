@@ -40,9 +40,24 @@
   position: sticky;
   bottom: 0;
   padding-top: 0.7rem;
+  padding-bottom: max(0.7rem, env(safe-area-inset-bottom));
   margin-top: 0.1rem;
   border-top: 1px solid rgba(31, 37, 51, 0.08);
   background: linear-gradient(180deg, rgba(255, 252, 246, 0) 0%, rgba(255, 252, 246, 0.96) 28%);
+}
+
+.bookmark-composer-dialog-shell {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.bookmark-composer-dialog-shell > .overlay-dialog-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .inline-folder-create {
@@ -182,6 +197,12 @@
 }
 
 @media (max-width: 1120px) {
+  .bookmark-composer-dialog-shell {
+    height: calc(100vh - 1.2rem);
+    height: calc(100dvh - max(1.2rem, env(safe-area-inset-bottom)));
+    max-height: calc(100vh - 1.2rem);
+    max-height: calc(100dvh - max(1.2rem, env(safe-area-inset-bottom)));
+  }
 
   .bookmark-composer-grid {
     grid-template-columns: 1fr;

@@ -186,6 +186,7 @@ export function renderBookmarkPreviewArticle(preview: BookmarkExtractPreview) {
                 loading="lazy"
                 decoding="async"
                 fetchPriority="low"
+                sizes="(max-width: 720px) 100vw, 640px"
               />
               {block.alt ? <figcaption>{block.alt}</figcaption> : null}
             </figure>

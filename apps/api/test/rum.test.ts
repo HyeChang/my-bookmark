@@ -15,7 +15,8 @@ describe("RUM route", () => {
         metric: "largest-contentful-paint",
         value: 1234.5,
         rating: "good",
-        navigation: "navigate"
+        navigation: "navigate",
+        detail: "home"
       })
     });
 
@@ -26,6 +27,23 @@ describe("RUM route", () => {
     );
 
     infoSpy.mockRestore();
+  });
+
+  it("accepts controlled dashboard performance measures", async () => {
+    const res = await app.request("http://example.com/api/rum", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        metric: "dashboard-panel-preload",
+        value: 88.125,
+        rating: "good",
+        detail: "bookmarks"
+      })
+    });
+
+    expect(res.status).toBe(204);
   });
 
   it("rejects invalid performance metric payloads", async () => {

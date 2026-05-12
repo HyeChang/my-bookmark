@@ -5,7 +5,9 @@ const allowedMetrics = new Set([
   "first-contentful-paint",
   "largest-contentful-paint",
   "layout-shift",
-  "interaction"
+  "interaction",
+  "dashboard-data-refresh",
+  "dashboard-panel-preload"
 ]);
 const allowedRatings = new Set(["good", "needs-improvement", "poor"]);
 const allowedNavigationTypes = new Set([
@@ -14,6 +16,7 @@ const allowedNavigationTypes = new Set([
   "back_forward",
   "prerender"
 ]);
+const allowedDetailPattern = /^[a-z0-9:-]{1,80}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -28,6 +31,7 @@ function parseRumMetric(payload: unknown) {
   const value = payload.value;
   const rating = payload.rating;
   const navigation = payload.navigation;
+  const detail = payload.detail;
 
   if (
     typeof metric !== "string" ||
@@ -48,11 +52,19 @@ function parseRumMetric(payload: unknown) {
     return null;
   }
 
+  if (
+    detail !== undefined &&
+    (typeof detail !== "string" || !allowedDetailPattern.test(detail))
+  ) {
+    return null;
+  }
+
   return {
     metric,
     value: Math.round(value * 100) / 100,
     rating,
-    ...(typeof navigation === "string" ? { navigation } : {})
+    ...(typeof navigation === "string" ? { navigation } : {}),
+    ...(typeof detail === "string" ? { detail } : {})
   };
 }
 

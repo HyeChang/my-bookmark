@@ -440,6 +440,7 @@ export default function BookmarkComposerDialog({
                           loading="lazy"
                           decoding="async"
                           fetchPriority="low"
+                          sizes="(max-width: 720px) 100vw, 640px"
                         />
                       ) : null}
                       {previewBlocks.length > 0 ? (

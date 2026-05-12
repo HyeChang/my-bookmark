@@ -33,6 +33,7 @@ describe("CSS budget", () => {
     );
     const lazyCssFiles = [
       "BookmarkResultsPanel.css",
+      "BookmarkAdvancedSearchFields.css",
       "BookmarkPreviewContent.css",
       "BookmarkComposerDialog.css",
       "BookmarkDetailPanel.css",
@@ -112,10 +113,49 @@ describe("CSS budget", () => {
     expect(tagManagerCss).toContain("contain-intrinsic-size: 0 4.5rem;");
   });
 
+  it("keeps the mobile bookmark composer dialog scrollable to its save action", () => {
+    const css = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkComposerDialog.css"),
+      "utf8"
+    );
+
+    expect(css).toContain(".bookmark-composer-dialog-shell {");
+    expect(css).toContain("display: flex;");
+    expect(css).toContain("flex-direction: column;");
+    expect(css).toContain("max-height: calc(100dvh - max(1.2rem, env(safe-area-inset-bottom)));");
+    expect(css).toContain(".bookmark-composer-dialog-shell > .overlay-dialog-panel {");
+    expect(css).toContain("overflow-y: auto;");
+    expect(css).toContain("-webkit-overflow-scrolling: touch;");
+    expect(css).toContain("overscroll-behavior: contain;");
+    expect(css).toContain("padding-bottom: max(0.7rem, env(safe-area-inset-bottom));");
+  });
+
+  it("loads advanced bookmark search styles with the lazy advanced search fields", () => {
+    const resultsCss = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsPanel.css"),
+      "utf8"
+    );
+    const advancedCss = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkAdvancedSearchFields.css"),
+      "utf8"
+    );
+    const advancedSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkAdvancedSearchFields.tsx"),
+      "utf8"
+    );
+
+    expect(resultsCss).not.toContain(".search-filter-group");
+    expect(resultsCss).not.toContain(".search-grid-advanced");
+    expect(advancedCss).toContain(".search-grid-advanced");
+    expect(advancedCss).toContain(".search-filter-group");
+    expect(advancedSource).toContain('import "./BookmarkAdvancedSearchFields.css";');
+  });
+
   it("keeps theme overrides available after desktop light rules in component styles", () => {
     const themedCssFiles = [
       "AuthenticatedDashboardTheme.css",
       "HomePanel.css",
+      "BookmarkAdvancedSearchFields.css",
       "BookmarkResultsPanel.css",
       "BookmarkComposerDialog.css",
       "BookmarkDetailPanel.css",

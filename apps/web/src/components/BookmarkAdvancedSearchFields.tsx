@@ -11,6 +11,7 @@ import type {
 import type { BookmarkSearchDraft } from "./BookmarkResultsPanel";
 import { ColorSelectField } from "./ColorSelectField";
 import { renderColorSwatch } from "./ColorSelectField";
+import "./BookmarkAdvancedSearchFields.css";
 
 type CheckboxFieldProps = {
   label: ReactNode;
