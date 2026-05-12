@@ -39,6 +39,15 @@ import { loadFirebaseAuth, preloadFirebaseAuth } from "../lib/firebase-auth-load
 import { measureAsyncPerformance } from "../lib/performance-marks";
 import { DashboardHeader } from "./DashboardHeader";
 import {
+  LazyBookmarkDetailPanel,
+  LazyBookmarkResultsPanel,
+  LazyFolderOverviewPanel,
+  LazyHomePanel,
+  LazyMobileSidebarTabs,
+  LazyRecommendationPanel,
+  preloadDashboardPanelChunk
+} from "./dashboard-panel-chunks";
+import {
   getBookmarkPreviewStoredSourceFields,
   getBookmarkPreviewWorkerFallbackMessage,
   hasTextContent,
@@ -1239,73 +1248,12 @@ async function signOutFromGoogle() {
   return firebaseAuth.signOutFromGoogle();
 }
 
-function createDashboardPanelChunkLoader<TModule>(loadModule: () => Promise<TModule>) {
-  let modulePromise: Promise<TModule> | null = null;
-
-  return () => {
-    modulePromise ??= loadModule().catch((error) => {
-      modulePromise = null;
-      throw error;
-    });
-    return modulePromise;
-  };
-}
-
-const loadBookmarkDetailPanel = createDashboardPanelChunkLoader(() =>
-  import("./BookmarkDetailPanel")
-);
-const loadFolderOverviewPanel = createDashboardPanelChunkLoader(() =>
-  import("./FolderOverviewPanel")
-);
-const loadHomePanel = createDashboardPanelChunkLoader(() => import("./HomePanel"));
-const loadBookmarkResultsPanel = createDashboardPanelChunkLoader(() =>
-  import("./BookmarkResultsPanel")
-);
-
 const LazyInstallHelpDialog = lazy(() => import("./InstallHelpDialog"));
 const LazyExtensionDownloadDialog = lazy(() => import("./ExtensionDownloadDialog"));
 const LazyExtensionTokenDialog = lazy(() => import("./ExtensionTokenDialog"));
-const LazyBookmarkDetailPanel = lazy(loadBookmarkDetailPanel);
 const LazyBookmarkComposerDialog = lazy(() => import("./BookmarkComposerDialog"));
 const LazyFolderManagerDialog = lazy(() => import("./FolderManagerDialog"));
 const LazyTagManagerDialog = lazy(() => import("./TagManagerDialog"));
-const LazyRecommendationPanel = lazy(() => import("./RecommendationPanel"));
-const LazyHomePanel = lazy(loadHomePanel);
-const LazyBookmarkResultsPanel = lazy(loadBookmarkResultsPanel);
-const LazyFolderOverviewPanel = lazy(() =>
-  loadFolderOverviewPanel().then((module) => ({
-    default: module.FolderOverviewPanel
-  }))
-);
-const LazyMobileSidebarTabs = lazy(() =>
-  loadFolderOverviewPanel().then((module) => ({
-    default: module.MobileSidebarTabs
-  }))
-);
-
-type DashboardPanelChunk = "home" | "bookmarks" | "folder" | "detail";
-
-const dashboardPanelChunkLoaders: Record<DashboardPanelChunk, () => Promise<unknown>> = {
-  home: loadHomePanel,
-  bookmarks: loadBookmarkResultsPanel,
-  folder: loadFolderOverviewPanel,
-  detail: loadBookmarkDetailPanel
-};
-
-const preloadedDashboardPanelChunks = new Set<DashboardPanelChunk>();
-
-function preloadDashboardPanelChunk(chunk: DashboardPanelChunk) {
-  if (preloadedDashboardPanelChunks.has(chunk)) {
-    return;
-  }
-
-  preloadedDashboardPanelChunks.add(chunk);
-  void measureAsyncPerformance(`dashboard:panel-preload:${chunk}`, () =>
-    dashboardPanelChunkLoaders[chunk]()
-  ).catch(() => {
-    preloadedDashboardPanelChunks.delete(chunk);
-  });
-}
 
 type BookmarkAssetsModule = typeof import("../lib/bookmark-assets");
 type BookmarkExtractModule = typeof import("../lib/bookmark-extract");

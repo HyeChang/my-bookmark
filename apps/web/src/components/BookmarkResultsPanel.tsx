@@ -526,6 +526,7 @@ function BookmarkListRow({
             loading={imageLoadingPriority.loading}
             decoding="async"
             fetchPriority={imageLoadingPriority.fetchPriority}
+            sizes="(max-width: 720px) 100vw, var(--bookmark-cover-size)"
           />
         </div>
       ) : null}
@@ -547,6 +548,7 @@ function BookmarkListRow({
               loading={imageLoadingPriority.loading}
               decoding="async"
               fetchPriority={imageLoadingPriority.fetchPriority}
+              sizes="(max-width: 720px) 100vw, var(--bookmark-cover-size)"
             />
           </div>
         ) : null}

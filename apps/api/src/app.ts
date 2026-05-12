@@ -16,6 +16,7 @@ import { createBookmarkRoute } from "./routes/bookmarks";
 import { createExtensionTokenRoute } from "./routes/extension-tokens";
 import { createFolderRoute } from "./routes/folders";
 import { createRecommendationRoute } from "./routes/recommendations";
+import { rumRoute } from "./routes/rum";
 import { createTagRoute } from "./routes/tags";
 
 type CreateAppOptions = {
@@ -35,6 +36,7 @@ export function createApp(options: CreateAppOptions = {}) {
   const app = new Hono();
 
   app.route("/api/health", healthRoute);
+  app.route("/api/rum", rumRoute);
   app.route(
     "/api/auth",
     createAuthRoute({

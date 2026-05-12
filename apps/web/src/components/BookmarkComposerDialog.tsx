@@ -19,6 +19,7 @@ import {
   sanitizeExtractedDisplayText
 } from "./bookmark-preview-utils";
 import "./ChoiceControls.css";
+import "./BookmarkPreviewContent.css";
 import "./BookmarkComposerDialog.css";
 
 export type BookmarkComposerDraft = {

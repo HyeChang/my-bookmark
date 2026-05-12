@@ -40,6 +40,10 @@ describe("dashboard performance marks", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
+    const dashboardPanelChunksSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-panel-chunks.tsx"),
+      "utf8"
+    );
     const performanceSource = readFileSync(
       join(process.cwd(), "src", "lib", "performance-marks.ts"),
       "utf8"
@@ -50,6 +54,25 @@ describe("dashboard performance marks", () => {
       'import { measureAsyncPerformance } from "../lib/performance-marks";'
     );
     expect(dashboardSource).toContain('measureAsyncPerformance("dashboard:data-refresh"');
-    expect(dashboardSource).toContain("measureAsyncPerformance(`dashboard:panel-preload:${chunk}`");
+    expect(dashboardPanelChunksSource).toContain(
+      'import { measureAsyncPerformance } from "../lib/performance-marks";'
+    );
+    expect(dashboardPanelChunksSource).toContain(
+      "measureAsyncPerformance(`dashboard:panel-preload:${chunk}`"
+    );
+  });
+
+  it("starts lightweight real user monitoring from the app shell", () => {
+    const appSource = readFileSync(join(process.cwd(), "src", "App.tsx"), "utf8");
+    const rumSource = readFileSync(join(process.cwd(), "src", "lib", "rum.ts"), "utf8");
+
+    expect(appSource).toContain('import { initRealUserMonitoring } from "./lib/rum";');
+    expect(appSource).toContain("initRealUserMonitoring();");
+    expect(rumSource).toContain("PerformanceObserver");
+    expect(rumSource).toContain("navigator.sendBeacon");
+    expect(rumSource).toContain('fetch("/api/rum"');
+    expect(rumSource).toContain('"largest-contentful-paint"');
+    expect(rumSource).toContain('"layout-shift"');
+    expect(rumSource).toContain('"navigation"');
   });
 });

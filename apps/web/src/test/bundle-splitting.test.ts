@@ -118,16 +118,21 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
+    const dashboardPanelChunksSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-panel-chunks.tsx"),
+      "utf8"
+    );
     const detailPanelSource = readFileSync(
       join(process.cwd(), "src", "components", "BookmarkDetailPanel.tsx"),
       "utf8"
     );
 
-    expect(dashboardSource).toContain(
+    expect(dashboardPanelChunksSource).toContain(
       "const loadBookmarkDetailPanel = createDashboardPanelChunkLoader(() =>"
     );
-    expect(dashboardSource).toContain('import("./BookmarkDetailPanel")');
-    expect(dashboardSource).toContain("const LazyBookmarkDetailPanel = lazy(loadBookmarkDetailPanel);");
+    expect(dashboardPanelChunksSource).toContain('import("./BookmarkDetailPanel")');
+    expect(dashboardPanelChunksSource).toContain("const LazyBookmarkDetailPanel = lazy(loadBookmarkDetailPanel);");
+    expect(dashboardSource).toContain('} from "./dashboard-panel-chunks";');
     expect(dashboardSource).not.toContain("function renderVisibleSelectedBookmarkDetail");
     expect(dashboardSource).not.toContain("getBookmarkPreviewArticleBlocks");
     expect(dashboardSource).not.toContain("getBookmarkPreviewFieldRows");
@@ -164,6 +169,10 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
+    const dashboardPanelChunksSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-panel-chunks.tsx"),
+      "utf8"
+    );
     const bookmarkResultsSource = readFileSync(
       join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
       "utf8"
@@ -173,11 +182,11 @@ describe("bundle splitting", () => {
       bookmarkResultsSource.indexOf("bookmark-pagination-bar")
     );
 
-    expect(dashboardSource).toContain(
+    expect(dashboardPanelChunksSource).toContain(
       "const loadBookmarkResultsPanel = createDashboardPanelChunkLoader(() =>"
     );
-    expect(dashboardSource).toContain('import("./BookmarkResultsPanel")');
-    expect(dashboardSource).toContain("const LazyBookmarkResultsPanel = lazy(loadBookmarkResultsPanel);");
+    expect(dashboardPanelChunksSource).toContain('import("./BookmarkResultsPanel")');
+    expect(dashboardPanelChunksSource).toContain("const LazyBookmarkResultsPanel = lazy(loadBookmarkResultsPanel);");
     expect(dashboardSource).toContain("<LazyBookmarkResultsPanel");
     expect(dashboardSource).toContain("BookmarkListRowActions");
     expect(dashboardSource).not.toContain("const MemoizedBookmarkListRow = memo(BookmarkListRow);");
@@ -315,15 +324,19 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
+    const dashboardPanelChunksSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-panel-chunks.tsx"),
+      "utf8"
+    );
     const homePanelSource = readFileSync(
       join(process.cwd(), "src", "components", "HomePanel.tsx"),
       "utf8"
     );
 
-    expect(dashboardSource).toContain(
+    expect(dashboardPanelChunksSource).toContain(
       "const loadHomePanel = createDashboardPanelChunkLoader(() => import(\"./HomePanel\"));"
     );
-    expect(dashboardSource).toContain("const LazyHomePanel = lazy(loadHomePanel);");
+    expect(dashboardPanelChunksSource).toContain("const LazyHomePanel = lazy(loadHomePanel);");
     expect(dashboardSource).toContain("<LazyHomePanel");
     expect(dashboardSource).toContain("HomeFavoriteCardViewModel");
     expect(dashboardSource).not.toContain("type HomeFavoriteCardViewModel =");
@@ -346,13 +359,17 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
+    const dashboardPanelChunksSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-panel-chunks.tsx"),
+      "utf8"
+    );
     const recommendationSource = readFileSync(
       join(process.cwd(), "src", "components", "RecommendationPanel.tsx"),
       "utf8"
     );
 
     expect(dashboardSource).toContain("RecommendationCardViewModel");
-    expect(dashboardSource).toContain('lazy(() => import("./RecommendationPanel"))');
+    expect(dashboardPanelChunksSource).toContain('lazy(() => import("./RecommendationPanel"))');
     expect(dashboardSource).toContain("const recommendationCardsByKind = useMemo<Record<RecommendationKind, RecommendationCardViewModel[]>>(");
     expect(dashboardSource).toContain("<LazyRecommendationPanel");
     expect(dashboardSource).not.toContain("function renderRecommendationColumn(");
@@ -392,12 +409,16 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
+    const dashboardPanelChunksSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-panel-chunks.tsx"),
+      "utf8"
+    );
     const folderOverviewSource = readFileSync(
       join(process.cwd(), "src", "components", "FolderOverviewPanel.tsx"),
       "utf8"
     );
 
-    expect(dashboardSource).toContain('import("./FolderOverviewPanel")');
+    expect(dashboardPanelChunksSource).toContain('import("./FolderOverviewPanel")');
     expect(dashboardSource).not.toContain("function FolderOverviewNode(");
     expect(dashboardSource).not.toContain("const MemoizedFolderOverviewNode = memo(FolderOverviewNode);");
     expect(dashboardSource).not.toContain("function renderFolderOverviewSystemItem");
@@ -444,27 +465,32 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
+    const dashboardPanelChunksSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-panel-chunks.tsx"),
+      "utf8"
+    );
     const folderOverviewSource = readFileSync(
       join(process.cwd(), "src", "components", "FolderOverviewPanel.tsx"),
       "utf8"
     );
 
-    expect(dashboardSource).toContain(
+    expect(dashboardPanelChunksSource).toContain(
       "const loadHomePanel = createDashboardPanelChunkLoader(() => import(\"./HomePanel\"));"
     );
-    expect(dashboardSource).toContain(
+    expect(dashboardPanelChunksSource).toContain(
       "const loadBookmarkResultsPanel = createDashboardPanelChunkLoader(() =>"
     );
-    expect(dashboardSource).toContain('import("./BookmarkResultsPanel")');
-    expect(dashboardSource).toContain(
+    expect(dashboardPanelChunksSource).toContain('import("./BookmarkResultsPanel")');
+    expect(dashboardPanelChunksSource).toContain(
       "const loadFolderOverviewPanel = createDashboardPanelChunkLoader(() =>"
     );
-    expect(dashboardSource).toContain('import("./FolderOverviewPanel")');
-    expect(dashboardSource).toContain(
+    expect(dashboardPanelChunksSource).toContain('import("./FolderOverviewPanel")');
+    expect(dashboardPanelChunksSource).toContain(
       "const loadBookmarkDetailPanel = createDashboardPanelChunkLoader(() =>"
     );
-    expect(dashboardSource).toContain('import("./BookmarkDetailPanel")');
-    expect(dashboardSource).toContain("function preloadDashboardPanelChunk");
+    expect(dashboardPanelChunksSource).toContain('import("./BookmarkDetailPanel")');
+    expect(dashboardPanelChunksSource).toContain("function preloadDashboardPanelChunk");
+    expect(dashboardSource).not.toContain("function createDashboardPanelChunkLoader");
     expect(dashboardSource).toContain('preloadDashboardPanelChunk("home");');
     expect(dashboardSource).toContain('preloadDashboardPanelChunk("bookmarks");');
     expect(dashboardSource).toContain('preloadDashboardPanelChunk("folder");');

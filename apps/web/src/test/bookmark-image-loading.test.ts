@@ -42,6 +42,7 @@ describe("bookmark image loading", () => {
     expect(source).toContain('loading: "lazy"');
     expect(source).toContain('fetchPriority: "low"');
     expect(source).toContain("getBookmarkRowImageLoadingPriority(index)");
+    expect(source).toContain('sizes="(max-width: 720px) 100vw, var(--bookmark-cover-size)"');
   });
 
   it("uses a stable placeholder background for bookmark asset thumbnails", () => {

@@ -33,6 +33,7 @@ describe("CSS budget", () => {
     );
     const lazyCssFiles = [
       "BookmarkResultsPanel.css",
+      "BookmarkPreviewContent.css",
       "BookmarkComposerDialog.css",
       "BookmarkDetailPanel.css",
       "ExtensionDialogs.css",
@@ -57,6 +58,8 @@ describe("CSS budget", () => {
     expect(dashboardCss).not.toContain(".bookmark-list-table");
     expect(dashboardCss).not.toContain(".bookmark-pagination-bar");
     expect(dashboardCss).not.toContain(".bookmark-row-actions-mobile-compact");
+    expect(dashboardCss).not.toContain(".bookmark-preview-article");
+    expect(dashboardCss).not.toContain(".bookmark-preview-fallback-card");
     expect(dashboardCss).not.toContain(".tag-manager-dialog-shell");
     expect(dashboardCss).not.toContain(".tag-list-item");
     expect(dashboardCss).not.toContain(".tag-list-name");
@@ -69,6 +72,17 @@ describe("CSS budget", () => {
     expect(dashboardShellCss).toContain(".dashboard-workspace {");
     expect(dashboardShellCss).toContain(".session-card {");
     expect(authGateCss).toContain(".auth-landing");
+
+    const bookmarkDetailSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkDetailPanel.tsx"),
+      "utf8"
+    );
+    const bookmarkComposerSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkComposerDialog.tsx"),
+      "utf8"
+    );
+    expect(bookmarkDetailSource).toContain('import "./BookmarkPreviewContent.css";');
+    expect(bookmarkComposerSource).toContain('import "./BookmarkPreviewContent.css";');
 
     for (const fileName of lazyCssFiles) {
       const css = readFileSync(join(process.cwd(), "src", "components", fileName));

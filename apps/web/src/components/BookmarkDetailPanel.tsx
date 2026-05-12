@@ -11,6 +11,7 @@ import {
   renderBookmarkPreviewArticle,
   renderHiddenBookmarkIndicator
 } from "./bookmark-preview-utils";
+import "./BookmarkPreviewContent.css";
 import "./BookmarkDetailPanel.css";
 
 type BookmarkDetailTab = "detail" | "preview" | "extract";

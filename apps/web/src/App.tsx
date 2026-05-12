@@ -1,7 +1,9 @@
 import { lazy, Suspense } from "react";
+import { initRealUserMonitoring } from "./lib/rum";
 import "./App.css";
 
 const LazyAuthGate = lazy(() => import("./components/AuthGate"));
+initRealUserMonitoring();
 
 function renderAppFallback() {
   return (
