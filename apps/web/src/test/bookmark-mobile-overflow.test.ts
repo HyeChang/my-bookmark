@@ -10,6 +10,10 @@ const bookmarkResultsCss = readFileSync(
   resolve(__dirname, "../components/BookmarkResultsPanel.css"),
   "utf8"
 );
+const bookmarkDetailCss = readFileSync(
+  resolve(__dirname, "../components/BookmarkDetailPanel.css"),
+  "utf8"
+);
 
 describe("bookmark mobile overflow css", () => {
   it("keeps long bookmark text from widening mobile bookmark rows", () => {
@@ -24,9 +28,15 @@ describe("bookmark mobile overflow css", () => {
     );
   });
 
-  it("keeps the mobile bookmark action menu as an anchored popover", () => {
+  it("keeps the mobile bookmark action menu visible above bottom cards", () => {
     expect(appCss).toMatch(
-      /@media\s*\(max-width:\s*720px\)\s*\{[\s\S]*\.bookmark-card-menu-shell\s+\.bookmark-card-action-menu\s*\{[^}]*position:\s*absolute[^}]*right:\s*0[^}]*top:\s*calc\(100%\s*\+\s*0\.45rem\)/s
+      /@media\s*\(max-width:\s*720px\)\s*\{[\s\S]*\.bookmark-card-menu-shell\s+\.bookmark-card-action-menu\s*\{[^}]*position:\s*absolute[^}]*right:\s*0[^}]*top:\s*auto[^}]*bottom:\s*calc\(100%\s*\+\s*0\.45rem\)/s
+    );
+  });
+
+  it("keeps mobile bookmark detail action menus out of the layout flow and scrollable", () => {
+    expect(bookmarkDetailCss).toMatch(
+      /@media\s*\(max-width:\s*720px\)\s*\{[\s\S]*\.bookmark-detail-menu-shell\s+\.bookmark-detail-action-menu\s*\{[^}]*position:\s*absolute[^}]*top:\s*auto[^}]*bottom:\s*calc\(100%\s*\+\s*0\.45rem\)[^}]*max-height:\s*min\(calc\(100svh\s*-\s*7rem\),\s*17rem\)[^}]*overflow-y:\s*auto/s
     );
   });
 

@@ -370,6 +370,17 @@
     padding: 0.44rem;
   }
 
+  .bookmark-detail-menu-shell .bookmark-detail-action-menu {
+    position: absolute;
+    top: auto;
+    right: 0;
+    bottom: calc(100% + 0.45rem);
+    max-height: min(calc(100svh - 7rem), 17rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-shadow: 0 18px 34px rgba(20, 33, 61, 0.22);
+  }
+
   .bookmark-detail-action-menu-item {
     min-height: 1.96rem;
     padding: 0.3rem 0.5rem;

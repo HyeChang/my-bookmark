@@ -1525,7 +1525,8 @@ img {
   .bookmark-card-menu-shell .bookmark-card-action-menu {
     position: absolute;
     right: 0;
-    top: calc(100% + 0.45rem);
+    top: auto;
+    bottom: calc(100% + 0.45rem);
     min-width: min(9.4rem, calc(100vw - 1.4rem));
     max-width: calc(100vw - 1.4rem);
     gap: 0.34rem;
