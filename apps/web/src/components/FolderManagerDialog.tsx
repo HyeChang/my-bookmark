@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useRef,
   useState,
   type CSSProperties,
   type FormEvent,
@@ -9,7 +8,8 @@ import {
 } from "react";
 import type { Folder } from "@bookmark/shared";
 
-import { colorPresets, folderIconPresets } from "../lib/folder-presets";
+import { ColorSelectField, renderColorSwatch } from "./ColorSelectField";
+import { FolderIconPicker, getFolderIconGlyph } from "./FolderIconPicker";
 import "./ManagerDialog.css";
 import "./FolderManagerDialog.css";
 
@@ -58,141 +58,11 @@ export type FolderManagerDialogProps = {
   onFolderDragEnd: () => void;
 };
 
-type ColorSelectFieldProps = {
-  label: string;
-  selectedColor: string;
-  onSelect: (value: string) => void;
-  emptyLabel: string;
-};
-
 type CheckboxFieldProps = {
   label: ReactNode;
   className?: string;
   inputProps: Omit<InputHTMLAttributes<HTMLInputElement>, "type">;
 };
-
-function getColorPreset(color: string | null | undefined) {
-  if (!color) {
-    return null;
-  }
-
-  const normalizedColor = color.toLowerCase();
-  return colorPresets.find((preset) => preset.value.toLowerCase() === normalizedColor) ?? null;
-}
-
-function renderColorSwatch(color: string, className = "color-swatch") {
-  return <span className={className} style={{ backgroundColor: color }} aria-hidden="true" />;
-}
-
-function ColorSelectField({ label, selectedColor, onSelect, emptyLabel }: ColorSelectFieldProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const fieldsetRef = useRef<HTMLFieldSetElement | null>(null);
-  const selectedPreset = getColorPreset(selectedColor);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return undefined;
-    }
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!fieldsetRef.current?.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    }
-
-    globalThis.document.addEventListener("mousedown", handlePointerDown);
-    globalThis.document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      globalThis.document.removeEventListener("mousedown", handlePointerDown);
-      globalThis.document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen]);
-
-  function handleColorSelect(nextColor: string) {
-    onSelect(nextColor);
-    setIsOpen(false);
-  }
-
-  return (
-    <fieldset ref={fieldsetRef} className="picker-fieldset color-select-fieldset">
-      <legend>{label}</legend>
-      <div className="color-select">
-        <button
-          type="button"
-          className={`color-select-trigger${isOpen ? " color-select-trigger-open" : ""}`}
-          aria-label={label}
-          aria-haspopup="dialog"
-          aria-expanded={isOpen}
-          onClick={() => setIsOpen((currentState) => !currentState)}
-        >
-          <span className="color-select-trigger-value">
-            {selectedPreset ? (
-              renderColorSwatch(selectedPreset.value, "picker-color-swatch")
-            ) : (
-              <span className="color-select-empty-swatch" aria-hidden="true" />
-            )}
-            <span>{selectedPreset?.label ?? emptyLabel}</span>
-          </span>
-          <span className="color-select-trigger-chevron" aria-hidden="true">
-            ▾
-          </span>
-        </button>
-        {isOpen ? (
-          <div role="dialog" aria-label={`${label} 선택`} className="color-select-popover">
-            <div className="color-select-options">
-              <button
-                type="button"
-                className={`color-select-option${selectedPreset ? "" : " color-select-option-active"}`}
-                aria-label={`${label} ${emptyLabel} 선택`}
-                aria-pressed={!selectedPreset}
-                onClick={() => handleColorSelect("")}
-              >
-                <span className="color-select-option-copy">
-                  <span className="color-select-empty-swatch" aria-hidden="true" />
-                  <span>{emptyLabel}</span>
-                </span>
-                {!selectedPreset ? (
-                  <span className="choice-selection-mark" aria-hidden="true">
-                    ✓
-                  </span>
-                ) : null}
-              </button>
-              {colorPresets.map((preset) => (
-                <button
-                  key={preset.value}
-                  type="button"
-                  className={`color-select-option${
-                    selectedPreset?.value === preset.value ? " color-select-option-active" : ""
-                  }`}
-                  aria-label={`${label} ${preset.label} 선택`}
-                  aria-pressed={selectedPreset?.value === preset.value}
-                  onClick={() => handleColorSelect(preset.value)}
-                >
-                  <span className="color-select-option-copy">
-                    {renderColorSwatch(preset.value, "picker-color-swatch")}
-                    <span>{preset.label}</span>
-                  </span>
-                  {selectedPreset?.value === preset.value ? (
-                    <span className="choice-selection-mark" aria-hidden="true">
-                      ✓
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </fieldset>
-  );
-}
 
 function renderColorPicker(legend: string, selectedColor: string, onSelect: (value: string) => void) {
   return (
@@ -215,25 +85,6 @@ function renderCheckboxField({ label, className, inputProps }: CheckboxFieldProp
       <input {...inputProps} type="checkbox" className={inputClasses} />
     </label>
   );
-}
-
-function getFolderIconGlyph(icon: string | null | undefined) {
-  switch (icon) {
-    case "book-open":
-      return "▤";
-    case "newspaper":
-      return "▥";
-    case "file-text":
-      return "≣";
-    case "folder":
-      return "□";
-    case "link":
-      return "↗";
-    case "star":
-      return "★";
-    default:
-      return null;
-  }
 }
 
 function renderFolderLabel(
@@ -265,67 +116,6 @@ function renderFolderLabel(
         </span>
       ) : null}
     </span>
-  );
-}
-
-function FolderIconPicker({
-  selectedIcon,
-  onSelect
-}: {
-  selectedIcon: string;
-  onSelect: (value: string) => void;
-}) {
-  const selectedPreset = folderIconPresets.find((preset) => preset.value === selectedIcon) ?? null;
-
-  return (
-    <fieldset className="picker-fieldset">
-      <legend>폴더 아이콘</legend>
-      <div className="picker-grid">
-        <button
-          type="button"
-          className={`picker-chip${selectedIcon ? "" : " picker-chip-active"}`}
-          aria-label="폴더 아이콘 선택 안 함"
-          aria-pressed={!selectedIcon}
-          onClick={() => onSelect("")}
-        >
-          <span className="picker-chip-copy">
-            <span>선택 안 함</span>
-          </span>
-          {!selectedIcon ? (
-            <span className="choice-selection-mark" aria-hidden="true">
-              ✓
-            </span>
-          ) : null}
-        </button>
-        {folderIconPresets.map((preset) => (
-          <button
-            key={preset.value}
-            type="button"
-            className={`picker-chip${selectedIcon === preset.value ? " picker-chip-active" : ""}`}
-            aria-label={`폴더 아이콘 ${preset.label} 선택`}
-            aria-pressed={selectedIcon === preset.value}
-            onClick={() => onSelect(preset.value)}
-          >
-            <span className="picker-chip-copy">
-              {getFolderIconGlyph(preset.value) ? (
-                <span className="folder-icon-badge picker-chip-icon-badge" aria-hidden="true">
-                  {getFolderIconGlyph(preset.value)}
-                </span>
-              ) : null}
-              <span>{preset.label}</span>
-            </span>
-            {selectedIcon === preset.value ? (
-              <span className="choice-selection-mark" aria-hidden="true">
-                ✓
-              </span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-      <p className="picker-selection-summary" aria-live="polite">
-        {`선택됨: ${selectedPreset?.label ?? "없음"}`}
-      </p>
-    </fieldset>
   );
 }
 

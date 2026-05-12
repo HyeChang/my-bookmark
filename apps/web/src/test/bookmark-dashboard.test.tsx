@@ -2577,7 +2577,9 @@ describe("bookmark dashboard", () => {
 
     fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터 열기/i }));
 
-    const favoriteOnlyCheckbox = within(searchPanel).getByRole("checkbox", { name: /즐겨찾기만/i });
+    const favoriteOnlyCheckbox = await within(searchPanel).findByRole("checkbox", {
+      name: /즐겨찾기만/i
+    });
     expect(favoriteOnlyCheckbox).toHaveClass("checkbox-field-input");
     expect(favoriteOnlyCheckbox.closest("label")).toHaveClass("checkbox-field");
   });
@@ -3544,11 +3546,11 @@ describe("bookmark dashboard", () => {
     const anchorClickSpy = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
       .mockImplementation(() => undefined);
-    vi.stubGlobal("URL", {
-      ...URL,
+    const mockUrlConstructor = Object.assign(class extends URL {}, {
       createObjectURL: createObjectUrlSpy,
       revokeObjectURL: revokeObjectUrlSpy
     });
+    vi.stubGlobal("URL", mockUrlConstructor);
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
@@ -5366,7 +5368,7 @@ describe("bookmark dashboard", () => {
       }
     });
     fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터 열기/i }));
-    fireEvent.click(within(searchPanel).getByLabelText(/즐겨찾기만/i));
+    fireEvent.click(await within(searchPanel).findByLabelText(/즐겨찾기만/i));
     fireEvent.change(within(searchPanel).getByLabelText(/필터 폴더/i), {
       target: {
         value: "folder-1"
@@ -5580,7 +5582,7 @@ describe("bookmark dashboard", () => {
       }
     });
     fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터/i }));
-    fireEvent.click(within(searchPanel).getByLabelText(/즐겨찾기만/i));
+    fireEvent.click(await within(searchPanel).findByLabelText(/즐겨찾기만/i));
     fireEvent.click(within(searchPanel).getByRole("button", { name: /검색 실행/i }));
 
     await waitFor(() => {
@@ -5757,7 +5759,7 @@ describe("bookmark dashboard", () => {
     const searchPanel = screen.getByRole("region", { name: /search-panel/i });
 
     fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터/i }));
-    fireEvent.change(within(searchPanel).getByLabelText(/필터 폴더/i), {
+    fireEvent.change(await within(searchPanel).findByLabelText(/필터 폴더/i), {
       target: {
         value: "folder-1"
       }
@@ -8033,7 +8035,7 @@ describe("bookmark dashboard", () => {
 
     fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터 열기/i }));
 
-    expect(within(searchPanel).getByLabelText(/즐겨찾기만/i)).toBeInTheDocument();
+    expect(await within(searchPanel).findByLabelText(/즐겨찾기만/i)).toBeInTheDocument();
     expect(within(searchPanel).getByLabelText(/태그 조건/i)).toBeInTheDocument();
     expect(within(searchPanel).getByRole("button", { name: /고급 필터 접기/i })).toHaveAttribute(
       "aria-expanded",
@@ -9475,6 +9477,7 @@ describe("bookmark dashboard", () => {
       }
     });
     fireEvent.click(screen.getByRole("button", { name: /고급 필터/i }));
+    await screen.findByRole("button", { name: /^북마크 색상 필터$/i });
     chooseColorOption(document.body, "북마크 색상 필터", "주황");
     chooseColorOption(document.body, "url 색상 필터", "네이비");
     fireEvent.change(screen.getByLabelText(/요약 필터/i), {

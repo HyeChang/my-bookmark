@@ -1,15 +1,14 @@
 import {
-  useEffect,
-  useRef,
-  useState,
   type FormEvent,
   type InputHTMLAttributes,
   type ReactNode
 } from "react";
 import type { BookmarkExtractPreview, Folder, Tag } from "@bookmark/shared";
 
-import { colorPresets } from "../lib/folder-presets";
 import type { BookmarkExtensionPresenceStatus } from "../lib/extension-presence";
+import { ColorSelectField } from "./ColorSelectField";
+import { renderColorSwatch } from "./ColorSelectField";
+import { FolderIconPicker } from "./FolderIconPicker";
 import {
   getBookmarkPreviewArticleBlocks,
   getBookmarkPreviewFieldRows,
@@ -19,6 +18,7 @@ import {
   renderBookmarkPreviewArticle,
   sanitizeExtractedDisplayText
 } from "./bookmark-preview-utils";
+import "./ChoiceControls.css";
 import "./BookmarkComposerDialog.css";
 
 export type BookmarkComposerDraft = {
@@ -35,6 +35,18 @@ export type BookmarkComposerDraft = {
 };
 
 export type BookmarkComposerTagItem = Pick<Tag, "id" | "name" | "color">;
+
+export type BookmarkComposerQuickFolderDraft = {
+  name: string;
+  color: string;
+  icon: string;
+  parentFolderId: string;
+};
+
+export type BookmarkComposerQuickTagDraft = {
+  name: string;
+  color: string;
+};
 
 export type BookmarkComposerDialogProps = {
   isEditing: boolean;
@@ -55,8 +67,13 @@ export type BookmarkComposerDialogProps = {
   panelSummary: string;
   panelKicker: string;
   showPanelHeader: boolean;
-  quickFolderCreateSection: ReactNode;
-  quickTagCreateSection: ReactNode;
+  isQuickFolderOpen: boolean;
+  isQuickTagOpen: boolean;
+  isSavingQuickFolder: boolean;
+  isSavingQuickTag: boolean;
+  quickFolderDraft: BookmarkComposerQuickFolderDraft;
+  quickFolderParentOptions: Array<{ folder: Folder; label: string }>;
+  quickTagDraft: BookmarkComposerQuickTagDraft;
   pendingAssetSection: ReactNode;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
@@ -72,14 +89,13 @@ export type BookmarkComposerDialogProps = {
   onDisplayOpenChange: (isOpen: boolean) => void;
   onTagSearchQueryChange: (query: string) => void;
   onTagToggle: (tagId: string, checked: boolean) => void;
+  onQuickFolderToggle: () => void;
+  onQuickFolderDraftChange: (nextValues: Partial<BookmarkComposerQuickFolderDraft>) => void;
+  onQuickFolderCreate: () => void | Promise<void>;
+  onQuickTagToggle: () => void;
+  onQuickTagDraftChange: (nextValues: Partial<BookmarkComposerQuickTagDraft>) => void;
+  onQuickTagCreate: () => void | Promise<void>;
   onCancelEdit: () => void;
-};
-
-type ColorSelectFieldProps = {
-  label: string;
-  selectedColor: string;
-  onSelect: (value: string) => void;
-  emptyLabel: string;
 };
 
 type CheckboxFieldProps = {
@@ -87,129 +103,6 @@ type CheckboxFieldProps = {
   className?: string;
   inputProps: Omit<InputHTMLAttributes<HTMLInputElement>, "type">;
 };
-
-function getColorPreset(color: string | null | undefined) {
-  if (!color) {
-    return null;
-  }
-
-  const normalizedColor = color.toLowerCase();
-  return colorPresets.find((preset) => preset.value.toLowerCase() === normalizedColor) ?? null;
-}
-
-function renderColorSwatch(color: string, className = "color-swatch") {
-  return <span className={className} style={{ backgroundColor: color }} aria-hidden="true" />;
-}
-
-function ColorSelectField({ label, selectedColor, onSelect, emptyLabel }: ColorSelectFieldProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const fieldsetRef = useRef<HTMLFieldSetElement | null>(null);
-  const selectedPreset = getColorPreset(selectedColor);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return undefined;
-    }
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!fieldsetRef.current?.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    }
-
-    globalThis.document.addEventListener("mousedown", handlePointerDown);
-    globalThis.document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      globalThis.document.removeEventListener("mousedown", handlePointerDown);
-      globalThis.document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen]);
-
-  function handleColorSelect(nextColor: string) {
-    onSelect(nextColor);
-    setIsOpen(false);
-  }
-
-  return (
-    <fieldset ref={fieldsetRef} className="picker-fieldset color-select-fieldset">
-      <legend>{label}</legend>
-      <div className="color-select">
-        <button
-          type="button"
-          className={`color-select-trigger${isOpen ? " color-select-trigger-open" : ""}`}
-          aria-label={label}
-          aria-haspopup="dialog"
-          aria-expanded={isOpen}
-          onClick={() => setIsOpen((currentState) => !currentState)}
-        >
-          <span className="color-select-trigger-value">
-            {selectedPreset ? (
-              renderColorSwatch(selectedPreset.value, "picker-color-swatch")
-            ) : (
-              <span className="color-select-empty-swatch" aria-hidden="true" />
-            )}
-            <span>{selectedPreset?.label ?? emptyLabel}</span>
-          </span>
-          <span className="color-select-trigger-chevron" aria-hidden="true">
-            ▾
-          </span>
-        </button>
-        {isOpen ? (
-          <div role="dialog" aria-label={`${label} 선택`} className="color-select-popover">
-            <div className="color-select-options">
-              <button
-                type="button"
-                className={`color-select-option${selectedPreset ? "" : " color-select-option-active"}`}
-                aria-label={`${label} ${emptyLabel} 선택`}
-                aria-pressed={!selectedPreset}
-                onClick={() => handleColorSelect("")}
-              >
-                <span className="color-select-option-copy">
-                  <span className="color-select-empty-swatch" aria-hidden="true" />
-                  <span>{emptyLabel}</span>
-                </span>
-                {!selectedPreset ? (
-                  <span className="choice-selection-mark" aria-hidden="true">
-                    ✓
-                  </span>
-                ) : null}
-              </button>
-              {colorPresets.map((preset) => (
-                <button
-                  key={preset.value}
-                  type="button"
-                  className={`color-select-option${
-                    selectedPreset?.value === preset.value ? " color-select-option-active" : ""
-                  }`}
-                  aria-label={`${label} ${preset.label} 선택`}
-                  aria-pressed={selectedPreset?.value === preset.value}
-                  onClick={() => handleColorSelect(preset.value)}
-                >
-                  <span className="color-select-option-copy">
-                    {renderColorSwatch(preset.value, "picker-color-swatch")}
-                    <span>{preset.label}</span>
-                  </span>
-                  {selectedPreset?.value === preset.value ? (
-                    <span className="choice-selection-mark" aria-hidden="true">
-                      ✓
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </fieldset>
-  );
-}
 
 function renderColorPicker(legend: string, selectedColor: string, onSelect: (value: string) => void) {
   return (
@@ -219,6 +112,129 @@ function renderColorPicker(legend: string, selectedColor: string, onSelect: (val
       onSelect={onSelect}
       emptyLabel="선택 안 함"
     />
+  );
+}
+
+function QuickFolderCreateSection({
+  isOpen,
+  draft,
+  parentOptions,
+  isSaving,
+  onToggle,
+  onDraftChange,
+  onCreate
+}: {
+  isOpen: boolean;
+  draft: BookmarkComposerQuickFolderDraft;
+  parentOptions: Array<{ folder: Folder; label: string }>;
+  isSaving: boolean;
+  onToggle: () => void;
+  onDraftChange: (nextValues: Partial<BookmarkComposerQuickFolderDraft>) => void;
+  onCreate: () => void | Promise<void>;
+}) {
+  return (
+    <div className="inline-folder-create">
+      <button type="button" className="secondary-button" onClick={onToggle}>
+        {isOpen ? "새 폴더 바로 추가 닫기" : "새 폴더 바로 추가"}
+      </button>
+      {isOpen ? (
+        <section aria-label="quick-folder-create" className="inline-folder-create-panel">
+          <label>
+            폴더 이름
+            <input
+              name="quickFolderName"
+              value={draft.name}
+              onChange={(event) => onDraftChange({ name: event.target.value })}
+            />
+          </label>
+          {renderColorPicker("폴더 색상", draft.color, (value) =>
+            onDraftChange({ color: value })
+          )}
+          <FolderIconPicker
+            selectedIcon={draft.icon}
+            onSelect={(value) => onDraftChange({ icon: value })}
+          />
+          <label>
+            부모 폴더
+            <select
+              name="quickFolderParentFolderId"
+              value={draft.parentFolderId}
+              disabled={parentOptions.length === 0}
+              onChange={(event) => onDraftChange({ parentFolderId: event.target.value })}
+            >
+              <option value="">상위 없음</option>
+              {parentOptions.map(({ folder, label }) => (
+                <option key={folder.id} value={folder.id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {parentOptions.length === 0 ? (
+            <p className="field-note">폴더가 없어 최상위 폴더로 생성됩니다.</p>
+          ) : null}
+          <div className="action-row">
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => void onCreate()}
+              disabled={isSaving}
+            >
+              {isSaving ? "저장 중..." : "빠른 폴더 저장"}
+            </button>
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function QuickTagCreateSection({
+  isOpen,
+  draft,
+  isSaving,
+  onToggle,
+  onDraftChange,
+  onCreate
+}: {
+  isOpen: boolean;
+  draft: BookmarkComposerQuickTagDraft;
+  isSaving: boolean;
+  onToggle: () => void;
+  onDraftChange: (nextValues: Partial<BookmarkComposerQuickTagDraft>) => void;
+  onCreate: () => void | Promise<void>;
+}) {
+  return (
+    <div className="inline-folder-create">
+      <button type="button" className="secondary-button" onClick={onToggle}>
+        {isOpen ? "새 태그 바로 추가 닫기" : "새 태그 바로 추가"}
+      </button>
+      {isOpen ? (
+        <section aria-label="quick-tag-create" className="inline-folder-create-panel">
+          <label>
+            태그 이름
+            <input
+              name="quickTagName"
+              value={draft.name}
+              onChange={(event) => onDraftChange({ name: event.target.value })}
+            />
+          </label>
+          {renderColorPicker("태그 색상", draft.color, (value) =>
+            onDraftChange({ color: value })
+          )}
+          <div className="action-row">
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => void onCreate()}
+              disabled={isSaving}
+            >
+              {isSaving ? "저장 중..." : "빠른 태그 저장"}
+            </button>
+          </div>
+        </section>
+      ) : null}
+    </div>
   );
 }
 
@@ -282,8 +298,13 @@ export default function BookmarkComposerDialog({
   panelSummary,
   panelKicker,
   showPanelHeader,
-  quickFolderCreateSection,
-  quickTagCreateSection,
+  isQuickFolderOpen,
+  isQuickTagOpen,
+  isSavingQuickFolder,
+  isSavingQuickTag,
+  quickFolderDraft,
+  quickFolderParentOptions,
+  quickTagDraft,
   pendingAssetSection,
   onClose,
   onSubmit,
@@ -299,6 +320,12 @@ export default function BookmarkComposerDialog({
   onDisplayOpenChange,
   onTagSearchQueryChange,
   onTagToggle,
+  onQuickFolderToggle,
+  onQuickFolderDraftChange,
+  onQuickFolderCreate,
+  onQuickTagToggle,
+  onQuickTagDraftChange,
+  onQuickTagCreate,
   onCancelEdit
 }: BookmarkComposerDialogProps) {
   const previewBlocks = getBookmarkPreviewArticleBlocks(preview);
@@ -460,7 +487,15 @@ export default function BookmarkComposerDialog({
                       ))}
                     </select>
                   </label>
-                  {quickFolderCreateSection}
+                  <QuickFolderCreateSection
+                    isOpen={isQuickFolderOpen}
+                    draft={quickFolderDraft}
+                    parentOptions={quickFolderParentOptions}
+                    isSaving={isSavingQuickFolder}
+                    onToggle={onQuickFolderToggle}
+                    onDraftChange={onQuickFolderDraftChange}
+                    onCreate={onQuickFolderCreate}
+                  />
                   <label>
                     제목
                     <input
@@ -587,7 +622,14 @@ export default function BookmarkComposerDialog({
                           </div>
                         ) : null}
                       </fieldset>
-                      {quickTagCreateSection}
+                      <QuickTagCreateSection
+                        isOpen={isQuickTagOpen}
+                        draft={quickTagDraft}
+                        isSaving={isSavingQuickTag}
+                        onToggle={onQuickTagToggle}
+                        onDraftChange={onQuickTagDraftChange}
+                        onCreate={onQuickTagCreate}
+                      />
                       {renderCheckboxField({
                         label: "즐겨찾기",
                         inputProps: {

@@ -52,6 +52,10 @@ describe("CSS budget", () => {
     expect(dashboardCss).not.toContain(".tag-manager-dialog-shell");
     expect(dashboardCss).not.toContain(".tag-list-item");
     expect(dashboardCss).not.toContain(".tag-list-name");
+    expect(dashboardCss).not.toContain(".color-select-trigger");
+    expect(dashboardCss).not.toContain(".picker-chip");
+    expect(dashboardCss).not.toContain(".pill-option");
+    expect(dashboardCss).not.toContain(".chip-button-group");
 
     for (const fileName of lazyCssFiles) {
       const css = readFileSync(join(process.cwd(), "src", "components", fileName));

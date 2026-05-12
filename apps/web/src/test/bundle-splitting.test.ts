@@ -206,6 +206,72 @@ describe("bundle splitting", () => {
     expect(dashboardSource).toContain("void refreshDashboardData().finally");
   });
 
+  it("keeps picker-heavy composer/search UI out of the dashboard chunk", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const composerSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkComposerDialog.tsx"),
+      "utf8"
+    );
+    const resultsSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
+      "utf8"
+    );
+
+    expect(dashboardSource).not.toContain("function ColorSelectField");
+    expect(dashboardSource).not.toContain("folderIconPresets");
+    expect(dashboardSource).not.toContain("function renderSearchColorSelect");
+    expect(dashboardSource).not.toContain("const quickFolderCreateSection = (");
+    expect(dashboardSource).not.toContain("quickFolderCreateSection=");
+    expect(composerSource).toContain('import { ColorSelectField } from "./ColorSelectField";');
+    expect(composerSource).toContain('import { FolderIconPicker } from "./FolderIconPicker";');
+    expect(composerSource).toContain("function QuickFolderCreateSection");
+    expect(composerSource).toContain("function QuickTagCreateSection");
+    expect(resultsSource).toContain('import("./BookmarkAdvancedSearchFields")');
+    expect(resultsSource).not.toContain("renderSearchColorSelect:");
+  });
+
+  it("loads bookmark export generation only when export is requested", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const exportSource = readFileSync(
+      join(process.cwd(), "src", "lib", "bookmark-export.ts"),
+      "utf8"
+    );
+
+    expect(dashboardSource).toContain('import("../lib/bookmark-export")');
+    expect(dashboardSource).not.toContain("new Blob([JSON.stringify");
+    expect(dashboardSource).not.toContain("globalThis.URL.createObjectURL");
+    expect(exportSource).toContain("export function downloadBookmarkExport");
+    expect(exportSource).toContain("new Blob([JSON.stringify");
+  });
+
+  it("loads advanced bookmark search fields only when advanced filters open", () => {
+    const bookmarkResultsSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
+      "utf8"
+    );
+    const advancedSearchSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkAdvancedSearchFields.tsx"),
+      "utf8"
+    );
+
+    expect(bookmarkResultsSource).toContain(
+      'const LazyBookmarkAdvancedSearchFields = lazy(() => import("./BookmarkAdvancedSearchFields"));'
+    );
+    expect(bookmarkResultsSource).toContain("<LazyBookmarkAdvancedSearchFields");
+    expect(bookmarkResultsSource).not.toContain("<ColorSelectField");
+    expect(bookmarkResultsSource).not.toContain('name="bookmarkSearchCreatedWithin"');
+    expect(bookmarkResultsSource).not.toContain("tags.map((tag)");
+    expect(advancedSearchSource).toContain('import { ColorSelectField } from "./ColorSelectField";');
+    expect(advancedSearchSource).toContain('name="bookmarkSearchCreatedWithin"');
+    expect(advancedSearchSource).toContain("tags.map((tag)");
+  });
+
   it("keeps bookmark sort and view controls inside the lazy results panel", () => {
     const dashboardSource = readFileSync(
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),

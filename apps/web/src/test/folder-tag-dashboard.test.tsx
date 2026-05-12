@@ -1337,6 +1337,7 @@ describe("folder and tag dashboard", () => {
 
     const searchPanel = screen.getByRole("region", { name: /search-panel/i });
     fireEvent.click(within(searchPanel).getByRole("button", { name: /고급 필터/i }));
+    await within(searchPanel).findByLabelText(/필터 폴더/i);
     const searchFolderOptions = within(searchPanel)
       .getAllByRole("option")
       .filter((option) => option.textContent === "전체 폴더" || option.textContent === "Reading" || option.textContent === "-- Papers");

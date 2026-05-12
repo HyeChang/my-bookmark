@@ -1,5 +1,13 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import {
+  browserPopupRedirectResolver,
+  GoogleAuthProvider,
+  initializeAuth,
+  inMemoryPersistence,
+  signInWithPopup,
+  signOut,
+  type Auth
+} from "firebase/auth";
 
 type FirebaseConfig = {
   apiKey: string;
@@ -8,6 +16,8 @@ type FirebaseConfig = {
   appId: string;
   messagingSenderId: string;
 };
+
+let firebaseAuth: Auth | null = null;
 
 function readRequiredEnv(name: keyof ImportMetaEnv) {
   const value = import.meta.env[name];
@@ -36,8 +46,17 @@ export function getFirebaseApp() {
   return initializeApp(getFirebaseConfig());
 }
 
+function getFirebaseAuth() {
+  firebaseAuth ??= initializeAuth(getFirebaseApp(), {
+    persistence: inMemoryPersistence,
+    popupRedirectResolver: browserPopupRedirectResolver
+  });
+
+  return firebaseAuth;
+}
+
 export async function signInWithGoogle() {
-  const auth = getAuth(getFirebaseApp());
+  const auth = getFirebaseAuth();
   const provider = new GoogleAuthProvider();
   const credential = await signInWithPopup(auth, provider);
 
@@ -45,6 +64,6 @@ export async function signInWithGoogle() {
 }
 
 export async function signOutFromGoogle() {
-  const auth = getAuth(getFirebaseApp());
+  const auth = getFirebaseAuth();
   await signOut(auth);
 }

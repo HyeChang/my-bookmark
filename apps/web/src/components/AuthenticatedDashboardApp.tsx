@@ -31,10 +31,11 @@ import type {
 
 import { getBookmarkAssetPreloadBatches } from "../lib/bookmark-asset-preload";
 import type { BookmarkPage } from "../lib/bookmarks";
-import { colorPresets, folderIconPresets } from "../lib/folder-presets";
+import { colorPresets } from "../lib/folder-presets";
 import type { BookmarkExtensionPresenceStatus } from "../lib/extension-presence";
 import { extractImageFilesFromDataTransfer } from "../lib/clipboard-images";
 import { loadFirebaseAuth, preloadFirebaseAuth } from "../lib/firebase-auth-loader";
+import { measureAsyncPerformance } from "../lib/performance-marks";
 import {
   getBookmarkPreviewStoredSourceFields,
   getBookmarkPreviewWorkerFallbackMessage,
@@ -151,14 +152,6 @@ type BookmarkSearchSummaryItem = {
   groupLabel: string;
   valueLabel: string;
   nextSearch: BookmarkSearchDraft;
-};
-
-type ColorSelectFieldProps = {
-  label: string;
-  selectedColor: string;
-  onSelect: (value: string) => void;
-  emptyLabel: string;
-  compact?: boolean;
 };
 
 type BookmarkCardDisplaySettings = {
@@ -562,165 +555,6 @@ function getColorPresetLabel(color: string | null | undefined) {
 
   const normalizedColor = color.toLowerCase();
   return colorPresets.find((preset) => preset.value.toLowerCase() === normalizedColor)?.label ?? color;
-}
-
-function getFolderIconGlyph(icon: string | null | undefined) {
-  switch (icon) {
-    case "book-open":
-      return "▤";
-    case "newspaper":
-      return "▥";
-    case "file-text":
-      return "≣";
-    case "folder":
-      return "□";
-    case "link":
-      return "↗";
-    case "star":
-      return "★";
-    default:
-      return null;
-  }
-}
-
-function getColorPreset(color: string | null | undefined) {
-  if (!color) {
-    return null;
-  }
-
-  const normalizedColor = color.toLowerCase();
-  return colorPresets.find((preset) => preset.value.toLowerCase() === normalizedColor) ?? null;
-}
-
-function renderColorSwatch(color: string, className = "color-swatch") {
-  return (
-    <span
-      className={className}
-      style={{ backgroundColor: color }}
-      aria-hidden="true"
-    />
-  );
-}
-
-function ColorSelectField({
-  label,
-  selectedColor,
-  onSelect,
-  emptyLabel,
-  compact = false
-}: ColorSelectFieldProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const fieldsetRef = useRef<HTMLFieldSetElement | null>(null);
-  const selectedPreset = getColorPreset(selectedColor);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return undefined;
-    }
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!fieldsetRef.current?.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    }
-
-    globalThis.document.addEventListener("mousedown", handlePointerDown);
-    globalThis.document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      globalThis.document.removeEventListener("mousedown", handlePointerDown);
-      globalThis.document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen]);
-
-  function handleColorSelect(nextColor: string) {
-    onSelect(nextColor);
-    setIsOpen(false);
-  }
-
-  return (
-    <fieldset
-      ref={fieldsetRef}
-      className={`picker-fieldset color-select-fieldset${
-        compact ? " color-select-fieldset-compact" : ""
-      }`}
-    >
-      <legend>{label}</legend>
-      <div className={`color-select${compact ? " color-select-compact" : ""}`}>
-        <button
-          type="button"
-          className={`color-select-trigger${isOpen ? " color-select-trigger-open" : ""}`}
-          aria-label={label}
-          aria-haspopup="dialog"
-          aria-expanded={isOpen}
-          onClick={() => setIsOpen((currentState) => !currentState)}
-        >
-          <span className="color-select-trigger-value">
-            {selectedPreset ? (
-              renderColorSwatch(selectedPreset.value, "picker-color-swatch")
-            ) : (
-              <span className="color-select-empty-swatch" aria-hidden="true" />
-            )}
-            <span>{selectedPreset?.label ?? emptyLabel}</span>
-          </span>
-          <span className="color-select-trigger-chevron" aria-hidden="true">
-            ▾
-          </span>
-        </button>
-        {isOpen ? (
-          <div role="dialog" aria-label={`${label} 선택`} className="color-select-popover">
-            <div className="color-select-options">
-              <button
-                type="button"
-                className={`color-select-option${selectedPreset ? "" : " color-select-option-active"}`}
-                aria-label={`${label} ${emptyLabel} 선택`}
-                aria-pressed={!selectedPreset}
-                onClick={() => handleColorSelect("")}
-              >
-                <span className="color-select-option-copy">
-                  <span className="color-select-empty-swatch" aria-hidden="true" />
-                  <span>{emptyLabel}</span>
-                </span>
-                {!selectedPreset ? (
-                  <span className="choice-selection-mark" aria-hidden="true">
-                    ✓
-                  </span>
-                ) : null}
-              </button>
-              {colorPresets.map((preset) => (
-                <button
-                  key={preset.value}
-                  type="button"
-                  className={`color-select-option${
-                    selectedPreset?.value === preset.value ? " color-select-option-active" : ""
-                  }`}
-                  aria-label={`${label} ${preset.label} 선택`}
-                  aria-pressed={selectedPreset?.value === preset.value}
-                  onClick={() => handleColorSelect(preset.value)}
-                >
-                  <span className="color-select-option-copy">
-                    {renderColorSwatch(preset.value, "picker-color-swatch")}
-                    <span>{preset.label}</span>
-                  </span>
-                  {selectedPreset?.value === preset.value ? (
-                    <span className="choice-selection-mark" aria-hidden="true">
-                      ✓
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </fieldset>
-  );
 }
 
 function getBookmarkSortLabel(sort: BookmarkSortMode) {
@@ -1393,37 +1227,6 @@ function moveFolderToSiblingPosition(
   return nextFolders;
 }
 
-function renderColorPicker(
-  legend: string,
-  selectedColor: string,
-  onSelect: (value: string) => void
-) {
-  return (
-    <ColorSelectField
-      label={legend}
-      selectedColor={selectedColor}
-      onSelect={onSelect}
-      emptyLabel="선택 안 함"
-    />
-  );
-}
-
-function renderSearchColorSelect(
-  label: string,
-  selectedColor: string,
-  onSelect: (value: string) => void
-) {
-  return (
-    <ColorSelectField
-      label={label}
-      selectedColor={selectedColor}
-      onSelect={onSelect}
-      emptyLabel="전체 색상"
-      compact
-    />
-  );
-}
-
 async function signInWithGoogle() {
   const firebaseAuth = await loadFirebaseAuth();
   return firebaseAuth.signInWithGoogle();
@@ -1495,7 +1298,9 @@ function preloadDashboardPanelChunk(chunk: DashboardPanelChunk) {
   }
 
   preloadedDashboardPanelChunks.add(chunk);
-  void dashboardPanelChunkLoaders[chunk]().catch(() => {
+  void measureAsyncPerformance(`dashboard:panel-preload:${chunk}`, () =>
+    dashboardPanelChunkLoaders[chunk]()
+  ).catch(() => {
     preloadedDashboardPanelChunks.delete(chunk);
   });
 }
@@ -1840,71 +1645,6 @@ function loadTags(...args: Parameters<TagsModule["loadTags"]>) {
 
 function updateTag(...args: Parameters<TagsModule["updateTag"]>) {
   return callDeferredModule(tagsModule, (module) => module.updateTag, args);
-}
-
-function renderFolderColorPicker(selectedColor: string, onSelect: (value: string) => void) {
-  return renderColorPicker("폴더 색상", selectedColor, onSelect);
-}
-
-function renderFolderIconPicker(
-  selectedIcon: string,
-  onSelect: (value: string) => void
-) {
-  const selectedPreset = folderIconPresets.find((preset) => preset.value === selectedIcon) ?? null;
-
-  return (
-    <fieldset className="picker-fieldset">
-      <legend>폴더 아이콘</legend>
-      <div className="picker-grid">
-        <button
-          type="button"
-          className={`picker-chip${selectedIcon ? "" : " picker-chip-active"}`}
-          aria-label="폴더 아이콘 선택 안 함"
-          aria-pressed={!selectedIcon}
-          onClick={() => onSelect("")}
-        >
-          <span className="picker-chip-copy">
-            <span>선택 안 함</span>
-          </span>
-          {!selectedIcon ? (
-            <span className="choice-selection-mark" aria-hidden="true">
-              ✓
-            </span>
-          ) : null}
-        </button>
-        {folderIconPresets.map((preset) => (
-          <button
-            key={preset.value}
-            type="button"
-            className={`picker-chip${selectedIcon === preset.value ? " picker-chip-active" : ""}`}
-            aria-label={`폴더 아이콘 ${preset.label} 선택`}
-            aria-pressed={selectedIcon === preset.value}
-            onClick={() => onSelect(preset.value)}
-          >
-            <span className="picker-chip-copy">
-              {(() => {
-                const folderIconGlyph = getFolderIconGlyph(preset.value);
-                return folderIconGlyph ? (
-                  <span className="folder-icon-badge picker-chip-icon-badge" aria-hidden="true">
-                    {folderIconGlyph}
-                  </span>
-                ) : null;
-              })()}
-              <span>{preset.label}</span>
-            </span>
-            {selectedIcon === preset.value ? (
-              <span className="choice-selection-mark" aria-hidden="true">
-                ✓
-              </span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-      <p className="picker-selection-summary" aria-live="polite">
-        {`선택됨: ${selectedPreset?.label ?? "없음"}`}
-      </p>
-    </fieldset>
-  );
 }
 
 export default function AuthenticatedDashboardApp({
@@ -2497,86 +2237,88 @@ export default function AuthenticatedDashboardApp({
   }
 
   async function refreshDashboardData(search = appliedBookmarkSearch) {
-    setIsLoadingDashboard(true);
-    const normalizedSearch = normalizeBookmarkSearchDraft(search);
-    const shouldLoadTagsWithDashboard =
-      activeDashboardView !== "home" || hasActiveBookmarkSearch(normalizedSearch);
+    return measureAsyncPerformance("dashboard:data-refresh", async () => {
+      setIsLoadingDashboard(true);
+      const normalizedSearch = normalizeBookmarkSearchDraft(search);
+      const shouldLoadTagsWithDashboard =
+        activeDashboardView !== "home" || hasActiveBookmarkSearch(normalizedSearch);
 
-    try {
-      const [
-        {
-          visibleBookmarks: nextBookmarks,
-          inventoryBookmarks: nextBookmarkInventory,
-          bookmarkCounts: nextBookmarkCounts,
-          homeFavoriteBookmarks: nextHomeFavoriteBookmarks,
-          hasFullInventory,
-          usesFullInventoryFallback
-        },
-        nextFolders,
-        nextTags
-      ] = await Promise.all([
-        loadDashboardBookmarkData(search),
-        loadFolders(),
-        shouldLoadTagsWithDashboard ? fetchTagsOnce() : Promise.resolve(null)
-      ]);
+      try {
+        const [
+          {
+            visibleBookmarks: nextBookmarks,
+            inventoryBookmarks: nextBookmarkInventory,
+            bookmarkCounts: nextBookmarkCounts,
+            homeFavoriteBookmarks: nextHomeFavoriteBookmarks,
+            hasFullInventory,
+            usesFullInventoryFallback
+          },
+          nextFolders,
+          nextTags
+        ] = await Promise.all([
+          loadDashboardBookmarkData(search),
+          loadFolders(),
+          shouldLoadTagsWithDashboard ? fetchTagsOnce() : Promise.resolve(null)
+        ]);
 
-      startTransition(() => {
-        setBookmarks(nextBookmarks);
-        setBookmarkInventory(nextBookmarkInventory);
-        setHasLoadedFullBookmarkInventory(hasFullInventory);
-        setBookmarkCounts(nextBookmarkCounts);
-        setHomeFavoriteBookmarks(nextHomeFavoriteBookmarks);
-        if (usesFullInventoryFallback) {
-          setActiveDashboardView("bookmarks");
-        }
-        setSelectedBookmark((currentSelectedBookmark) => {
-          if (!currentSelectedBookmark) {
-            return null;
+        startTransition(() => {
+          setBookmarks(nextBookmarks);
+          setBookmarkInventory(nextBookmarkInventory);
+          setHasLoadedFullBookmarkInventory(hasFullInventory);
+          setBookmarkCounts(nextBookmarkCounts);
+          setHomeFavoriteBookmarks(nextHomeFavoriteBookmarks);
+          if (usesFullInventoryFallback) {
+            setActiveDashboardView("bookmarks");
           }
+          setSelectedBookmark((currentSelectedBookmark) => {
+            if (!currentSelectedBookmark) {
+              return null;
+            }
 
-          return (
-            nextBookmarks.find((bookmark) => bookmark.id === currentSelectedBookmark.id) ??
-            currentSelectedBookmark
-          );
+            return (
+              nextBookmarks.find((bookmark) => bookmark.id === currentSelectedBookmark.id) ??
+              currentSelectedBookmark
+            );
+          });
+          setFolders(nextFolders);
+          if (nextTags) {
+            setTags(nextTags);
+            setHasLoadedTags(true);
+          }
         });
-        setFolders(nextFolders);
-        if (nextTags) {
-          setTags(nextTags);
-          setHasLoadedTags(true);
+
+        if (usesFullInventoryFallback && !shouldLoadTagsWithDashboard) {
+          requestTagsIfNeeded();
         }
-      });
 
-      if (usesFullInventoryFallback && !shouldLoadTagsWithDashboard) {
-        requestTagsIfNeeded();
+        queueBookmarkAssetPreload(
+          activeDashboardView === "home"
+            ? (nextHomeFavoriteBookmarks ?? nextBookmarkInventory)
+            : nextBookmarks.slice(0, bookmarkListPageSize),
+          bookmarkAssetsByBookmarkId
+        );
+      } catch {
+        startTransition(() => {
+          setBookmarks([]);
+          setBookmarkInventory([]);
+          setHasLoadedFullBookmarkInventory(false);
+          setBookmarkCounts(null);
+          setHomeFavoriteBookmarks(null);
+          setTrashedBookmarks([]);
+          setBookmarkAssetsByBookmarkId({});
+          setSelectedBookmark(null);
+          setFolders([]);
+          setTags([]);
+          setHasLoadedTags(false);
+          setRecommendations(emptyBookmarkRecommendations);
+          setHasLoadedRecommendations(false);
+          setExtensionTokens([]);
+          setErrorMessage("대시보드 데이터를 불러오지 못했습니다.");
+        });
+      } finally {
+        setIsLoadingDashboard(false);
       }
-
-      queueBookmarkAssetPreload(
-        activeDashboardView === "home"
-          ? (nextHomeFavoriteBookmarks ?? nextBookmarkInventory)
-          : nextBookmarks.slice(0, bookmarkListPageSize),
-        bookmarkAssetsByBookmarkId
-      );
-    } catch {
-      startTransition(() => {
-        setBookmarks([]);
-        setBookmarkInventory([]);
-        setHasLoadedFullBookmarkInventory(false);
-        setBookmarkCounts(null);
-        setHomeFavoriteBookmarks(null);
-        setTrashedBookmarks([]);
-        setBookmarkAssetsByBookmarkId({});
-        setSelectedBookmark(null);
-        setFolders([]);
-        setTags([]);
-        setHasLoadedTags(false);
-        setRecommendations(emptyBookmarkRecommendations);
-        setHasLoadedRecommendations(false);
-        setExtensionTokens([]);
-        setErrorMessage("대시보드 데이터를 불러오지 못했습니다.");
-      });
-    } finally {
-      setIsLoadingDashboard(false);
-    }
+    });
   }
 
   async function refreshRecommendations() {
@@ -4548,17 +4290,8 @@ export default function AuthenticatedDashboardApp({
         tags: exportTags,
         bookmarkAssetsByBookmarkId: exportBookmarkAssetsByBookmarkId
       };
-      const exportBlob = new Blob([JSON.stringify(exportPayload, null, 2)], {
-        type: "application/json"
-      });
-      const exportUrl = globalThis.URL.createObjectURL(exportBlob);
-      const link = globalThis.document.createElement("a");
-      link.href = exportUrl;
-      link.download = `bookmark-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      globalThis.document.body.append(link);
-      link.click();
-      link.remove();
-      globalThis.URL.revokeObjectURL(exportUrl);
+      const { downloadBookmarkExport } = await import("../lib/bookmark-export");
+      downloadBookmarkExport(exportPayload);
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
@@ -6853,115 +6586,6 @@ export default function AuthenticatedDashboardApp({
   const recommendationPanelKicker = "추천";
   const folderPanelKicker = "구조";
   const tagPanelKicker = "분류";
-  const quickFolderCreateSection = (
-    <div className="inline-folder-create">
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={() =>
-          setIsQuickFolderOpen((currentValue) => {
-            const nextValue = !currentValue;
-
-            if (nextValue) {
-              setQuickFolderDraft((currentDraft) => ({
-                ...currentDraft,
-                parentFolderId: currentDraft.parentFolderId || bookmarkDraft.folderId
-              }));
-            }
-
-            return nextValue;
-          })
-        }
-      >
-        {isQuickFolderOpen ? "새 폴더 바로 추가 닫기" : "새 폴더 바로 추가"}
-      </button>
-      {isQuickFolderOpen ? (
-        <section aria-label="quick-folder-create" className="inline-folder-create-panel">
-          <label>
-            폴더 이름
-            <input
-              name="quickFolderName"
-              value={quickFolderDraft.name}
-              onChange={(event) => updateQuickFolderDraft({ name: event.target.value })}
-            />
-          </label>
-          {renderFolderColorPicker(quickFolderDraft.color, (value) =>
-            updateQuickFolderDraft({ color: value })
-          )}
-          {renderFolderIconPicker(quickFolderDraft.icon, (value) =>
-            updateQuickFolderDraft({ icon: value })
-          )}
-          <label>
-            부모 폴더
-            <select
-              name="quickFolderParentFolderId"
-              value={quickFolderDraft.parentFolderId}
-              disabled={quickFolderParentOptions.length === 0}
-              onChange={(event) =>
-                updateQuickFolderDraft({ parentFolderId: event.target.value })
-              }
-            >
-              <option value="">상위 없음</option>
-              {quickFolderParentOptions.map(({ folder, label }) => (
-                <option key={folder.id} value={folder.id}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {quickFolderParentOptions.length === 0 ? (
-            <p className="field-note">폴더가 없어 최상위 폴더로 생성됩니다.</p>
-          ) : null}
-          <div className="action-row">
-            <button
-              type="button"
-              className="primary-button"
-              onClick={() => void handleQuickFolderCreate()}
-              disabled={isSavingQuickFolder}
-            >
-              {isSavingQuickFolder ? "저장 중..." : "빠른 폴더 저장"}
-            </button>
-          </div>
-        </section>
-      ) : null}
-    </div>
-  );
-  const quickTagCreateSection = (
-    <div className="inline-folder-create">
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={() => setIsQuickTagOpen((currentValue) => !currentValue)}
-      >
-        {isQuickTagOpen ? "새 태그 바로 추가 닫기" : "새 태그 바로 추가"}
-      </button>
-      {isQuickTagOpen ? (
-        <section aria-label="quick-tag-create" className="inline-folder-create-panel">
-          <label>
-            태그 이름
-            <input
-              name="quickTagName"
-              value={quickTagDraft.name}
-              onChange={(event) => updateQuickTagDraft({ name: event.target.value })}
-            />
-          </label>
-          {renderColorPicker("태그 색상", quickTagDraft.color, (value) =>
-            updateQuickTagDraft({ color: value })
-          )}
-          <div className="action-row">
-            <button
-              type="button"
-              className="primary-button"
-              onClick={() => void handleQuickTagCreate()}
-              disabled={isSavingTag}
-            >
-              {isSavingTag ? "저장 중..." : "빠른 태그 저장"}
-            </button>
-          </div>
-        </section>
-      ) : null}
-    </div>
-  );
 
   function handleMobileSidebarPanelSelect(panelId: MobileSidebarPanelId) {
     openBookmarkWorkspace();
@@ -7094,7 +6718,6 @@ export default function AuthenticatedDashboardApp({
           handleBookmarkSearchReset={handleBookmarkSearchReset}
           handleBookmarkSearchSubmit={handleBookmarkSearchSubmit}
           handleToggleHiddenBookmarks={handleToggleHiddenBookmarks}
-          renderSearchColorSelect={renderSearchColorSelect}
           onBookmarkCoverSizeChange={updateBookmarkCoverSize}
           onBookmarkDisplaySettingChange={updateBookmarkDisplaySetting}
           onBookmarkSortMenuOpenChange={setIsBookmarkSortMenuOpen}
@@ -7537,8 +7160,13 @@ export default function AuthenticatedDashboardApp({
                 panelSummary={bookmarkPanelSummary}
                 panelKicker={bookmarkPanelKicker}
                 showPanelHeader={!shouldUseMobileSidebarPanels}
-                quickFolderCreateSection={quickFolderCreateSection}
-                quickTagCreateSection={quickTagCreateSection}
+                isQuickFolderOpen={isQuickFolderOpen}
+                isQuickTagOpen={isQuickTagOpen}
+                isSavingQuickFolder={isSavingQuickFolder}
+                isSavingQuickTag={isSavingTag}
+                quickFolderDraft={quickFolderDraft}
+                quickFolderParentOptions={quickFolderParentOptions}
+                quickTagDraft={quickTagDraft}
                 pendingAssetSection={renderPendingAssetComposerSection(editingBookmarkId)}
                 onClose={requestCloseBookmarkComposer}
                 onSubmit={handleBookmarkSubmit}
@@ -7554,6 +7182,25 @@ export default function AuthenticatedDashboardApp({
                 onDisplayOpenChange={setIsBookmarkComposerDisplayOpen}
                 onTagSearchQueryChange={setBookmarkTagSearchQuery}
                 onTagToggle={toggleBookmarkTag}
+                onQuickFolderToggle={() =>
+                  setIsQuickFolderOpen((currentValue) => {
+                    const nextValue = !currentValue;
+
+                    if (nextValue) {
+                      setQuickFolderDraft((currentDraft) => ({
+                        ...currentDraft,
+                        parentFolderId: currentDraft.parentFolderId || bookmarkDraft.folderId
+                      }));
+                    }
+
+                    return nextValue;
+                  })
+                }
+                onQuickFolderDraftChange={updateQuickFolderDraft}
+                onQuickFolderCreate={handleQuickFolderCreate}
+                onQuickTagToggle={() => setIsQuickTagOpen((currentValue) => !currentValue)}
+                onQuickTagDraftChange={updateQuickTagDraft}
+                onQuickTagCreate={handleQuickTagCreate}
                 onCancelEdit={cancelBookmarkEdit}
               />
             </Suspense>

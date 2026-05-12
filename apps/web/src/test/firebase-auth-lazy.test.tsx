@@ -35,6 +35,15 @@ afterEach(async () => {
 });
 
 describe("firebase auth lazy loading", () => {
+  it("initializes Firebase auth with only the popup dependencies this app uses", () => {
+    const firebaseSource = readFileSync("src/lib/firebase.ts", "utf8");
+
+    expect(firebaseSource).toContain("initializeAuth");
+    expect(firebaseSource).toContain("inMemoryPersistence");
+    expect(firebaseSource).toContain("browserPopupRedirectResolver");
+    expect(firebaseSource).not.toContain("getAuth(");
+  });
+
   it("loads Firebase auth only when Google login starts", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
