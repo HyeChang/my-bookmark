@@ -152,7 +152,10 @@ describe("bundle splitting", () => {
       /const bookmarkListRows = useMemo(?:<BookmarkListRowViewModel\[\]>)?\(/
     );
     expect(dashboardSource).toContain("renderedPagedBookmarks.map((bookmark) => {");
-    expect(bookmarkResultsSource).toContain("{bookmarkListRows.map((bookmarkRow) => {");
+    expect(bookmarkResultsSource).toContain("{bookmarkListRows.map((bookmarkRow, index) => {");
+    expect(bookmarkResultsSource).toContain(
+      "const imageLoadingPriority = getBookmarkRowImageLoadingPriority(index);"
+    );
     expect(dashboardSource).not.toContain("{renderedPagedBookmarks.map((bookmark) => {");
   });
 
@@ -475,5 +478,22 @@ describe("bundle splitting", () => {
     expect(folderOverviewSource).toContain(
       "onFocus={() => onPreloadPanel?.(item.panelId)}"
     );
+  });
+
+  it("keeps dashboard header rendering outside the dashboard state owner", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const dashboardHeaderSource = readFileSync(
+      join(process.cwd(), "src", "components", "DashboardHeader.tsx"),
+      "utf8"
+    );
+
+    expect(dashboardSource).toContain('import { DashboardHeader } from "./DashboardHeader";');
+    expect(dashboardSource).toContain("<DashboardHeader");
+    expect(dashboardSource).not.toContain('<header className="app-hero">');
+    expect(dashboardHeaderSource).toContain('<header className="app-hero">');
+    expect(dashboardHeaderSource).toContain('aria-label="quick-actions-toolbar"');
   });
 });

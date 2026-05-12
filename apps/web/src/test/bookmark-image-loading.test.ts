@@ -6,7 +6,6 @@ const imageComponentFiles = [
   "AuthenticatedDashboardApp.tsx",
   "BookmarkComposerDialog.tsx",
   "BookmarkDetailPanel.tsx",
-  "BookmarkResultsPanel.tsx",
   "HomePanel.tsx",
   "bookmark-preview-utils.tsx"
 ];
@@ -29,6 +28,20 @@ describe("bookmark image loading", () => {
         );
       }
     }
+  });
+
+  it("prioritizes only above-the-fold bookmark result thumbnails", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
+      "utf8"
+    );
+
+    expect(source).toContain("ABOVE_FOLD_BOOKMARK_IMAGE_COUNT = 4");
+    expect(source).toContain('loading: "eager"');
+    expect(source).toContain('fetchPriority: "high"');
+    expect(source).toContain('loading: "lazy"');
+    expect(source).toContain('fetchPriority: "low"');
+    expect(source).toContain("getBookmarkRowImageLoadingPriority(index)");
   });
 
   it("uses a stable placeholder background for bookmark asset thumbnails", () => {

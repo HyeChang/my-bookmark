@@ -107,8 +107,30 @@ type BookmarkListRowProps = {
   shouldUseCompactMobileCards: boolean;
   isSelected: boolean;
   isActionMenuOpen: boolean;
+  imageLoadingPriority: BookmarkRowImageLoadingPriority;
   actions: BookmarkListRowActions;
 };
+
+type BookmarkRowImageLoadingPriority = {
+  loading: "eager" | "lazy";
+  fetchPriority: "high" | "low";
+};
+
+const ABOVE_FOLD_BOOKMARK_IMAGE_COUNT = 4;
+const EAGER_BOOKMARK_IMAGE_LOADING_PRIORITY: BookmarkRowImageLoadingPriority = {
+  loading: "eager",
+  fetchPriority: "high"
+};
+const LAZY_BOOKMARK_IMAGE_LOADING_PRIORITY: BookmarkRowImageLoadingPriority = {
+  loading: "lazy",
+  fetchPriority: "low"
+};
+
+function getBookmarkRowImageLoadingPriority(index: number): BookmarkRowImageLoadingPriority {
+  return index < ABOVE_FOLD_BOOKMARK_IMAGE_COUNT
+    ? EAGER_BOOKMARK_IMAGE_LOADING_PRIORITY
+    : LAZY_BOOKMARK_IMAGE_LOADING_PRIORITY;
+}
 
 type FolderOption = {
   folder: Folder;
@@ -460,6 +482,7 @@ function BookmarkListRow({
   shouldUseCompactMobileCards,
   isSelected,
   isActionMenuOpen,
+  imageLoadingPriority,
   actions
 }: BookmarkListRowProps) {
   const {
@@ -500,9 +523,9 @@ function BookmarkListRow({
           <img
             src={coverAsset.contentUrl}
             alt="업로드 이미지 1"
-            loading="lazy"
+            loading={imageLoadingPriority.loading}
             decoding="async"
-            fetchPriority="low"
+            fetchPriority={imageLoadingPriority.fetchPriority}
           />
         </div>
       ) : null}
@@ -521,9 +544,9 @@ function BookmarkListRow({
             <img
               src={coverAsset.contentUrl}
               alt="업로드 이미지 1"
-              loading="lazy"
+              loading={imageLoadingPriority.loading}
               decoding="async"
-              fetchPriority="low"
+              fetchPriority={imageLoadingPriority.fetchPriority}
             />
           </div>
         ) : null}
@@ -1113,8 +1136,9 @@ export default function BookmarkResultsPanel({
               style={{ height: `${bookmarkVirtualTopSpacerHeight}px` }}
             />
           ) : null}
-          {bookmarkListRows.map((bookmarkRow) => {
+          {bookmarkListRows.map((bookmarkRow, index) => {
             const bookmarkId = bookmarkRow.bookmark.id;
+            const imageLoadingPriority = getBookmarkRowImageLoadingPriority(index);
 
             return (
               <MemoizedBookmarkListRow
@@ -1128,6 +1152,7 @@ export default function BookmarkResultsPanel({
                   selectedBookmarkId === bookmarkId
                 }
                 isActionMenuOpen={openBookmarkActionMenuId === bookmarkId}
+                imageLoadingPriority={imageLoadingPriority}
                 actions={actions}
               />
             );

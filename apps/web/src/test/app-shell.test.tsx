@@ -53,6 +53,10 @@ describe("app shell", () => {
     expect(
       await screen.findByRole("button", { name: /google로 로그인/i })
     ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("region", { name: /auth-landing/i })
+    ).toHaveClass("auth-landing");
+    expect(screen.queryByRole("region", { name: /dashboard-workspace/i })).not.toBeInTheDocument();
   });
 
   it("shows the Google login button when there is no active session", async () => {

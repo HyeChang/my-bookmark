@@ -10,6 +10,7 @@ import {
   type DragEvent as ReactDragEvent,
   type FormEvent
 } from "react";
+import "./DashboardShell.css";
 import "./AuthenticatedDashboardApp.css";
 import "./AuthenticatedDashboardTheme.css";
 
@@ -36,6 +37,7 @@ import type { BookmarkExtensionPresenceStatus } from "../lib/extension-presence"
 import { extractImageFilesFromDataTransfer } from "../lib/clipboard-images";
 import { loadFirebaseAuth, preloadFirebaseAuth } from "../lib/firebase-auth-loader";
 import { measureAsyncPerformance } from "../lib/performance-marks";
+import { DashboardHeader } from "./DashboardHeader";
 import {
   getBookmarkPreviewStoredSourceFields,
   getBookmarkPreviewWorkerFallbackMessage,
@@ -6799,261 +6801,29 @@ export default function AuthenticatedDashboardApp({
       }`}
       data-app-theme={appTheme}
     >
-      <header className="app-hero">
-        <button
-          type="button"
-          className="hero-copy hero-home-button"
-          aria-label="홈으로 이동"
-          onMouseEnter={() => preloadDashboardPanelChunk("home")}
-          onFocus={() => preloadDashboardPanelChunk("home")}
-          onClick={() => openHomePage()}
-        >
-          <h1>Bookmark</h1>
-          <p className="hero-support">개인 링크 보관함</p>
-        </button>
-        {sessionState.status === "authenticated" && !shouldUseMobileSidebarPanels ? (
-          <section aria-label="navigation-sidebar" className="hero-command-bar">
-            <div className="hero-command-meta">
-              <p className="hero-command-label">빠른 작업</p>
-              <p className="hero-command-summary">
-                북마크 {folderOverviewAllBookmarkCount}개 · 폴더 {visibleFolders.length}개 · {heroTagSummary}
-              </p>
-            </div>
-            <div
-              role="toolbar"
-              aria-label="quick-actions-toolbar"
-              className="hero-command-toolbar"
-            >
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => {
-                  setIsQuickActionsMenuOpen(false);
-                  beginBookmarkCreate();
-                }}
-              >
-                새 북마크
-              </button>
-              <div
-                className="folder-action-menu-shell hero-command-menu-shell"
-                data-open-menu-shell={isQuickActionsMenuOpen ? "true" : undefined}
-              >
-                <button
-                  type="button"
-                  className="ghost-button overflow-trigger"
-                  aria-label="빠른 작업 더보기"
-                  aria-expanded={isQuickActionsMenuOpen}
-                  onClick={() => setIsQuickActionsMenuOpen((currentState) => !currentState)}
-                >
-                  ...
-                </button>
-                {isQuickActionsMenuOpen ? (
-                  <div
-                    role="menu"
-                    aria-label="빠른 작업 메뉴"
-                    className="folder-action-menu"
-                  >
-                    <button
-                      type="button"
-                      className="secondary-button folder-action-menu-item"
-                      aria-label="새 폴더"
-                      onClick={() => {
-                        setIsQuickActionsMenuOpen(false);
-                        openFolderManager();
-                      }}
-                    >
-                      새 폴더
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-button folder-action-menu-item"
-                      aria-label="태그 관리"
-                      onClick={() => {
-                        setIsQuickActionsMenuOpen(false);
-                        openTagManager();
-                      }}
-                    >
-                      태그 관리
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </section>
-        ) : null}
-        <div className={`hero-actions${shouldUseMobileSidebarPanels ? " hero-actions-mobile" : ""}`}>
-          {sessionState.status === "loading" ? <p>세션을 확인하는 중입니다.</p> : null}
-          <button
-            type="button"
-            className="secondary-button hero-theme-toggle"
-            aria-label={appThemeToggleLabel}
-            aria-pressed={isDarkAppTheme}
-            title={appThemeToggleLabel}
-            onClick={toggleAppTheme}
-          >
-            <span className="theme-toggle-icon" aria-hidden="true">
-              {isDarkAppTheme ? "☀" : "◐"}
-            </span>
-            <span className="theme-toggle-label">
-              {isDarkAppTheme ? "라이트" : "다크"}
-            </span>
-          </button>
-          {shouldUseMobileSidebarPanels && sessionState.status === "authenticated" ? (
-            <>
-              <button
-                type="button"
-                className="primary-button hero-mobile-create-button"
-                aria-label="북마크 등록"
-                onClick={() => beginBookmarkCreate()}
-              >
-                등록
-              </button>
-              <div
-                className="folder-action-menu-shell hero-mobile-menu-shell"
-                data-open-menu-shell={isMobileHeaderMenuOpen ? "true" : undefined}
-              >
-                <button
-                  type="button"
-                  className="ghost-button overflow-trigger hero-mobile-menu-trigger"
-                  aria-label="모바일 메뉴"
-                  aria-expanded={isMobileHeaderMenuOpen}
-                  onClick={() =>
-                    setIsMobileHeaderMenuOpen((currentState) => !currentState)
-                  }
-                >
-                  ☰
-                </button>
-                {isMobileHeaderMenuOpen ? (
-                  <div role="menu" aria-label="모바일 헤더 메뉴" className="folder-action-menu hero-mobile-menu">
-                    <div className="hero-mobile-menu-account">
-                      <p className="session-label">계정</p>
-                      <strong>{sessionState.user.email}</strong>
-                    </div>
-                    <button
-                      type="button"
-                      className="secondary-button folder-action-menu-item"
-                      onClick={() => void handlePwaInstall()}
-                    >
-                      앱 설치
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-button folder-action-menu-item"
-                      onClick={() => {
-                        setIsMobileHeaderMenuOpen(false);
-                        openFolderManager();
-                      }}
-                    >
-                      새 폴더
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-button folder-action-menu-item"
-                      onClick={() => {
-                        setIsMobileHeaderMenuOpen(false);
-                        openTagManager();
-                      }}
-                    >
-                      태그 관리
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-button folder-action-menu-item"
-                      onClick={() => {
-                        setIsMobileHeaderMenuOpen(false);
-                        setIsExtensionDownloadDialogOpen(true);
-                      }}
-                    >
-                      확장 다운로드
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-button folder-action-menu-item"
-                      onClick={() => void openExtensionTokenDialog()}
-                    >
-                      확장 토큰
-                    </button>
-                    <button
-                      type="button"
-                      className="danger-button folder-action-menu-item"
-                      onClick={() => void handleLogout()}
-                    >
-                      로그아웃
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            </>
-          ) : null}
-          {!shouldUseMobileSidebarPanels && sessionState.status !== "loading" ? (
-            <button
-              type="button"
-              className="secondary-button hero-install-button"
-              aria-label="앱 설치"
-              onClick={() => void handlePwaInstall()}
-            >
-              앱 설치
-            </button>
-          ) : null}
-          {sessionState.status === "anonymous" ? (
-            <>
-              {shouldUseMobileSidebarPanels ? (
-                <button
-                  type="button"
-                  className="secondary-button hero-install-button"
-                  aria-label="앱 설치"
-                  onClick={() => void handlePwaInstall()}
-                >
-                  앱 설치
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="primary-button"
-                onMouseEnter={() => void preloadFirebaseAuth()}
-                onFocus={() => void preloadFirebaseAuth()}
-                onPointerDown={() => void preloadFirebaseAuth()}
-                onClick={() => void handleGoogleLogin()}
-              >
-                Google로 로그인
-              </button>
-            </>
-          ) : null}
-          {!shouldUseMobileSidebarPanels && sessionState.status === "authenticated" ? (
-            <section className="session-card">
-              <div className="session-card-copy">
-                <p className="session-label">계정</p>
-                <strong>{sessionState.user.email}</strong>
-              </div>
-              <div className="session-card-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  aria-label="브라우저 확장 다운로드"
-                  onClick={() => setIsExtensionDownloadDialogOpen(true)}
-                >
-                  확장 다운로드
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  aria-label="확장 토큰 관리"
-                  onClick={() => void openExtensionTokenDialog()}
-                >
-                  확장 토큰
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => void handleLogout()}
-                >
-                  로그아웃
-                </button>
-              </div>
-            </section>
-          ) : null}
-        </div>
-      </header>
+      <DashboardHeader
+        appThemeToggleLabel={appThemeToggleLabel}
+        isDarkAppTheme={isDarkAppTheme}
+        isMobileHeaderMenuOpen={isMobileHeaderMenuOpen}
+        isQuickActionsMenuOpen={isQuickActionsMenuOpen}
+        quickActionSummary={`북마크 ${folderOverviewAllBookmarkCount}개 · 폴더 ${visibleFolders.length}개 · ${heroTagSummary}`}
+        sessionState={sessionState}
+        shouldUseMobileSidebarPanels={shouldUseMobileSidebarPanels}
+        onCreateBookmark={beginBookmarkCreate}
+        onFirebaseAuthPreload={preloadFirebaseAuth}
+        onGoogleLogin={handleGoogleLogin}
+        onHomeOpen={openHomePage}
+        onHomePreload={() => preloadDashboardPanelChunk("home")}
+        onLogout={handleLogout}
+        onMobileHeaderMenuOpenChange={setIsMobileHeaderMenuOpen}
+        onOpenExtensionDownloadDialog={() => setIsExtensionDownloadDialogOpen(true)}
+        onOpenExtensionTokenDialog={openExtensionTokenDialog}
+        onOpenFolderManager={openFolderManager}
+        onOpenTagManager={openTagManager}
+        onPwaInstall={handlePwaInstall}
+        onQuickActionsMenuOpenChange={setIsQuickActionsMenuOpen}
+        onToggleAppTheme={toggleAppTheme}
+      />
       {isInitialDashboardBootstrapping ? (
         <section aria-label="dashboard-loading" className="dashboard-workspace">
           <div className="bookmark-loading-state" role="status" aria-live="polite">

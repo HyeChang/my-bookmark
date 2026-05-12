@@ -23,6 +23,14 @@ describe("CSS budget", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.css"),
       "utf8"
     );
+    const dashboardShellCss = readFileSync(
+      join(process.cwd(), "src", "components", "DashboardShell.css"),
+      "utf8"
+    );
+    const authGateCss = readFileSync(
+      join(process.cwd(), "src", "components", "AuthGate.css"),
+      "utf8"
+    );
     const lazyCssFiles = [
       "BookmarkResultsPanel.css",
       "BookmarkComposerDialog.css",
@@ -56,6 +64,11 @@ describe("CSS budget", () => {
     expect(dashboardCss).not.toContain(".picker-chip");
     expect(dashboardCss).not.toContain(".pill-option");
     expect(dashboardCss).not.toContain(".chip-button-group");
+    expect(dashboardCss).not.toMatch(/^\.dashboard-layout\s*\{/m);
+    expect(dashboardShellCss).toContain(".dashboard-layout {");
+    expect(dashboardShellCss).toContain(".dashboard-workspace {");
+    expect(dashboardShellCss).toContain(".session-card {");
+    expect(authGateCss).toContain(".auth-landing");
 
     for (const fileName of lazyCssFiles) {
       const css = readFileSync(join(process.cwd(), "src", "components", fileName));

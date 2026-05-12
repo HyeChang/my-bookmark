@@ -3,6 +3,7 @@ import type { AuthenticatedUser } from "@bookmark/shared";
 
 import { exchangeIdTokenForSession, loadSession } from "../lib/session";
 import { loadFirebaseAuth, preloadFirebaseAuth } from "../lib/firebase-auth-loader";
+import "./AuthGate.css";
 
 function createAuthGateChunkLoader<TModule>(loadChunk: () => Promise<TModule>) {
   let chunkPromise: Promise<TModule> | null = null;
@@ -173,21 +174,47 @@ export default function AuthGate() {
   }
 
   return (
-    <main className="app-shell">
-      <header className="app-hero">
-        <div className="hero-copy">
+    <main className="app-shell auth-shell">
+      <section aria-label="auth-landing" className="auth-landing">
+        <div className="auth-brand-panel">
+          <span className="auth-brand-mark" aria-hidden="true">
+            B
+          </span>
           <h1>Bookmark</h1>
-          <p className="hero-support">개인 링크 보관함</p>
+          <p className="auth-lede">
+            저장한 링크를 Google 계정으로 동기화하고, 폴더와 태그로 빠르게 다시 찾습니다.
+          </p>
+          <ul className="auth-preview-list" aria-label="bookmark-preview-benefits">
+            <li>
+              <strong>링크 정리</strong>
+              <span>폴더와 태그로 필요한 자료를 빠르게 분류합니다.</span>
+            </li>
+            <li>
+              <strong>검색과 필터</strong>
+              <span>제목, 내용, 색상 조건을 함께 좁혀 봅니다.</span>
+            </li>
+            <li>
+              <strong>확장 저장</strong>
+              <span>브라우저에서 보고 있는 페이지를 바로 보관합니다.</span>
+            </li>
+          </ul>
         </div>
-        <section aria-label="auth-actions" className="hero-command-bar">
-          <div className="hero-command-meta">
-            <p className="hero-command-label">계정</p>
-            <p className="hero-command-summary">
-              {sessionState.status === "loading"
-                ? "세션을 확인하는 중입니다."
-                : "Google 계정으로 링크 보관함을 시작합니다."}
+        <section aria-label="auth-actions" className="auth-card">
+          <div className="auth-card-header">
+            <p className="auth-card-label">계정</p>
+            <h2>Google 계정으로 시작합니다.</h2>
+            <p className="auth-card-summary">
+              로그인하면 저장된 북마크와 설정을 불러옵니다.
             </p>
           </div>
+          <p className="auth-status-row">
+            <span className="auth-status-dot" aria-hidden="true" />
+            <span>
+              {sessionState.status === "loading"
+                ? "세션을 확인하는 중입니다."
+                : "개인 링크 보관함을 준비했습니다."}
+            </span>
+          </p>
           <div className="auth-gate-actions">
             <button
               type="button"
@@ -211,24 +238,14 @@ export default function AuthGate() {
               </button>
             ) : null}
           </div>
+          {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
         </section>
-      </header>
-      <section aria-label="dashboard-workspace" className="dashboard-workspace">
-        <div className="bookmark-loading-state" role="status" aria-live="polite">
-          <span className="bookmark-loading-spinner" aria-hidden="true" />
-          <span>
-            {sessionState.status === "loading"
-              ? "세션을 확인하는 중입니다."
-              : "로그인하면 저장된 북마크를 불러옵니다."}
-          </span>
-        </div>
       </section>
       {isInstallHelpDialogOpen ? (
         <Suspense fallback={null}>
           <LazyInstallHelpDialog onClose={() => setIsInstallHelpDialogOpen(false)} />
         </Suspense>
       ) : null}
-      {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
     </main>
   );
 }
