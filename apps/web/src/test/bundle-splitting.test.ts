@@ -542,11 +542,17 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "FolderOverviewPanel.css"),
       "utf8"
     );
+    const folderOverviewTabsCss = readFileSync(
+      join(process.cwd(), "src", "components", "FolderOverviewTabs.css"),
+      "utf8"
+    );
 
+    expect(folderOverviewSource).toContain('import "./FolderOverviewTabs.css";');
     expect(folderOverviewSource).toContain('import "./FolderOverviewPanel.css";');
     expect(folderOverviewCss).toContain(".folder-overview-card");
     expect(folderOverviewCss).toContain(".folder-overview-trigger");
-    expect(folderOverviewCss).toContain(".sidebar-segment-tab");
+    expect(folderOverviewCss).not.toContain(".sidebar-segment-tab");
+    expect(folderOverviewTabsCss).toContain(".sidebar-segment-tab");
     expect(dashboardCss).not.toContain(".folder-overview-card");
     expect(dashboardCss).not.toContain(".folder-overview-trigger");
     expect(dashboardCss).not.toContain(".sidebar-segment-tab");
@@ -674,6 +680,24 @@ describe("bundle splitting", () => {
     expect(dashboardSource).not.toContain('<header className="app-hero">');
     expect(dashboardHeaderSource).toContain('<header className="app-hero">');
     expect(dashboardHeaderSource).toContain('aria-label="quick-actions-toolbar"');
+  });
+
+  it("keeps dashboard data loading orchestration outside the dashboard state owner", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const dataLoaderSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-data-loaders.ts"),
+      "utf8"
+    );
+
+    expect(dashboardSource).toContain('from "./dashboard-data-loaders"');
+    expect(dashboardSource).not.toContain("async function loadBookmarkCollections");
+    expect(dashboardSource).not.toContain("async function loadDashboardBookmarkData");
+    expect(dataLoaderSource).toContain("export async function loadBookmarkCollections");
+    expect(dataLoaderSource).toContain("export async function loadDashboardBookmarkData");
+    expect(dataLoaderSource).toContain("Promise.all([");
   });
 
   it("keeps bookmark dashboard view model builders outside the dashboard component shell", () => {

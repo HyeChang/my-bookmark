@@ -110,6 +110,10 @@ import {
   queueBookmarkAssetPreload as queueDashboardBookmarkAssetPreload
 } from "./dashboard-bookmark-asset-preload";
 import {
+  loadBookmarkCollections as loadDashboardBookmarkCollections,
+  loadDashboardBookmarkData as loadDashboardBookmarkDataFromSources
+} from "./dashboard-data-loaders";
+import {
   DEFAULT_BOOKMARK_PAGE_SIZE,
   DEFAULT_BOOKMARK_VIEW_MODE,
   bookmarkPageSizeOptions,
@@ -696,77 +700,25 @@ export default function AuthenticatedDashboardApp({
     );
   }
 
-  async function loadBookmarkCollections(search: BookmarkSearchDraft) {
-    const normalizedSearch = normalizeBookmarkSearchDraft(search);
-
-    if (hasActiveBookmarkSearch(normalizedSearch)) {
-      const [visibleBookmarks, inventoryBookmarks] = await Promise.all([
-        loadBookmarks(normalizedSearch),
-        loadBookmarks(emptyBookmarkSearchDraft)
-      ]);
-
-      return {
-        normalizedSearch,
-        visibleBookmarks,
-        inventoryBookmarks
-      };
-    }
-
-    const visibleBookmarks = await loadBookmarks(normalizedSearch);
-
-    return {
-      normalizedSearch,
-      visibleBookmarks,
-      inventoryBookmarks: visibleBookmarks
-    };
+  function loadBookmarkCollections(search: BookmarkSearchDraft) {
+    return loadDashboardBookmarkCollections({
+      search,
+      loadBookmarks
+    });
   }
 
-  async function loadDashboardBookmarkData(search: BookmarkSearchDraft) {
-    const normalizedSearch = normalizeBookmarkSearchDraft(search);
-
-    if (activeDashboardView !== "home" || hasActiveBookmarkSearch(normalizedSearch)) {
-      const collections = await loadBookmarkCollections(normalizedSearch);
-      return {
-        ...collections,
-        bookmarkCounts: null as BookmarkCounts | null,
-        homeFavoriteBookmarks: null as Bookmark[] | null,
-        hasFullInventory: true,
-        usesFullInventoryFallback: false
-      };
-    }
-
-    try {
-      const [favoritePage, nextBookmarkCounts] = await Promise.all([
-        loadBookmarkPage({
-          ...emptyBookmarkSearchDraft,
-          favoriteOnly: true,
-          limit: DEFAULT_BOOKMARK_PAGE_SIZE,
-          offset: 0
-        }),
-        loadBookmarkCounts()
-      ]);
-
-      return {
-        normalizedSearch,
-        visibleBookmarks: [] as Bookmark[],
-        inventoryBookmarks: [] as Bookmark[],
-        bookmarkCounts: nextBookmarkCounts,
-        homeFavoriteBookmarks: favoritePage.bookmarks,
-        hasFullInventory: false,
-        usesFullInventoryFallback: false
-      };
-    } catch {
-      setActiveDashboardView("bookmarks");
-      requestDesktopRecommendationsIfNeeded();
-      const collections = await loadBookmarkCollections(normalizedSearch);
-      return {
-        ...collections,
-        bookmarkCounts: null as BookmarkCounts | null,
-        homeFavoriteBookmarks: null as Bookmark[] | null,
-        hasFullInventory: true,
-        usesFullInventoryFallback: true
-      };
-    }
+  function loadDashboardBookmarkData(search: BookmarkSearchDraft) {
+    return loadDashboardBookmarkDataFromSources({
+      activeDashboardView,
+      search,
+      loadBookmarks,
+      loadBookmarkPage,
+      loadBookmarkCounts,
+      onHomeFallback: () => {
+        setActiveDashboardView("bookmarks");
+        requestDesktopRecommendationsIfNeeded();
+      }
+    });
   }
 
   async function refreshBookmarkCounts() {

@@ -5,6 +5,7 @@ import {
 } from "react";
 
 import type { Folder } from "@bookmark/shared";
+import "./FolderOverviewTabs.css";
 import "./FolderOverviewPanel.css";
 
 export type MobileSidebarPanelId = "folder" | "bookmark" | "recommendation";

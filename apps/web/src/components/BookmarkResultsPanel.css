@@ -133,114 +133,6 @@
   flex-shrink: 0;
 }
 
-.search-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1.85fr) minmax(11.8rem, 1.04fr) minmax(7.6rem, 0.72fr);
-  gap: 0.54rem;
-  align-items: center;
-  padding: 0.24rem 0.08rem 0.12rem;
-}
-
-.search-toolbar-shell {
-  min-width: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.search-toolbar-field {
-  min-width: 0;
-}
-
-.search-toolbar-mode {
-  min-width: 0;
-}
-
-.search-toolbar-field-query {
-  min-width: 0;
-}
-
-.search-toolbar-field input,
-.search-toolbar-field select {
-  min-height: 2.18rem;
-  padding: 0.44rem 0.62rem;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.98);
-  color: #1f2533;
-  font-weight: 600;
-  font-size: 0.84rem;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  box-shadow: inset 0 0 0 1px rgba(20, 33, 61, 0.08);
-}
-
-.search-toolbar-field select {
-  appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, #5e6572 50%),
-    linear-gradient(135deg, #5e6572 50%, transparent 50%);
-  background-position:
-    calc(100% - 0.94rem) calc(50% - 1px),
-    calc(100% - 0.7rem) calc(50% - 1px);
-  background-size: 0.36rem 0.36rem;
-  background-repeat: no-repeat;
-  padding-right: 1.85rem;
-}
-
-.search-toolbar-field input::placeholder {
-  color: #7a8190;
-}
-
-.search-mode-segmented {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.18rem;
-  padding: 0.14rem;
-  border: 1px solid rgba(20, 33, 61, 0.08);
-  border-radius: 10px;
-  background: rgba(246, 241, 234, 0.82);
-}
-
-.search-mode-button {
-  min-height: 1.96rem;
-  padding: 0.32rem 0.42rem;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: #5e6572;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
-}
-
-.search-mode-button-active {
-  background: #1f2533;
-  color: #fffdf8;
-  box-shadow: 0 6px 12px rgba(20, 33, 61, 0.12);
-}
-
-.search-toolbar-actions {
-  display: flex;
-  grid-column: 1 / -1;
-  justify-content: flex-start;
-  align-items: center;
-  gap: 0.38rem;
-  flex-wrap: wrap;
-}
-
-.search-toolbar-actions > button {
-  min-height: 2.12rem;
-  white-space: nowrap;
-}
-
-.search-toolbar-actions > .secondary-button {
-  min-height: 2.04rem;
-  padding: 0.34rem 0.58rem;
-}
-
 .search-grid {
   display: grid;
   gap: 0.72rem;
@@ -554,16 +446,6 @@
 }
 
 @media (max-width: 1420px) {
-  .search-toolbar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(7.4rem, 0.78fr);
-  }
-
-  .search-toolbar-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-
   .bookmark-list-columns {
     display: none;
   }
@@ -577,15 +459,6 @@
 
   .search-grid-basic {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .search-toolbar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(7.2rem, 0.72fr);
-  }
-
-  .search-toolbar-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
   }
 
 }
@@ -679,24 +552,6 @@
     margin-bottom: 0.75rem;
   }
 
-  .search-toolbar {
-    grid-template-columns: 1fr;
-    padding: 1rem;
-  }
-
-  .search-mode-segmented {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .search-toolbar-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .search-toolbar-actions > button {
-    width: 100%;
-  }
-
   .bookmark-list-header {
     margin-bottom: 0.52rem;
   }
@@ -763,7 +618,6 @@
 }
 
 .app-theme-light .search-grid-surface,
-.app-theme-light .search-toolbar-shell,
 .app-theme-light .bookmark-list-row {
   border-color: #dfe3e8 !important;
   background: #ffffff !important;
@@ -784,8 +638,6 @@
   color: #66707d !important;
 }
 
-.app-theme-light .search-toolbar-field input,
-.app-theme-light .search-toolbar-field select,
 .app-theme-light .search-grid input,
 .app-theme-light .search-grid select,
 .app-theme-light .search-grid textarea,
@@ -796,21 +648,6 @@
   box-shadow: none;
 }
 
-.app-theme-light .search-mode-segmented {
-  border-color: #dfe3e8 !important;
-  background: #ffffff !important;
-}
-
-.app-theme-light .search-mode-button {
-  color: #66707d !important;
-}
-
-.app-theme-light .search-mode-button-active {
-  background: rgba(22, 131, 232, 0.1) !important;
-  color: #1683e8 !important;
-  box-shadow: none;
-}
-
 .app-theme-dark .search-grid-surface,
 .app-theme-dark .bookmark-list-row {
   border-color: var(--border-soft) !important;
@@ -818,8 +655,6 @@
   color: var(--text-primary) !important;
 }
 
-.app-theme-dark .search-toolbar-field input,
-.app-theme-dark .search-toolbar-field select,
 .app-theme-dark .search-grid input,
 .app-theme-dark .search-grid select,
 .app-theme-dark .search-grid textarea {
@@ -859,29 +694,6 @@
   background: transparent;
 }
 
-.search-toolbar-shell {
-  padding: 0.5rem 0.56rem;
-  border: 1px solid var(--border-soft);
-  border-radius: 14px;
-  background: var(--surface-toolbar);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.16);
-}
-
-.search-mode-segmented {
-  border-color: var(--border-soft);
-  background: rgba(28, 36, 48, 0.92);
-}
-
-.search-mode-button {
-  color: var(--text-muted);
-}
-
-.search-mode-button-active {
-  background: rgba(56, 189, 248, 0.18);
-  color: var(--text-strong);
-  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.18);
-}
-
 .search-grid label,
 .search-grid legend {
   color: var(--text-primary);
@@ -889,23 +701,11 @@
 
 .search-grid input,
 .search-grid select,
-.search-grid textarea,
-.search-toolbar-field input,
-.search-toolbar-field select {
+.search-grid textarea {
   background: rgba(32, 40, 53, 0.96);
   border-color: var(--border-soft);
   color: var(--text-primary);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
-}
-
-.search-toolbar-field input::placeholder {
-  color: var(--text-subtle);
-}
-
-.search-toolbar-field input:focus,
-.search-toolbar-field select:focus {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.1);
 }
 
 .bookmark-sort-trigger-label,
@@ -960,11 +760,6 @@
   background: rgba(36, 44, 57, 0.78);
 }
 
-.search-toolbar-field input,
-.search-toolbar-field select {
-  background: rgba(23, 30, 42, 0.9);
-}
-
 .bookmark-list-header {
   margin-bottom: 0.7rem;
 }
@@ -1015,45 +810,12 @@
     box-shadow: none;
   }
 
-  .search-toolbar-shell {
-    grid-template-columns: minmax(220px, 1fr) auto minmax(8rem, 0.38fr) auto;
-    gap: 0.42rem;
-    padding: 0.36rem;
-    border: 1px solid var(--desktop-border);
-    border-radius: 10px;
-    background: #f6f7f9;
-    box-shadow: none;
-  }
-
-  .search-toolbar-actions {
-    grid-column: auto;
-    justify-content: flex-end;
-    flex-wrap: nowrap;
-  }
-
-  .search-toolbar-field input,
-.search-toolbar-field select,
-.search-grid input,
+  .search-grid input,
 .search-grid select,
 .search-grid textarea {
     border-color: var(--desktop-border);
     background: #ffffff;
     color: var(--desktop-text);
-    box-shadow: none;
-  }
-
-  .search-mode-segmented {
-    border-color: var(--desktop-border);
-    background: #ffffff;
-  }
-
-  .search-mode-button {
-    color: var(--desktop-muted);
-  }
-
-  .search-mode-button-active {
-    background: var(--desktop-blue-soft);
-    color: var(--desktop-blue);
     box-shadow: none;
   }
 
@@ -1489,14 +1251,12 @@
 }
 
 /* Final theme pass for the lazy-loaded bookmark results chunk. */
-.app-theme-light .search-toolbar-shell,
 .app-theme-light .search-grid-surface,
 .app-theme-light .filter-summary-card,
 .app-theme-light .bookmark-list-table,
 .app-theme-light .bookmark-list-row,
 .app-theme-light .bookmark-pagination-bar,
 .app-theme-light .bookmark-page-size-control,
-.app-theme-light .search-mode-segmented,
 .app-theme-light .bookmark-sort-menu {
   border-color: #dfe3e8 !important;
   background: #ffffff !important;
@@ -1519,23 +1279,17 @@
   color: #66707d !important;
 }
 
-.app-theme-dark .search-toolbar-shell,
 .app-theme-dark .search-grid-surface,
 .app-theme-dark .filter-summary-card,
 .app-theme-dark .bookmark-list-table,
 .app-theme-dark .bookmark-list-row,
 .app-theme-dark .bookmark-pagination-bar,
 .app-theme-dark .bookmark-page-size-control,
-.app-theme-dark .search-mode-segmented,
 .app-theme-dark .bookmark-sort-menu {
   border-color: var(--border-soft) !important;
   background: rgba(21, 28, 39, 0.72) !important;
   color: var(--text-primary) !important;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16) !important;
-}
-
-.app-theme-dark .search-toolbar-shell {
-  background: var(--surface-toolbar) !important;
 }
 
 .app-theme-dark .search-panel-heading h2,
@@ -1555,8 +1309,6 @@
   color: var(--text-muted) !important;
 }
 
-.app-theme-dark .search-toolbar-field input,
-.app-theme-dark .search-toolbar-field select,
 .app-theme-dark .search-grid input,
 .app-theme-dark .search-grid select,
 .app-theme-dark .search-grid textarea,
@@ -1565,15 +1317,6 @@
   border-color: var(--border-soft) !important;
   background: rgba(23, 30, 42, 0.9) !important;
   color: var(--text-primary) !important;
-}
-
-.app-theme-dark .search-mode-button {
-  color: var(--text-muted) !important;
-}
-
-.app-theme-dark .search-mode-button-active {
-  background: rgba(158, 199, 255, 0.14) !important;
-  color: var(--accent) !important;
 }
 
 .app-theme-dark .bookmark-row-list-thumbnail img,

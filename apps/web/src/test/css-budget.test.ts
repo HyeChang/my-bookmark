@@ -45,6 +45,7 @@ describe("CSS budget", () => {
     );
     const lazyCssFiles = [
       "BookmarkResultsPanel.css",
+      "BookmarkResultsSearch.css",
       "BookmarkCard.css",
       "BookmarkAdvancedSearchFields.css",
       "DashboardFormControls.css",
@@ -55,6 +56,7 @@ describe("CSS budget", () => {
       "BookmarkDetailPanel.css",
       "ExtensionDialogs.css",
       "FolderManagerDialog.css",
+      "FolderOverviewTabs.css",
       "ManagerDialog.css",
       "RecommendationPanel.css",
       "TagManagerDialog.css",
@@ -142,6 +144,10 @@ describe("CSS budget", () => {
       join(process.cwd(), "src", "components", "HomePanel.tsx"),
       "utf8"
     );
+    const folderOverviewSource = readFileSync(
+      join(process.cwd(), "src", "components", "FolderOverviewPanel.tsx"),
+      "utf8"
+    );
     const folderManagerSource = readFileSync(
       join(process.cwd(), "src", "components", "FolderManagerDialog.tsx"),
       "utf8"
@@ -162,7 +168,9 @@ describe("CSS budget", () => {
     expect(bookmarkComposerSource).toContain('import "./BookmarkPreviewContent.css";');
     expect(bookmarkComposerSource).toContain('import "./DashboardFormControls.css";');
     expect(bookmarkResultsSource).toContain('import "./BookmarkAssetGrid.css";');
+    expect(bookmarkResultsSource).toContain('import "./BookmarkResultsSearch.css";');
     expect(homePanelSource).toContain('import "./BookmarkAssetGrid.css";');
+    expect(folderOverviewSource).toContain('import "./FolderOverviewTabs.css";');
     expect(folderManagerSource).toContain('import "./OverlayDialog.css";');
     expect(tagManagerSource).toContain('import "./OverlayDialog.css";');
     expect(folderManagerSource).toContain('import "./DashboardFormControls.css";');
@@ -219,6 +227,18 @@ describe("CSS budget", () => {
       join(process.cwd(), "src", "components", "BookmarkResultsPanel.css"),
       "utf8"
     );
+    const resultsSearchCss = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsSearch.css"),
+      "utf8"
+    );
+    const folderOverviewCss = readFileSync(
+      join(process.cwd(), "src", "components", "FolderOverviewPanel.css"),
+      "utf8"
+    );
+    const folderOverviewTabsCss = readFileSync(
+      join(process.cwd(), "src", "components", "FolderOverviewTabs.css"),
+      "utf8"
+    );
     const advancedCss = readFileSync(
       join(process.cwd(), "src", "components", "BookmarkAdvancedSearchFields.css"),
       "utf8"
@@ -230,6 +250,12 @@ describe("CSS budget", () => {
 
     expect(resultsCss).not.toContain(".search-filter-group");
     expect(resultsCss).not.toContain(".search-grid-advanced");
+    expect(resultsCss).not.toContain(".search-toolbar {");
+    expect(resultsCss).not.toContain(".search-mode-segmented {");
+    expect(resultsSearchCss).toContain(".search-toolbar {");
+    expect(resultsSearchCss).toContain(".search-mode-segmented {");
+    expect(folderOverviewCss).not.toContain(".sidebar-segment-tab");
+    expect(folderOverviewTabsCss).toContain(".sidebar-segment-tab");
     expect(advancedCss).toContain(".search-grid-advanced");
     expect(advancedCss).toContain(".search-filter-group");
     expect(advancedSource).toContain('import "./BookmarkAdvancedSearchFields.css";');
@@ -243,11 +269,13 @@ describe("CSS budget", () => {
       "HomePanel.css",
       "BookmarkAdvancedSearchFields.css",
       "BookmarkResultsPanel.css",
+      "BookmarkResultsSearch.css",
       "BookmarkComposerDialog.css",
       "BookmarkDetailPanel.css",
       "ExtensionDialogs.css",
       "FolderManagerDialog.css",
       "FolderOverviewPanel.css",
+      "FolderOverviewTabs.css",
       "ManagerDialog.css",
       "RecommendationPanel.css",
       "TagManagerDialog.css",
