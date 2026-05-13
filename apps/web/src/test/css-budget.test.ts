@@ -31,12 +31,26 @@ describe("CSS budget", () => {
       join(process.cwd(), "src", "components", "AuthGate.css"),
       "utf8"
     );
+    const dashboardThemeCss = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardTheme.css"),
+      "utf8"
+    );
+    const overlayDialogCss = readFileSync(
+      join(process.cwd(), "src", "components", "OverlayDialog.css"),
+      "utf8"
+    );
+    const bookmarkPreviewContentCss = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkPreviewContent.css"),
+      "utf8"
+    );
     const lazyCssFiles = [
       "BookmarkResultsPanel.css",
       "BookmarkCard.css",
       "BookmarkAdvancedSearchFields.css",
       "DashboardFormControls.css",
       "BookmarkPreviewContent.css",
+      "OverlayDialog.css",
+      "BookmarkAssetGrid.css",
       "BookmarkComposerDialog.css",
       "BookmarkDetailPanel.css",
       "ExtensionDialogs.css",
@@ -78,6 +92,34 @@ describe("CSS budget", () => {
     expect(dashboardCss).not.toContain(".picker-chip");
     expect(dashboardCss).not.toContain(".pill-option");
     expect(dashboardCss).not.toContain(".chip-button-group");
+    const initialDashboardCss = `${dashboardCss}\n${dashboardThemeCss}`;
+    expect(initialDashboardCss).not.toContain(".overlay-backdrop");
+    expect(initialDashboardCss).not.toContain(".overlay-dialog-shell");
+    expect(initialDashboardCss).not.toContain(".bookmark-detail-dialog-shell");
+    expect(initialDashboardCss).not.toContain(".overlay-dialog-header");
+    expect(initialDashboardCss).not.toContain(".overlay-dialog-title");
+    expect(initialDashboardCss).not.toContain(".bookmark-composer-section-header");
+    expect(initialDashboardCss).not.toContain(".asset-grid");
+    expect(initialDashboardCss).not.toContain(".bookmark-preview-card");
+    expect(initialDashboardCss).not.toContain(".bookmark-preview-image");
+    expect(initialDashboardCss).not.toContain(".bookmark-preview-error");
+    expect(initialDashboardCss).not.toContain(".bookmark-preview-note");
+    expect(overlayDialogCss).toContain(".overlay-backdrop {");
+    expect(overlayDialogCss).toContain(".overlay-dialog-shell {");
+    expect(overlayDialogCss).toContain(".bookmark-detail-dialog-shell {");
+    expect(overlayDialogCss).toContain(".overlay-dialog-header {");
+    expect(overlayDialogCss).toContain(".overlay-dialog-title {");
+    expect(overlayDialogCss).toContain(".bookmark-composer-section-header {");
+    const assetGridCss = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkAssetGrid.css"),
+      "utf8"
+    );
+    expect(assetGridCss).toContain(".asset-grid {");
+    expect(assetGridCss).toContain(".asset-item {");
+    expect(bookmarkPreviewContentCss).toContain(".bookmark-preview-card {");
+    expect(bookmarkPreviewContentCss).toContain(".bookmark-preview-image {");
+    expect(bookmarkPreviewContentCss).toContain(".bookmark-preview-error {");
+    expect(bookmarkPreviewContentCss).toContain(".bookmark-preview-note {");
     expect(dashboardCss).not.toMatch(/^\.dashboard-layout\s*\{/m);
     expect(dashboardShellCss).toContain(".dashboard-layout {");
     expect(dashboardShellCss).toContain(".dashboard-workspace {");
@@ -90,6 +132,14 @@ describe("CSS budget", () => {
     );
     const bookmarkComposerSource = readFileSync(
       join(process.cwd(), "src", "components", "BookmarkComposerDialog.tsx"),
+      "utf8"
+    );
+    const bookmarkResultsSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
+      "utf8"
+    );
+    const homePanelSource = readFileSync(
+      join(process.cwd(), "src", "components", "HomePanel.tsx"),
       "utf8"
     );
     const folderManagerSource = readFileSync(
@@ -105,8 +155,16 @@ describe("CSS budget", () => {
       "utf8"
     );
     expect(bookmarkDetailSource).toContain('import "./BookmarkPreviewContent.css";');
+    expect(bookmarkDetailSource).toContain('import "./OverlayDialog.css";');
+    expect(bookmarkDetailSource).toContain('import "./BookmarkAssetGrid.css";');
+    expect(bookmarkComposerSource).toContain('import "./OverlayDialog.css";');
+    expect(bookmarkComposerSource).toContain('import "./BookmarkAssetGrid.css";');
     expect(bookmarkComposerSource).toContain('import "./BookmarkPreviewContent.css";');
     expect(bookmarkComposerSource).toContain('import "./DashboardFormControls.css";');
+    expect(bookmarkResultsSource).toContain('import "./BookmarkAssetGrid.css";');
+    expect(homePanelSource).toContain('import "./BookmarkAssetGrid.css";');
+    expect(folderManagerSource).toContain('import "./OverlayDialog.css";');
+    expect(tagManagerSource).toContain('import "./OverlayDialog.css";');
     expect(folderManagerSource).toContain('import "./DashboardFormControls.css";');
     expect(tagManagerSource).toContain('import "./DashboardFormControls.css";');
     expect(advancedSearchSource).toContain('import "./DashboardFormControls.css";');
@@ -181,6 +239,7 @@ describe("CSS budget", () => {
     const themedCssFiles = [
       "AuthenticatedDashboardTheme.css",
       "DashboardFormControls.css",
+      "OverlayDialog.css",
       "HomePanel.css",
       "BookmarkAdvancedSearchFields.css",
       "BookmarkResultsPanel.css",

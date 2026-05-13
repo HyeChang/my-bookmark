@@ -1,3 +1,4 @@
+import "./OverlayDialog.css";
 import "./ExtensionDialogs.css";
 
 type ExtensionDownloadDialogProps = {

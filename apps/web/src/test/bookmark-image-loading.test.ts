@@ -102,13 +102,13 @@ describe("bookmark image loading priority", () => {
   });
 
   it("uses a stable placeholder background for bookmark asset thumbnails", () => {
-    const dashboardCss = readFileSync(
-      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.css"),
+    const assetGridCss = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkAssetGrid.css"),
       "utf8"
     );
-    const assetImageRule = dashboardCss.slice(
-      dashboardCss.indexOf(".asset-grid img"),
-      dashboardCss.indexOf(".asset-item")
+    const assetImageRule = assetGridCss.slice(
+      assetGridCss.indexOf(".asset-grid img"),
+      assetGridCss.indexOf(".asset-item")
     );
 
     expect(assetImageRule).toContain("background:");

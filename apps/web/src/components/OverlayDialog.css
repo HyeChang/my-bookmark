@@ -1,0 +1,170 @@
+.overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1.2rem;
+  background: rgba(22, 27, 38, 0.42);
+  backdrop-filter: blur(8px);
+}
+
+.overlay-dialog-shell {
+  width: min(780px, 100%);
+  max-height: calc(100vh - 4rem);
+  overflow: auto;
+  padding: 0.72rem;
+  border-color: var(--border-soft);
+  background: var(--surface-raised);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+}
+
+.bookmark-detail-dialog-backdrop {
+  align-items: center;
+}
+
+.bookmark-detail-dialog-shell {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 4rem);
+  overflow: auto;
+}
+
+.overlay-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.82rem;
+  padding: 0 0 0.68rem;
+}
+
+.overlay-dialog-header > .ghost-button {
+  min-height: 1.88rem;
+  padding: 0.28rem 0.58rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+}
+
+.overlay-dialog-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.overlay-dialog-title h2 {
+  margin: 0;
+  font-size: 1.04rem;
+  letter-spacing: -0.04em;
+  color: var(--text-strong);
+  text-wrap: balance;
+}
+
+.overlay-dialog-panel .sidebar-panel-shell {
+  box-shadow: none;
+  border-color: rgba(31, 37, 51, 0.08);
+}
+
+.overlay-dialog-panel [aria-label="bookmark-form"] {
+  background: transparent;
+  box-shadow: none;
+  border: none;
+  padding: 0;
+}
+
+.bookmark-composer-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.bookmark-composer-section-header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-strong);
+  text-wrap: balance;
+}
+
+.bookmark-composer-section-header p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.overlay-backdrop {
+  background: rgba(4, 8, 14, 0.72);
+}
+
+.app-theme-light .overlay-dialog-shell {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b;
+  box-shadow: none;
+}
+
+.app-theme-light .overlay-dialog-title h2 {
+  color: #20242b !important;
+}
+
+.app-theme-light .bookmark-composer-section-header h3 {
+  color: #20242b !important;
+}
+
+.app-theme-light .bookmark-composer-section-header p {
+  color: #66707d !important;
+}
+
+.app-theme-dark .overlay-dialog-shell {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16) !important;
+}
+
+.app-theme-dark .overlay-dialog-title h2 {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .bookmark-composer-section-header h3 {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .bookmark-composer-section-header p {
+  color: var(--text-muted) !important;
+}
+
+@media (max-width: 720px) {
+  .overlay-backdrop {
+    padding: 0.6rem;
+    align-items: flex-start;
+  }
+
+  .overlay-dialog-shell,
+  .bookmark-detail-dialog-shell {
+    width: 100%;
+    max-height: calc(100vh - 1.2rem);
+    padding: 0.6rem;
+    border-radius: 18px;
+  }
+}
+
+@media (min-width: 1121px) {
+  .overlay-backdrop {
+    background: rgba(16, 24, 40, 0.32);
+  }
+
+  .overlay-dialog-shell,
+  .bookmark-detail-dialog-shell {
+    background: #ffffff;
+    border-color: var(--desktop-border);
+    box-shadow: 0 24px 60px rgba(31, 37, 51, 0.18);
+  }
+
+  .app-theme-dark .overlay-dialog-shell {
+    border-color: var(--border-soft) !important;
+    background: var(--surface-raised) !important;
+    color: var(--text-primary) !important;
+  }
+}

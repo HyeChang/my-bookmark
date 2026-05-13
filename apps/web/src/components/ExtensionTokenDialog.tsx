@@ -1,4 +1,5 @@
 import type { ExtensionToken } from "@bookmark/shared";
+import "./OverlayDialog.css";
 import "./ExtensionDialogs.css";
 
 type ExtensionTokenDialogProps = {

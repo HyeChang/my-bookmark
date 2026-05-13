@@ -101,75 +101,6 @@ img {
   }
 }
 
-.overlay-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 2rem 1.2rem;
-  background: rgba(22, 27, 38, 0.42);
-  backdrop-filter: blur(8px);
-}
-
-.overlay-dialog-shell {
-  width: min(780px, 100%);
-  max-height: calc(100vh - 4rem);
-  overflow: auto;
-  padding: 0.72rem;
-}
-
-.bookmark-detail-dialog-backdrop {
-  align-items: center;
-}
-
-.bookmark-detail-dialog-shell {
-  width: min(760px, 100%);
-  max-height: calc(100vh - 4rem);
-  overflow: auto;
-}
-
-.overlay-dialog-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.82rem;
-  padding: 0 0 0.68rem;
-}
-
-.overlay-dialog-header > .ghost-button {
-  min-height: 1.88rem;
-  padding: 0.28rem 0.58rem;
-  border-radius: 8px;
-  font-size: 0.78rem;
-}
-
-.overlay-dialog-title {
-  display: flex;
-  flex-direction: column;
-  gap: 0.18rem;
-}
-
-.overlay-dialog-title h2 {
-  margin: 0;
-  font-size: 1.04rem;
-  letter-spacing: -0.04em;
-  color: #1b2230;
-}
-
-.overlay-dialog-panel .sidebar-panel-shell {
-  box-shadow: none;
-  border-color: rgba(31, 37, 51, 0.08);
-}
-
-.overlay-dialog-panel [aria-label="bookmark-form"] {
-  background: transparent;
-  box-shadow: none;
-  border: none;
-  padding: 0;
-}
-
 .panel-card {
   padding: 0.8rem;
 }
@@ -271,118 +202,6 @@ img {
   margin-top: 0.04rem;
 }
 
-.bookmark-composer-section-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.12rem;
-}
-
-.bookmark-composer-section-header h3 {
-  margin: 0;
-  font-size: 0.9rem;
-  color: #1b2230;
-}
-
-.bookmark-composer-section-header p,
-.bookmark-preview-card p {
-  margin: 0;
-  color: #677081;
-  font-size: 0.78rem;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.bookmark-preview-card {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 0.28rem;
-  padding: 0.7rem 0.74rem;
-  border: 1px solid rgba(31, 37, 51, 0.08);
-  border-radius: 12px;
-  background: rgba(247, 249, 252, 0.8);
-}
-
-.bookmark-preview-card h3 {
-  margin: 0;
-  font-size: 0.84rem;
-  color: #1f2533;
-}
-
-.bookmark-preview-fallback-header {
-  display: flex;
-  gap: 0.58rem;
-  align-items: flex-start;
-  min-width: 0;
-}
-
-.bookmark-preview-fallback-icon {
-  display: inline-flex;
-  flex: 0 0 1.9rem;
-  width: 1.9rem;
-  height: 1.9rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(22, 131, 232, 0.12);
-  color: #1683e8;
-  font-size: 0.86rem;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.bookmark-preview-fallback-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 0.26rem;
-  min-width: 0;
-}
-
-.bookmark-preview-fallback-copy h3 {
-  margin: 0;
-  color: #20242b;
-  font-size: 0.88rem;
-  line-height: 1.35;
-}
-
-.bookmark-preview-fallback-copy p {
-  margin: 0;
-  color: #66707d;
-  font-size: 0.76rem;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.bookmark-preview-fallback-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.42rem;
-  min-width: 0;
-}
-
-.bookmark-preview-fallback-actions > button {
-  min-height: 2.18rem;
-  padding: 0.42rem 0.68rem;
-  font-size: 0.78rem;
-  line-height: 1.2;
-}
-
-.bookmark-preview-image {
-  width: 100%;
-  max-height: 18rem;
-  object-fit: cover;
-  border-radius: 12px;
-  border: 1px solid rgba(20, 33, 61, 0.08);
-  background: rgba(15, 23, 42, 0.06);
-}
-
-.bookmark-preview-clear-button {
-  align-self: flex-start;
-  margin-top: 0.16rem;
-}
-
 .bookmark-grid {
   list-style: none;
   padding: 0;
@@ -464,27 +283,6 @@ img {
   background: linear-gradient(135deg, rgba(244, 162, 97, 0.18), rgba(20, 33, 61, 0.04));
   border: 1px dashed rgba(20, 33, 61, 0.2);
   color: #21314d;
-}
-
-.asset-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: 0.75rem;
-}
-
-.asset-grid img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  border-radius: 16px;
-  border: 1px solid rgba(20, 33, 61, 0.08);
-  background: rgba(15, 23, 42, 0.06);
-}
-
-.asset-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
 }
 
 .tag-option-label {
@@ -648,30 +446,6 @@ img {
   font-size: 0.88rem;
   letter-spacing: -0.01em;
   color: #1b2230;
-}
-
-.bookmark-preview-error {
-  margin: 0;
-  padding: 0.72rem 0.76rem;
-  border: 1px solid rgba(185, 28, 28, 0.18);
-  border-radius: 8px;
-  background: rgba(254, 242, 242, 0.78);
-  color: #9f1239;
-  font-size: 0.82rem;
-  font-weight: 700;
-  line-height: 1.45;
-}
-
-.bookmark-preview-note {
-  margin: 0;
-  padding: 0.72rem 0.76rem;
-  border: 1px solid rgba(22, 131, 232, 0.18);
-  border-radius: 8px;
-  background: rgba(248, 252, 255, 0.78);
-  color: #225285;
-  font-size: 0.8rem;
-  font-weight: 700;
-  line-height: 1.45;
 }
 
 .detail-row {
@@ -941,15 +715,6 @@ img {
     padding: 0.3rem 0.64rem;
   }
 
-  .bookmark-preview-fallback-actions {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-
-  .bookmark-preview-fallback-actions > button {
-    width: 100%;
-  }
-
 }
 
 @media (max-width: 720px) {
@@ -1101,10 +866,6 @@ img {
     height: 2.35rem;
   }
 
-  .asset-grid {
-    grid-template-columns: 1fr;
-  }
-
   .dashboard-sidebar {
     gap: 0.64rem;
   }
@@ -1158,18 +919,6 @@ img {
     box-shadow: none;
   }
 
-  .overlay-backdrop {
-    padding: 0.6rem;
-    align-items: flex-start;
-  }
-
-  .overlay-dialog-shell,
-  .bookmark-detail-dialog-shell {
-    width: 100%;
-    max-height: calc(100vh - 1.2rem);
-    padding: 0.6rem;
-    border-radius: 18px;
-  }
 }
 
 :root[data-app-theme="light"] {
@@ -1266,8 +1015,6 @@ img {
 .app-theme-light .dashboard-main,
 .app-theme-light .result-primary-column,
 .app-theme-light .surface-card,
-.app-theme-light .overlay-dialog-shell,
-.app-theme-light .bookmark-preview-card,
 .app-theme-light .detail-block,
 .app-theme-light .folder-action-menu {
   border-color: #dfe3e8 !important;
@@ -1283,7 +1030,6 @@ img {
 
 .app-theme-light .hero-copy h1,
 .app-theme-light .workspace-panel-heading-row h2,
-.app-theme-light .overlay-dialog-title h2,
 .app-theme-light .bookmark-list-title-row h2,
 .app-theme-light .bookmark-title-line,
 .app-theme-light .detail-block h3,
@@ -1345,8 +1091,6 @@ img {
 .app-theme-dark .dashboard-main,
 .app-theme-dark .result-primary-column,
 .app-theme-dark .surface-card,
-.app-theme-dark .overlay-dialog-shell,
-.app-theme-dark .bookmark-preview-card,
 .app-theme-dark .detail-block,
 .app-theme-dark .folder-action-menu {
   border-color: var(--border-soft) !important;
@@ -1366,7 +1110,6 @@ img {
 
 .app-theme-dark .hero-copy h1,
 .app-theme-dark .workspace-panel-heading-row h2,
-.app-theme-dark .overlay-dialog-title h2,
 .app-theme-dark .bookmark-list-title-row h2,
 .app-theme-dark .bookmark-title-line,
 .app-theme-dark .detail-block h3,
@@ -1391,8 +1134,6 @@ img {
 .hero-command-bar,
 .session-card,
 .surface-card,
-.overlay-dialog-shell,
-.bookmark-preview-card,
 .detail-block,
 .folder-action-menu {
   border-color: var(--border-soft);
@@ -1420,9 +1161,7 @@ img {
 
 .hero-copy h1,
 .workspace-panel-heading-row h2,
-.overlay-dialog-title h2,
 .bookmark-list-title-row h2,
-.bookmark-composer-section-header h3,
 .detail-block h3,
 .session-card strong {
   color: var(--text-strong);
@@ -1445,8 +1184,6 @@ img {
 .detail-row-value,
 .muted-text,
 .field-note,
-.bookmark-composer-section-header p,
-.bookmark-preview-card p,
 .quiet-empty-state {
   color: var(--text-muted);
 }
@@ -1492,10 +1229,6 @@ img {
   color: var(--text-primary);
 }
 
-.asset-grid img {
-  border-color: var(--border-soft);
-}
-
 .quiet-empty-state {
   border-color: rgba(125, 211, 252, 0.18);
   background:
@@ -1538,12 +1271,7 @@ img {
   border-color: var(--border-soft);
 }
 
-.overlay-backdrop {
-  background: rgba(4, 8, 14, 0.72);
-}
-
-.detail-block,
-.bookmark-preview-card {
+.detail-block {
   background: rgba(36, 44, 57, 0.78);
 }
 
@@ -1770,7 +1498,6 @@ img {
 
   .surface-card,
 .session-card,
-.bookmark-preview-card,
 .detail-block,
 .folder-action-menu {
     border-color: var(--desktop-border);
@@ -1824,16 +1551,6 @@ img {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
   }
 
-  .overlay-backdrop {
-    background: rgba(16, 24, 40, 0.32);
-  }
-
-  .overlay-dialog-shell,
-  .bookmark-detail-dialog-shell {
-    background: #ffffff;
-    border-color: var(--desktop-border);
-    box-shadow: 0 24px 60px rgba(31, 37, 51, 0.18);
-  }
 }
 
 @media (min-width: 1121px) {

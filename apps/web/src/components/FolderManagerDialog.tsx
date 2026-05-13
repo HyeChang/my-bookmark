@@ -11,6 +11,7 @@ import type { Folder } from "@bookmark/shared";
 import { ColorSelectField, renderColorSwatch } from "./ColorSelectField";
 import { FolderIconPicker, getFolderIconGlyph } from "./FolderIconPicker";
 import "./DashboardFormControls.css";
+import "./OverlayDialog.css";
 import "./ManagerDialog.css";
 import "./FolderManagerDialog.css";
 
