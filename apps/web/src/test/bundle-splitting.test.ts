@@ -63,6 +63,10 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
+    const serviceModuleSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-service-modules.ts"),
+      "utf8"
+    );
     const deferredModules = [
       "bookmark-assets",
       "bookmark-extract",
@@ -75,6 +79,8 @@ describe("bundle splitting", () => {
       "tags"
     ];
     const importDeclarations = dashboardSource.match(/import[\s\S]*?;\r?\n/g) ?? [];
+    const serviceImportDeclarations =
+      serviceModuleSource.match(/import[\s\S]*?;\r?\n/g) ?? [];
 
     for (const moduleName of deferredModules) {
       expect(
@@ -84,10 +90,25 @@ describe("bundle splitting", () => {
             !statement.startsWith("import type")
         )
       ).toEqual([]);
-      expect(dashboardSource).toContain(
+      expect(
+        serviceImportDeclarations.filter(
+          (statement) =>
+            statement.includes(`from "../lib/${moduleName}"`) &&
+            !statement.startsWith("import type")
+        )
+      ).toEqual([]);
+      expect(serviceModuleSource).toContain(
         `import("../lib/${moduleName}")`
       );
     }
+
+    expect(dashboardSource).toContain('from "./dashboard-service-modules";');
+    expect(dashboardSource).not.toContain("function createDeferredModuleLoader");
+    expect(dashboardSource).not.toContain("function callDeferredModule");
+    expect(dashboardSource).not.toContain("type DeferredModuleLoader");
+    expect(serviceModuleSource).toContain("function createDeferredModuleLoader");
+    expect(serviceModuleSource).toContain("function callDeferredModule");
+    expect(serviceModuleSource).toContain("type DeferredModuleLoader");
   });
 
   it("shares bookmark preview rendering helpers instead of duplicating them", () => {
@@ -212,14 +233,19 @@ describe("bundle splitting", () => {
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
+    const serviceModuleSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-service-modules.ts"),
+      "utf8"
+    );
 
-    expect(dashboardSource).toContain("function preloadDashboardCoreServiceModules");
-    expect(dashboardSource).toContain("Promise.allSettled([");
-    expect(dashboardSource).toContain("bookmarkAssetsModule.load()");
-    expect(dashboardSource).toContain("bookmarksModule.load()");
-    expect(dashboardSource).toContain("foldersModule.load()");
-    expect(dashboardSource).toContain("recommendationsModule.load()");
-    expect(dashboardSource).toContain("tagsModule.load()");
+    expect(serviceModuleSource).toContain("function preloadDashboardCoreServiceModules");
+    expect(serviceModuleSource).toContain("Promise.allSettled([");
+    expect(serviceModuleSource).toContain("bookmarkAssetsModule.load()");
+    expect(serviceModuleSource).toContain("bookmarksModule.load()");
+    expect(serviceModuleSource).toContain("foldersModule.load()");
+    expect(serviceModuleSource).toContain("recommendationsModule.load()");
+    expect(serviceModuleSource).toContain("tagsModule.load()");
+    expect(dashboardSource).not.toContain("function preloadDashboardCoreServiceModules");
     expect(dashboardSource).toContain("preloadDashboardCoreServiceModules();");
     expect(dashboardSource).toContain("void refreshDashboardData().finally");
   });
