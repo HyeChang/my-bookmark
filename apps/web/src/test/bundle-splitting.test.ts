@@ -572,6 +572,67 @@ describe("bundle splitting", () => {
     );
   });
 
+  it("preloads lazy dashboard dialog chunks from dialog intent", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const dashboardHeaderSource = readFileSync(
+      join(process.cwd(), "src", "components", "DashboardHeader.tsx"),
+      "utf8"
+    );
+    const dashboardDialogChunksSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-dialog-chunks.tsx"),
+      "utf8"
+    );
+
+    expect(dashboardDialogChunksSource).toContain(
+      "const loadBookmarkComposerDialog = createDashboardDialogChunkLoader(() =>"
+    );
+    expect(dashboardDialogChunksSource).toContain('import("./BookmarkComposerDialog")');
+    expect(dashboardDialogChunksSource).toContain(
+      "const loadFolderManagerDialog = createDashboardDialogChunkLoader(() =>"
+    );
+    expect(dashboardDialogChunksSource).toContain('import("./FolderManagerDialog")');
+    expect(dashboardDialogChunksSource).toContain(
+      "const loadTagManagerDialog = createDashboardDialogChunkLoader(() =>"
+    );
+    expect(dashboardDialogChunksSource).toContain('import("./TagManagerDialog")');
+    expect(dashboardDialogChunksSource).toContain(
+      "const loadExtensionDownloadDialog = createDashboardDialogChunkLoader(() =>"
+    );
+    expect(dashboardDialogChunksSource).toContain('import("./ExtensionDownloadDialog")');
+    expect(dashboardDialogChunksSource).toContain(
+      "const loadExtensionTokenDialog = createDashboardDialogChunkLoader(() =>"
+    );
+    expect(dashboardDialogChunksSource).toContain('import("./ExtensionTokenDialog")');
+    expect(dashboardDialogChunksSource).toContain(
+      "const loadInstallHelpDialog = createDashboardDialogChunkLoader(() =>"
+    );
+    expect(dashboardDialogChunksSource).toContain('import("./InstallHelpDialog")');
+    expect(dashboardDialogChunksSource).toContain("function preloadDashboardDialogChunk");
+    expect(dashboardDialogChunksSource).toContain(
+      "measureAsyncPerformance(`dashboard:dialog-preload:${chunk}`"
+    );
+    expect(dashboardSource).toContain('} from "./dashboard-dialog-chunks";');
+    expect(dashboardSource).not.toContain('lazy(() => import("./InstallHelpDialog"))');
+    expect(dashboardSource).not.toContain('lazy(() => import("./BookmarkComposerDialog"))');
+    expect(dashboardSource).not.toContain('lazy(() => import("./FolderManagerDialog"))');
+    expect(dashboardSource).not.toContain('lazy(() => import("./TagManagerDialog"))');
+    expect(dashboardSource).toContain('preloadDashboardDialogChunk("bookmarkComposer")');
+    expect(dashboardSource).toContain('preloadDashboardDialogChunk("folderManager")');
+    expect(dashboardSource).toContain('preloadDashboardDialogChunk("tagManager")');
+    expect(dashboardSource).toContain('preloadDashboardDialogChunk("extensionDownload")');
+    expect(dashboardSource).toContain('preloadDashboardDialogChunk("extensionToken")');
+    expect(dashboardSource).toContain('preloadDashboardDialogChunk("installHelp")');
+    expect(dashboardHeaderSource).toContain("onCreateBookmarkPreload");
+    expect(dashboardHeaderSource).toContain("onFolderManagerPreload");
+    expect(dashboardHeaderSource).toContain("onTagManagerPreload");
+    expect(dashboardHeaderSource).toContain("onExtensionDownloadPreload");
+    expect(dashboardHeaderSource).toContain("onExtensionTokenPreload");
+    expect(dashboardHeaderSource).toContain("onInstallHelpPreload");
+  });
+
   it("keeps dashboard header rendering outside the dashboard state owner", () => {
     const dashboardSource = readFileSync(
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),

@@ -1,5 +1,4 @@
 import {
-  lazy,
   Suspense,
   startTransition,
   useDeferredValue,
@@ -47,6 +46,15 @@ import {
   LazyRecommendationPanel,
   preloadDashboardPanelChunk
 } from "./dashboard-panel-chunks";
+import {
+  LazyBookmarkComposerDialog,
+  LazyExtensionDownloadDialog,
+  LazyExtensionTokenDialog,
+  LazyFolderManagerDialog,
+  LazyInstallHelpDialog,
+  LazyTagManagerDialog,
+  preloadDashboardDialogChunk
+} from "./dashboard-dialog-chunks";
 import {
   buildBookmarkListRows,
   buildHomeFavoriteCards,
@@ -282,13 +290,6 @@ function getIsMobileSearchViewport() {
     globalThis.document?.documentElement?.clientWidth ?? globalThis.innerWidth ?? 1024
   ) <= MOBILE_SEARCH_BREAKPOINT;
 }
-
-const LazyInstallHelpDialog = lazy(() => import("./InstallHelpDialog"));
-const LazyExtensionDownloadDialog = lazy(() => import("./ExtensionDownloadDialog"));
-const LazyExtensionTokenDialog = lazy(() => import("./ExtensionTokenDialog"));
-const LazyBookmarkComposerDialog = lazy(() => import("./BookmarkComposerDialog"));
-const LazyFolderManagerDialog = lazy(() => import("./FolderManagerDialog"));
-const LazyTagManagerDialog = lazy(() => import("./TagManagerDialog"));
 
 type BookmarkAssetsModule = typeof import("../lib/bookmark-assets");
 type BookmarkExtractModule = typeof import("../lib/bookmark-extract");
@@ -1583,6 +1584,7 @@ export default function AuthenticatedDashboardApp({
 
   async function handlePwaInstall() {
     if (!deferredInstallPrompt || typeof deferredInstallPrompt.prompt !== "function") {
+      preloadDashboardDialogChunk("installHelp");
       setIsInstallHelpDialogOpen(true);
       return;
     }
@@ -2002,6 +2004,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   function openFolderManager() {
+    preloadDashboardDialogChunk("folderManager");
     const nextDraft = emptyFolderDraft;
     setErrorMessage(null);
     setIsMobileHeaderMenuOpen(false);
@@ -2015,6 +2018,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   function beginFolderEdit(folder: Folder) {
+    preloadDashboardDialogChunk("folderManager");
     const nextDraft = {
       name: folder.name,
       color: folder.color ?? "",
@@ -2044,6 +2048,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   function beginChildFolderCreate(parentFolder: Folder) {
+    preloadDashboardDialogChunk("folderManager");
     const nextDraft = {
       ...emptyFolderDraft,
       isHidden: parentFolder.isHidden === true,
@@ -2456,6 +2461,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   function openTagManager() {
+    preloadDashboardDialogChunk("tagManager");
     const nextDraft = emptyTagDraft;
     setErrorMessage(null);
     setIsMobileHeaderMenuOpen(false);
@@ -2468,6 +2474,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   function beginTagEdit(tag: Tag) {
+    preloadDashboardDialogChunk("tagManager");
     const nextDraft = {
       name: tag.name,
       color: tag.color ?? ""
@@ -2992,6 +2999,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   async function beginBookmarkEdit(bookmark: Bookmark) {
+    preloadDashboardDialogChunk("bookmarkComposer");
     requestTagsIfNeeded();
     let editableBookmark = bookmark;
     if (bookmark.contentTruncated) {
@@ -3127,6 +3135,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   function beginBookmarkCreate() {
+    preloadDashboardDialogChunk("bookmarkComposer");
     requestTagsIfNeeded();
     const nextDraft = {
       ...emptyBookmarkDraft,
@@ -3553,6 +3562,11 @@ export default function AuthenticatedDashboardApp({
     setUserscriptCopyStatus(null);
   }
 
+  function openExtensionDownloadDialog() {
+    preloadDashboardDialogChunk("extensionDownload");
+    setIsExtensionDownloadDialogOpen(true);
+  }
+
   async function copyTextToClipboard(value: string) {
     if (globalThis.navigator?.clipboard?.writeText) {
       await globalThis.navigator.clipboard.writeText(value);
@@ -3619,6 +3633,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   async function openExtensionTokenDialog() {
+    preloadDashboardDialogChunk("extensionToken");
     try {
       setErrorMessage(null);
       const nextTokens = await loadExtensionTokens();
@@ -5443,18 +5458,24 @@ export default function AuthenticatedDashboardApp({
         sessionState={sessionState}
         shouldUseMobileSidebarPanels={shouldUseMobileSidebarPanels}
         onCreateBookmark={beginBookmarkCreate}
+        onCreateBookmarkPreload={() => preloadDashboardDialogChunk("bookmarkComposer")}
+        onExtensionDownloadPreload={() => preloadDashboardDialogChunk("extensionDownload")}
+        onExtensionTokenPreload={() => preloadDashboardDialogChunk("extensionToken")}
         onFirebaseAuthPreload={preloadFirebaseAuth}
+        onFolderManagerPreload={() => preloadDashboardDialogChunk("folderManager")}
         onGoogleLogin={handleGoogleLogin}
         onHomeOpen={openHomePage}
         onHomePreload={() => preloadDashboardPanelChunk("home")}
+        onInstallHelpPreload={() => preloadDashboardDialogChunk("installHelp")}
         onLogout={handleLogout}
         onMobileHeaderMenuOpenChange={setIsMobileHeaderMenuOpen}
-        onOpenExtensionDownloadDialog={() => setIsExtensionDownloadDialogOpen(true)}
+        onOpenExtensionDownloadDialog={openExtensionDownloadDialog}
         onOpenExtensionTokenDialog={openExtensionTokenDialog}
         onOpenFolderManager={openFolderManager}
         onOpenTagManager={openTagManager}
         onPwaInstall={handlePwaInstall}
         onQuickActionsMenuOpenChange={setIsQuickActionsMenuOpen}
+        onTagManagerPreload={() => preloadDashboardDialogChunk("tagManager")}
         onToggleAppTheme={toggleAppTheme}
       />
       {isInitialDashboardBootstrapping ? (
@@ -5577,7 +5598,7 @@ export default function AuthenticatedDashboardApp({
                 onUrlChange={handleBookmarkUrlChange}
                 onPreviewLoad={handleBookmarkPreviewLoad}
                 onOpenPreviewSourceUrl={handleOpenBookmarkPreviewSourceUrl}
-                onOpenExtensionDownload={() => setIsExtensionDownloadDialogOpen(true)}
+                onOpenExtensionDownload={openExtensionDownloadDialog}
                 onDismissPreviewFallback={handleDismissBookmarkPreviewFallback}
                 onUseUrlOnly={handleUseUrlOnlyBookmarkDraft}
                 onClearPreview={handleClearBookmarkPreview}

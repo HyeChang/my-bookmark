@@ -17,10 +17,15 @@ type DashboardHeaderProps = {
   sessionState: DashboardHeaderSessionState;
   shouldUseMobileSidebarPanels: boolean;
   onCreateBookmark: () => void;
+  onCreateBookmarkPreload: () => void;
+  onExtensionDownloadPreload: () => void;
+  onExtensionTokenPreload: () => void;
   onFirebaseAuthPreload: DashboardHeaderAction;
+  onFolderManagerPreload: () => void;
   onGoogleLogin: DashboardHeaderAction;
   onHomeOpen: () => void;
   onHomePreload: () => void;
+  onInstallHelpPreload: () => void;
   onLogout: DashboardHeaderAction;
   onMobileHeaderMenuOpenChange: Dispatch<SetStateAction<boolean>>;
   onOpenExtensionDownloadDialog: () => void;
@@ -29,6 +34,7 @@ type DashboardHeaderProps = {
   onOpenTagManager: () => void;
   onPwaInstall: DashboardHeaderAction;
   onQuickActionsMenuOpenChange: Dispatch<SetStateAction<boolean>>;
+  onTagManagerPreload: () => void;
   onToggleAppTheme: () => void;
 };
 
@@ -41,10 +47,15 @@ export function DashboardHeader({
   sessionState,
   shouldUseMobileSidebarPanels,
   onCreateBookmark,
+  onCreateBookmarkPreload,
+  onExtensionDownloadPreload,
+  onExtensionTokenPreload,
   onFirebaseAuthPreload,
+  onFolderManagerPreload,
   onGoogleLogin,
   onHomeOpen,
   onHomePreload,
+  onInstallHelpPreload,
   onLogout,
   onMobileHeaderMenuOpenChange,
   onOpenExtensionDownloadDialog,
@@ -53,6 +64,7 @@ export function DashboardHeader({
   onOpenTagManager,
   onPwaInstall,
   onQuickActionsMenuOpenChange,
+  onTagManagerPreload,
   onToggleAppTheme
 }: DashboardHeaderProps) {
   return (
@@ -82,6 +94,9 @@ export function DashboardHeader({
             <button
               type="button"
               className="primary-button"
+              onMouseEnter={onCreateBookmarkPreload}
+              onFocus={onCreateBookmarkPreload}
+              onPointerDown={onCreateBookmarkPreload}
               onClick={() => {
                 onQuickActionsMenuOpenChange(false);
                 onCreateBookmark();
@@ -114,6 +129,9 @@ export function DashboardHeader({
                     type="button"
                     className="secondary-button folder-action-menu-item"
                     aria-label="새 폴더"
+                    onMouseEnter={onFolderManagerPreload}
+                    onFocus={onFolderManagerPreload}
+                    onPointerDown={onFolderManagerPreload}
                     onClick={() => {
                       onQuickActionsMenuOpenChange(false);
                       onOpenFolderManager();
@@ -125,6 +143,9 @@ export function DashboardHeader({
                     type="button"
                     className="secondary-button folder-action-menu-item"
                     aria-label="태그 관리"
+                    onMouseEnter={onTagManagerPreload}
+                    onFocus={onTagManagerPreload}
+                    onPointerDown={onTagManagerPreload}
                     onClick={() => {
                       onQuickActionsMenuOpenChange(false);
                       onOpenTagManager();
@@ -161,6 +182,9 @@ export function DashboardHeader({
               type="button"
               className="primary-button hero-mobile-create-button"
               aria-label="북마크 등록"
+              onMouseEnter={onCreateBookmarkPreload}
+              onFocus={onCreateBookmarkPreload}
+              onPointerDown={onCreateBookmarkPreload}
               onClick={onCreateBookmark}
             >
               등록
@@ -189,6 +213,9 @@ export function DashboardHeader({
                   <button
                     type="button"
                     className="secondary-button folder-action-menu-item"
+                    onMouseEnter={onInstallHelpPreload}
+                    onFocus={onInstallHelpPreload}
+                    onPointerDown={onInstallHelpPreload}
                     onClick={() => void onPwaInstall()}
                   >
                     앱 설치
@@ -196,6 +223,9 @@ export function DashboardHeader({
                   <button
                     type="button"
                     className="secondary-button folder-action-menu-item"
+                    onMouseEnter={onFolderManagerPreload}
+                    onFocus={onFolderManagerPreload}
+                    onPointerDown={onFolderManagerPreload}
                     onClick={() => {
                       onMobileHeaderMenuOpenChange(false);
                       onOpenFolderManager();
@@ -206,6 +236,9 @@ export function DashboardHeader({
                   <button
                     type="button"
                     className="secondary-button folder-action-menu-item"
+                    onMouseEnter={onTagManagerPreload}
+                    onFocus={onTagManagerPreload}
+                    onPointerDown={onTagManagerPreload}
                     onClick={() => {
                       onMobileHeaderMenuOpenChange(false);
                       onOpenTagManager();
@@ -216,6 +249,9 @@ export function DashboardHeader({
                   <button
                     type="button"
                     className="secondary-button folder-action-menu-item"
+                    onMouseEnter={onExtensionDownloadPreload}
+                    onFocus={onExtensionDownloadPreload}
+                    onPointerDown={onExtensionDownloadPreload}
                     onClick={() => {
                       onMobileHeaderMenuOpenChange(false);
                       onOpenExtensionDownloadDialog();
@@ -226,6 +262,9 @@ export function DashboardHeader({
                   <button
                     type="button"
                     className="secondary-button folder-action-menu-item"
+                    onMouseEnter={onExtensionTokenPreload}
+                    onFocus={onExtensionTokenPreload}
+                    onPointerDown={onExtensionTokenPreload}
                     onClick={() => void onOpenExtensionTokenDialog()}
                   >
                     확장 토큰
@@ -247,6 +286,9 @@ export function DashboardHeader({
             type="button"
             className="secondary-button hero-install-button"
             aria-label="앱 설치"
+            onMouseEnter={onInstallHelpPreload}
+            onFocus={onInstallHelpPreload}
+            onPointerDown={onInstallHelpPreload}
             onClick={() => void onPwaInstall()}
           >
             앱 설치
@@ -259,6 +301,9 @@ export function DashboardHeader({
                 type="button"
                 className="secondary-button hero-install-button"
                 aria-label="앱 설치"
+                onMouseEnter={onInstallHelpPreload}
+                onFocus={onInstallHelpPreload}
+                onPointerDown={onInstallHelpPreload}
                 onClick={() => void onPwaInstall()}
               >
                 앱 설치
@@ -286,6 +331,9 @@ export function DashboardHeader({
                 type="button"
                 className="secondary-button"
                 aria-label="브라우저 확장 다운로드"
+                onMouseEnter={onExtensionDownloadPreload}
+                onFocus={onExtensionDownloadPreload}
+                onPointerDown={onExtensionDownloadPreload}
                 onClick={onOpenExtensionDownloadDialog}
               >
                 확장 다운로드
@@ -294,6 +342,9 @@ export function DashboardHeader({
                 type="button"
                 className="secondary-button"
                 aria-label="확장 토큰 관리"
+                onMouseEnter={onExtensionTokenPreload}
+                onFocus={onExtensionTokenPreload}
+                onPointerDown={onExtensionTokenPreload}
                 onClick={() => void onOpenExtensionTokenDialog()}
               >
                 확장 토큰

@@ -5,7 +5,8 @@ type RumMetricName =
   | "layout-shift"
   | "interaction"
   | "dashboard-data-refresh"
-  | "dashboard-panel-preload";
+  | "dashboard-panel-preload"
+  | "dashboard-dialog-preload";
 
 type RumMetricRating = "good" | "needs-improvement" | "poor";
 
@@ -22,6 +23,7 @@ let cumulativeLayoutShift = 0;
 let longestInteraction = 0;
 const DASHBOARD_DATA_REFRESH_MEASURE = "bookmark:dashboard:data-refresh";
 const DASHBOARD_PANEL_PRELOAD_MEASURE_PREFIX = "bookmark:dashboard:panel-preload:";
+const DASHBOARD_DIALOG_PRELOAD_MEASURE_PREFIX = "bookmark:dashboard:dialog-preload:";
 
 function getRating(metric: RumMetricName, value: number): RumMetricRating {
   if (metric === "largest-contentful-paint") {
@@ -40,7 +42,11 @@ function getRating(metric: RumMetricName, value: number): RumMetricRating {
     return value <= 1800 ? "good" : value <= 3000 ? "needs-improvement" : "poor";
   }
 
-  if (metric === "dashboard-data-refresh" || metric === "dashboard-panel-preload") {
+  if (
+    metric === "dashboard-data-refresh" ||
+    metric === "dashboard-panel-preload" ||
+    metric === "dashboard-dialog-preload"
+  ) {
     return value <= 500 ? "good" : value <= 1500 ? "needs-improvement" : "poor";
   }
 
@@ -157,6 +163,17 @@ function reportDashboardMeasureMetrics(entries: PerformanceEntry[]) {
         metric: "dashboard-panel-preload",
         value: entry.duration,
         rating: getRating("dashboard-panel-preload", entry.duration),
+        detail
+      });
+      continue;
+    }
+
+    if (entry.name.startsWith(DASHBOARD_DIALOG_PRELOAD_MEASURE_PREFIX)) {
+      const detail = entry.name.slice(DASHBOARD_DIALOG_PRELOAD_MEASURE_PREFIX.length);
+      sendRumMetric({
+        metric: "dashboard-dialog-preload",
+        value: entry.duration,
+        rating: getRating("dashboard-dialog-preload", entry.duration),
         detail
       });
     }

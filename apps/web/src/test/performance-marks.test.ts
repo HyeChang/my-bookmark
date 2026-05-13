@@ -35,13 +35,17 @@ describe("dashboard performance marks", () => {
     expect(clearedMarks).toEqual(marks);
   });
 
-  it("instruments dashboard data refresh and panel chunk preloads", () => {
+  it("instruments dashboard data refresh and panel/dialog chunk preloads", () => {
     const dashboardSource = readFileSync(
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
       "utf8"
     );
     const dashboardPanelChunksSource = readFileSync(
       join(process.cwd(), "src", "components", "dashboard-panel-chunks.tsx"),
+      "utf8"
+    );
+    const dashboardDialogChunksSource = readFileSync(
+      join(process.cwd(), "src", "components", "dashboard-dialog-chunks.tsx"),
       "utf8"
     );
     const performanceSource = readFileSync(
@@ -59,6 +63,12 @@ describe("dashboard performance marks", () => {
     );
     expect(dashboardPanelChunksSource).toContain(
       "measureAsyncPerformance(`dashboard:panel-preload:${chunk}`"
+    );
+    expect(dashboardDialogChunksSource).toContain(
+      'import { measureAsyncPerformance } from "../lib/performance-marks";'
+    );
+    expect(dashboardDialogChunksSource).toContain(
+      "measureAsyncPerformance(`dashboard:dialog-preload:${chunk}`"
     );
   });
 
@@ -78,6 +88,8 @@ describe("dashboard performance marks", () => {
     expect(rumSource).toContain('"measure"');
     expect(rumSource).toContain('"dashboard-data-refresh"');
     expect(rumSource).toContain('"dashboard-panel-preload"');
+    expect(rumSource).toContain('"dashboard-dialog-preload"');
     expect(rumSource).toContain("bookmark:dashboard:panel-preload:");
+    expect(rumSource).toContain("bookmark:dashboard:dialog-preload:");
   });
 });
