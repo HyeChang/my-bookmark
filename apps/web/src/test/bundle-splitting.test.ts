@@ -277,6 +277,26 @@ describe("bundle splitting", () => {
     expect(resultsSource).not.toContain("renderSearchColorSelect:");
   });
 
+  it("keeps bookmark composer asset upload UI inside the lazy composer chunk", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const composerSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkComposerDialog.tsx"),
+      "utf8"
+    );
+
+    expect(dashboardSource).not.toContain("function renderPendingAssetComposerSection");
+    expect(dashboardSource).not.toContain("bookmark-asset-dropzone");
+    expect(dashboardSource).not.toContain("extractImageFilesFromDataTransfer");
+    expect(dashboardSource).not.toContain("pendingAssetSection=");
+    expect(composerSource).toContain("function PendingAssetComposerSection");
+    expect(composerSource).toContain("extractImageFilesFromDataTransfer");
+    expect(composerSource).toContain("pendingAssetFiles=");
+    expect(composerSource).toContain("existingAssets=");
+  });
+
   it("loads bookmark export generation only when export is requested", () => {
     const dashboardSource = readFileSync(
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
@@ -417,6 +437,29 @@ describe("bundle splitting", () => {
     expect(dashboardCss).not.toContain(".bookmark-card {");
     expect(dashboardCss).not.toContain(".bookmark-card-action-menu");
     expect(dashboardCss).not.toContain(".bookmark-url-copy-button");
+  });
+
+  it("loads bookmark list controls styles with the lazy results panel", () => {
+    const bookmarkResultsSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),
+      "utf8"
+    );
+    const bookmarkResultsCss = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsPanel.css"),
+      "utf8"
+    );
+    const bookmarkResultsControlsCss = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsControls.css"),
+      "utf8"
+    );
+
+    expect(bookmarkResultsSource).toContain('import "./BookmarkResultsControls.css";');
+    expect(bookmarkResultsCss).not.toContain(".bookmark-pagination-bar");
+    expect(bookmarkResultsCss).not.toContain(".bookmark-page-size-control");
+    expect(bookmarkResultsCss).not.toContain(".bookmark-sort-menu");
+    expect(bookmarkResultsControlsCss).toContain(".bookmark-pagination-bar");
+    expect(bookmarkResultsControlsCss).toContain(".bookmark-page-size-control");
+    expect(bookmarkResultsControlsCss).toContain(".bookmark-sort-menu");
   });
 
   it("shares action menu placement state across bookmark surfaces", () => {

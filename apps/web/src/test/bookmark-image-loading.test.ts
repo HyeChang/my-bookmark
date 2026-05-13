@@ -5,6 +5,7 @@ import type { BookmarkAsset } from "@bookmark/shared";
 
 import {
   getBookmarkAssetCardImageUrl,
+  getBookmarkAssetPreviewImageUrl,
   getBookmarkListImageLoadingPriority,
   getHomeFavoriteImageLoadingPriority
 } from "../lib/bookmark-image-loading";
@@ -27,6 +28,23 @@ describe("bookmark image loading priority", () => {
     );
     expect(
       getBookmarkAssetCardImageUrl({
+        ...asset,
+        thumbnailUrl: undefined
+      })
+    ).toBe("/api/bookmarks/bookmark-1/assets/asset-1/content");
+  });
+
+  it("uses thumbnail URLs for uploaded asset preview grids when available", () => {
+    const asset = {
+      contentUrl: "/api/bookmarks/bookmark-1/assets/asset-1/content",
+      thumbnailUrl: "/api/bookmarks/bookmark-1/assets/asset-1/thumbnail"
+    } as BookmarkAsset;
+
+    expect(getBookmarkAssetPreviewImageUrl(asset)).toBe(
+      "/api/bookmarks/bookmark-1/assets/asset-1/thumbnail"
+    );
+    expect(
+      getBookmarkAssetPreviewImageUrl({
         ...asset,
         thumbnailUrl: undefined
       })
@@ -112,6 +130,23 @@ describe("bookmark image loading priority", () => {
     );
 
     expect(assetImageRule).toContain("background:");
+    expect(assetImageRule).toContain("content-visibility: auto;");
+    expect(assetImageRule).toContain("contain-intrinsic-size:");
+  });
+
+  it("wires uploaded asset preview thumbnails into detail and composer asset grids", () => {
+    const detailSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkDetailPanel.tsx"),
+      "utf8"
+    );
+    const composerSource = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkComposerDialog.tsx"),
+      "utf8"
+    );
+
+    expect(detailSource).toContain("getBookmarkAssetPreviewImageUrl(asset)");
+    expect(composerSource).toContain("getBookmarkAssetPreviewImageUrl(asset)");
+    expect(composerSource).toContain('sizes="(max-width: 720px) 100vw, 160px"');
   });
 
   it("declares responsive sizes for lazy preview and favorite images", () => {

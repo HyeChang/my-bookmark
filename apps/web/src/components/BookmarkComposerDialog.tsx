@@ -1,10 +1,14 @@
 import {
+  type ClipboardEvent as ReactClipboardEvent,
+  type DragEvent as ReactDragEvent,
   type FormEvent,
   type InputHTMLAttributes,
   type ReactNode
 } from "react";
-import type { BookmarkExtractPreview, Folder, Tag } from "@bookmark/shared";
+import type { BookmarkAsset, BookmarkExtractPreview, Folder, Tag } from "@bookmark/shared";
 
+import { extractImageFilesFromDataTransfer } from "../lib/clipboard-images";
+import { getBookmarkAssetPreviewImageUrl } from "../lib/bookmark-image-loading";
 import type { BookmarkExtensionPresenceStatus } from "../lib/extension-presence";
 import { ColorSelectField } from "./ColorSelectField";
 import { renderColorSwatch } from "./ColorSelectField";
@@ -78,7 +82,8 @@ export type BookmarkComposerDialogProps = {
   quickFolderDraft: BookmarkComposerQuickFolderDraft;
   quickFolderParentOptions: Array<{ folder: Folder; label: string }>;
   quickTagDraft: BookmarkComposerQuickTagDraft;
-  pendingAssetSection: ReactNode;
+  pendingAssetFiles: File[];
+  existingAssets: BookmarkAsset[];
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
   onDraftChange: (nextValues: Partial<BookmarkComposerDraft>) => void;
@@ -99,6 +104,9 @@ export type BookmarkComposerDialogProps = {
   onQuickTagToggle: () => void;
   onQuickTagDraftChange: (nextValues: Partial<BookmarkComposerQuickTagDraft>) => void;
   onQuickTagCreate: () => void | Promise<void>;
+  onPendingAssetFilesAdd: (files: File[]) => void;
+  onPendingAssetFileRemove: (fileName: string, fileSize: number) => void;
+  onExistingAssetDelete: (assetId: string) => void | Promise<void>;
   onCancelEdit: () => void;
 };
 
@@ -283,6 +291,110 @@ function WorkspacePanelHeader({
   );
 }
 
+type PendingAssetComposerSectionProps = {
+  pendingAssetFiles: File[];
+  existingAssets: BookmarkAsset[];
+  onPendingAssetFilesAdd: (files: File[]) => void;
+  onPendingAssetFileRemove: (fileName: string, fileSize: number) => void;
+  onExistingAssetDelete: (assetId: string) => void | Promise<void>;
+};
+
+function PendingAssetComposerSection({
+  pendingAssetFiles,
+  existingAssets,
+  onPendingAssetFilesAdd,
+  onPendingAssetFileRemove,
+  onExistingAssetDelete
+}: PendingAssetComposerSectionProps) {
+  function handlePendingAssetPaste(event: ReactClipboardEvent<HTMLElement>) {
+    const files = extractImageFilesFromDataTransfer(event.clipboardData);
+    if (files.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    onPendingAssetFilesAdd(files);
+  }
+
+  function handlePendingAssetDrop(event: ReactDragEvent<HTMLElement>) {
+    event.preventDefault();
+    onPendingAssetFilesAdd(extractImageFilesFromDataTransfer(event.dataTransfer));
+  }
+
+  return (
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="이미지 붙여넣기 또는 끌어놓기"
+        className="dropzone-button bookmark-asset-dropzone"
+        onPaste={handlePendingAssetPaste}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={handlePendingAssetDrop}
+      >
+        <strong>이미지 붙여넣기 또는 끌어놓기</strong>
+        <span>Ctrl+V, 드래그앤드롭, 파일 선택을 함께 지원합니다.</span>
+      </div>
+      <label>
+        이미지 업로드
+        <input
+          name="bookmarkAssetFile"
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={(event) => {
+            onPendingAssetFilesAdd(Array.from(event.target.files ?? []));
+            event.currentTarget.value = "";
+          }}
+        />
+      </label>
+      {pendingAssetFiles.length > 0 ? (
+        <ul className="inline-file-list">
+          {pendingAssetFiles.map((file) => (
+            <li key={`${file.name}-${file.size}`}>
+              <div className="inline-file-copy">
+                <span>{file.name}</span>
+                <small>{Math.max(1, Math.round(file.size / 1024))}KB</small>
+              </div>
+              <button
+                type="button"
+                className="ghost-button inline-file-remove-button"
+                aria-label={`${file.name} 제거`}
+                onClick={() => onPendingAssetFileRemove(file.name, file.size)}
+              >
+                제거
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {existingAssets.length > 0 ? (
+        <div className="asset-grid">
+          {existingAssets.map((asset, index) => (
+            <div key={asset.id} className="asset-item">
+              <img
+                src={getBookmarkAssetPreviewImageUrl(asset)}
+                alt={`업로드 이미지 ${index + 1}`}
+                loading="lazy"
+                decoding="async"
+                fetchPriority="low"
+                sizes="(max-width: 720px) 100vw, 160px"
+              />
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => void onExistingAssetDelete(asset.id)}
+              >
+                이미지 삭제 {index + 1}
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export default function BookmarkComposerDialog({
   isEditing,
   isSaving,
@@ -309,7 +421,8 @@ export default function BookmarkComposerDialog({
   quickFolderDraft,
   quickFolderParentOptions,
   quickTagDraft,
-  pendingAssetSection,
+  pendingAssetFiles,
+  existingAssets,
   onClose,
   onSubmit,
   onDraftChange,
@@ -330,6 +443,9 @@ export default function BookmarkComposerDialog({
   onQuickTagToggle,
   onQuickTagDraftChange,
   onQuickTagCreate,
+  onPendingAssetFilesAdd,
+  onPendingAssetFileRemove,
+  onExistingAssetDelete,
   onCancelEdit
 }: BookmarkComposerDialogProps) {
   const previewBlocks = getBookmarkPreviewArticleBlocks(preview);
@@ -674,7 +790,13 @@ export default function BookmarkComposerDialog({
                       {renderColorPicker("url 색상", draft.urlColor, (value) =>
                         onDraftChange({ urlColor: value })
                       )}
-                      {pendingAssetSection}
+                      <PendingAssetComposerSection
+                        pendingAssetFiles={pendingAssetFiles}
+                        existingAssets={existingAssets}
+                        onPendingAssetFilesAdd={onPendingAssetFilesAdd}
+                        onPendingAssetFileRemove={onPendingAssetFileRemove}
+                        onExistingAssetDelete={onExistingAssetDelete}
+                      />
                     </div>
                   ) : null}
                 </section>

@@ -46,6 +46,22 @@ describe("RUM route", () => {
     expect(res.status).toBe(204);
   });
 
+  it("accepts bookmark list view model performance measures", async () => {
+    const res = await app.request("http://example.com/api/rum", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        metric: "dashboard-bookmark-list-view-models",
+        value: 42.25,
+        rating: "good"
+      })
+    });
+
+    expect(res.status).toBe(204);
+  });
+
   it("rejects invalid performance metric payloads", async () => {
     const res = await app.request("http://example.com/api/rum", {
       method: "POST",

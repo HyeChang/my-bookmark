@@ -33,6 +33,7 @@ import "./ChoiceControls.css";
 import "./BookmarkAssetGrid.css";
 import "./BookmarkCard.css";
 import "./BookmarkResultsSearch.css";
+import "./BookmarkResultsControls.css";
 import "./BookmarkResultsPanel.css";
 
 const LazyBookmarkAdvancedSearchFields = lazy(() => import("./BookmarkAdvancedSearchFields"));

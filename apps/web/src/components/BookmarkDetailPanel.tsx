@@ -4,6 +4,7 @@ import type {
   BookmarkAsset,
   BookmarkExtractPreview
 } from "@bookmark/shared";
+import { getBookmarkAssetPreviewImageUrl } from "../lib/bookmark-image-loading";
 import {
   getBookmarkPreviewArticleBlocks,
   getBookmarkPreviewFieldRows,
@@ -303,7 +304,7 @@ export default function BookmarkDetailPanel({
               {assets.map((asset, index) => (
                 <img
                   key={asset.id}
-                  src={asset.contentUrl}
+                  src={getBookmarkAssetPreviewImageUrl(asset)}
                   alt={`업로드 이미지 ${index + 1}`}
                   loading="lazy"
                   decoding="async"

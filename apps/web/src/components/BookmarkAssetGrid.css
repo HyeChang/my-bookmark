@@ -11,6 +11,8 @@
   border-radius: 16px;
   border: 1px solid rgba(20, 33, 61, 0.08);
   background: rgba(15, 23, 42, 0.06);
+  content-visibility: auto;
+  contain-intrinsic-size: 0 8rem;
 }
 
 .asset-item {

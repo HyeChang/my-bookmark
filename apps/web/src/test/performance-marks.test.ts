@@ -35,6 +35,38 @@ describe("dashboard performance marks", () => {
     expect(clearedMarks).toEqual(marks);
   });
 
+  it("records and clears sync performance measures", async () => {
+    const marks: string[] = [];
+    const measures: Array<{ name: string; start: string; end: string }> = [];
+    const clearedMarks: string[] = [];
+
+    vi.stubGlobal("performance", {
+      mark: vi.fn((name: string) => {
+        marks.push(name);
+      }),
+      measure: vi.fn((name: string, start: string, end: string) => {
+        measures.push({ name, start, end });
+      }),
+      clearMarks: vi.fn((name: string) => {
+        clearedMarks.push(name);
+      })
+    });
+
+    const { measureSyncPerformance } = await import("../lib/performance-marks");
+    const result = measureSyncPerformance("dashboard:bookmark-list-view-models", () => "done");
+
+    expect(result).toBe("done");
+    expect(marks).toHaveLength(2);
+    expect(measures).toEqual([
+      {
+        name: "bookmark:dashboard:bookmark-list-view-models",
+        start: marks[0],
+        end: marks[1]
+      }
+    ]);
+    expect(clearedMarks).toEqual(marks);
+  });
+
   it("instruments dashboard data refresh and panel/dialog chunk preloads", () => {
     const dashboardSource = readFileSync(
       join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
@@ -54,10 +86,12 @@ describe("dashboard performance marks", () => {
     );
 
     expect(performanceSource).toContain("export async function measureAsyncPerformance");
+    expect(performanceSource).toContain("export function measureSyncPerformance");
     expect(dashboardSource).toContain(
-      'import { measureAsyncPerformance } from "../lib/performance-marks";'
+      'import { measureAsyncPerformance, measureSyncPerformance } from "../lib/performance-marks";'
     );
     expect(dashboardSource).toContain('measureAsyncPerformance("dashboard:data-refresh"');
+    expect(dashboardSource).toContain('measureSyncPerformance("dashboard:bookmark-list-view-models"');
     expect(dashboardPanelChunksSource).toContain(
       'import { measureAsyncPerformance } from "../lib/performance-marks";'
     );
@@ -89,7 +123,9 @@ describe("dashboard performance marks", () => {
     expect(rumSource).toContain('"dashboard-data-refresh"');
     expect(rumSource).toContain('"dashboard-panel-preload"');
     expect(rumSource).toContain('"dashboard-dialog-preload"');
+    expect(rumSource).toContain('"dashboard-bookmark-list-view-models"');
     expect(rumSource).toContain("bookmark:dashboard:panel-preload:");
     expect(rumSource).toContain("bookmark:dashboard:dialog-preload:");
+    expect(rumSource).toContain("bookmark:dashboard:bookmark-list-view-models");
   });
 });

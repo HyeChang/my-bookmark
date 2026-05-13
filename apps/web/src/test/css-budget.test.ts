@@ -46,6 +46,7 @@ describe("CSS budget", () => {
     const lazyCssFiles = [
       "BookmarkResultsPanel.css",
       "BookmarkResultsSearch.css",
+      "BookmarkResultsControls.css",
       "BookmarkCard.css",
       "BookmarkAdvancedSearchFields.css",
       "DashboardFormControls.css",
@@ -169,6 +170,7 @@ describe("CSS budget", () => {
     expect(bookmarkComposerSource).toContain('import "./DashboardFormControls.css";');
     expect(bookmarkResultsSource).toContain('import "./BookmarkAssetGrid.css";');
     expect(bookmarkResultsSource).toContain('import "./BookmarkResultsSearch.css";');
+    expect(bookmarkResultsSource).toContain('import "./BookmarkResultsControls.css";');
     expect(homePanelSource).toContain('import "./BookmarkAssetGrid.css";');
     expect(folderOverviewSource).toContain('import "./FolderOverviewTabs.css";');
     expect(folderManagerSource).toContain('import "./OverlayDialog.css";');
@@ -231,6 +233,10 @@ describe("CSS budget", () => {
       join(process.cwd(), "src", "components", "BookmarkResultsSearch.css"),
       "utf8"
     );
+    const resultsControlsCss = readFileSync(
+      join(process.cwd(), "src", "components", "BookmarkResultsControls.css"),
+      "utf8"
+    );
     const folderOverviewCss = readFileSync(
       join(process.cwd(), "src", "components", "FolderOverviewPanel.css"),
       "utf8"
@@ -252,8 +258,14 @@ describe("CSS budget", () => {
     expect(resultsCss).not.toContain(".search-grid-advanced");
     expect(resultsCss).not.toContain(".search-toolbar {");
     expect(resultsCss).not.toContain(".search-mode-segmented {");
+    expect(resultsCss).not.toContain(".bookmark-pagination-bar");
+    expect(resultsCss).not.toContain(".bookmark-page-size-control");
+    expect(resultsCss).not.toContain(".bookmark-sort-menu");
     expect(resultsSearchCss).toContain(".search-toolbar {");
     expect(resultsSearchCss).toContain(".search-mode-segmented {");
+    expect(resultsControlsCss).toContain(".bookmark-pagination-bar");
+    expect(resultsControlsCss).toContain(".bookmark-page-size-control");
+    expect(resultsControlsCss).toContain(".bookmark-sort-menu");
     expect(folderOverviewCss).not.toContain(".sidebar-segment-tab");
     expect(folderOverviewTabsCss).toContain(".sidebar-segment-tab");
     expect(advancedCss).toContain(".search-grid-advanced");
@@ -270,6 +282,7 @@ describe("CSS budget", () => {
       "BookmarkAdvancedSearchFields.css",
       "BookmarkResultsPanel.css",
       "BookmarkResultsSearch.css",
+      "BookmarkResultsControls.css",
       "BookmarkComposerDialog.css",
       "BookmarkDetailPanel.css",
       "ExtensionDialogs.css",

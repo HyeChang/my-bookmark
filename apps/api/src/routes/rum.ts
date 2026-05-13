@@ -7,6 +7,7 @@ const allowedMetrics = new Set([
   "layout-shift",
   "interaction",
   "dashboard-data-refresh",
+  "dashboard-bookmark-list-view-models",
   "dashboard-panel-preload"
 ]);
 const allowedRatings = new Set(["good", "needs-improvement", "poor"]);

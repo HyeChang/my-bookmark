@@ -6,8 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ClipboardEvent as ReactClipboardEvent,
-  type DragEvent as ReactDragEvent,
   type FormEvent
 } from "react";
 import "./DashboardShell.css";
@@ -29,13 +27,12 @@ import type {
 
 import type { BookmarkPage } from "../lib/bookmarks";
 import type { BookmarkExtensionPresenceStatus } from "../lib/extension-presence";
-import { extractImageFilesFromDataTransfer } from "../lib/clipboard-images";
 import {
   preloadFirebaseAuth,
   signInWithGoogle,
   signOutFromGoogle
 } from "../lib/firebase-auth-actions";
-import { measureAsyncPerformance } from "../lib/performance-marks";
+import { measureAsyncPerformance, measureSyncPerformance } from "../lib/performance-marks";
 import { DashboardHeader } from "./DashboardHeader";
 import {
   LazyBookmarkDetailPanel,
@@ -3185,21 +3182,6 @@ export default function AuthenticatedDashboardApp({
     );
   }
 
-  function handlePendingAssetPaste(event: ReactClipboardEvent<HTMLElement>) {
-    const files = extractImageFilesFromDataTransfer(event.clipboardData);
-    if (files.length === 0) {
-      return;
-    }
-
-    event.preventDefault();
-    appendPendingAssetFiles(files);
-  }
-
-  function handlePendingAssetDrop(event: ReactDragEvent<HTMLElement>) {
-    event.preventDefault();
-    appendPendingAssetFiles(extractImageFilesFromDataTransfer(event.dataTransfer));
-  }
-
   function closeExtensionTokenDialog() {
     setIsExtensionTokenDialogOpen(false);
     setExtensionTokenLabelDraft("");
@@ -4234,19 +4216,21 @@ export default function AuthenticatedDashboardApp({
   );
   const bookmarkListRows = useMemo<BookmarkListRowViewModel[]>(
     () => {
-      const { rows, cache } = buildBookmarkListRows({
-        bookmarkAssetsByBookmarkId,
-        bookmarkCardDisplaySettings,
-        bookmarkListDisplaySettings,
-        bookmarks: renderedPagedBookmarks,
-        bookmarkViewMode,
-        extensionFolderIds,
-        foldersById,
-        isTrashBookmarkView,
-        previousCache: bookmarkListRowCacheRef.current,
-        shouldUseCompactMobileCards,
-        tagsById
-      });
+      const { rows, cache } = measureSyncPerformance("dashboard:bookmark-list-view-models", () =>
+        buildBookmarkListRows({
+          bookmarkAssetsByBookmarkId,
+          bookmarkCardDisplaySettings,
+          bookmarkListDisplaySettings,
+          bookmarks: renderedPagedBookmarks,
+          bookmarkViewMode,
+          extensionFolderIds,
+          foldersById,
+          isTrashBookmarkView,
+          previousCache: bookmarkListRowCacheRef.current,
+          shouldUseCompactMobileCards,
+          tagsById
+        })
+      );
 
       bookmarkListRowCacheRef.current = cache;
       return rows;
@@ -4775,81 +4759,6 @@ export default function AuthenticatedDashboardApp({
     }));
   }
 
-  function renderPendingAssetComposerSection(existingBookmarkId: string | null = null) {
-    const existingAssets = existingBookmarkId ? bookmarkAssetsByBookmarkId[existingBookmarkId] ?? [] : [];
-
-    return (
-      <>
-        <div
-          role="button"
-          tabIndex={0}
-          aria-label="이미지 붙여넣기 또는 끌어놓기"
-          className="dropzone-button bookmark-asset-dropzone"
-          onPaste={handlePendingAssetPaste}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={handlePendingAssetDrop}
-        >
-          <strong>이미지 붙여넣기 또는 끌어놓기</strong>
-          <span>Ctrl+V, 드래그앤드롭, 파일 선택을 함께 지원합니다.</span>
-        </div>
-        <label>
-          이미지 업로드
-          <input
-            name="bookmarkAssetFile"
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(event) => {
-              appendPendingAssetFiles(Array.from(event.target.files ?? []));
-              event.currentTarget.value = "";
-            }}
-          />
-        </label>
-        {pendingAssetFiles.length > 0 ? (
-          <ul className="inline-file-list">
-            {pendingAssetFiles.map((file) => (
-              <li key={`${file.name}-${file.size}`}>
-                <div className="inline-file-copy">
-                  <span>{file.name}</span>
-                  <small>{Math.max(1, Math.round(file.size / 1024))}KB</small>
-                </div>
-                <button
-                  type="button"
-                  className="ghost-button inline-file-remove-button"
-                  aria-label={`${file.name} 제거`}
-                  onClick={() => removePendingAssetFile(file.name, file.size)}
-                >
-                  제거
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {existingAssets.length > 0 ? (
-          <div className="asset-grid">
-            {existingAssets.map((asset, index) => (
-              <div key={asset.id} className="asset-item">
-                <img
-                  src={asset.contentUrl}
-                  alt={`업로드 이미지 ${index + 1}`}
-                  loading="lazy"
-                  decoding="async"
-                  fetchPriority="low"
-                />
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={() => void handleBookmarkAssetDelete(existingBookmarkId as string, asset.id)}
-                >
-                  이미지 삭제 {index + 1}
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </>
-    );
-  }
   const bookmarkPanelTitle = editingBookmarkId ? "북마크 수정" : "북마크 저장";
   const hasActiveBookmarkDraft =
     Boolean(
@@ -5242,7 +5151,17 @@ export default function AuthenticatedDashboardApp({
                 quickFolderDraft={quickFolderDraft}
                 quickFolderParentOptions={quickFolderParentOptions}
                 quickTagDraft={quickTagDraft}
-                pendingAssetSection={renderPendingAssetComposerSection(editingBookmarkId)}
+                pendingAssetFiles={pendingAssetFiles}
+                existingAssets={
+                  editingBookmarkId ? bookmarkAssetsByBookmarkId[editingBookmarkId] ?? [] : []
+                }
+                onPendingAssetFilesAdd={appendPendingAssetFiles}
+                onPendingAssetFileRemove={removePendingAssetFile}
+                onExistingAssetDelete={(assetId) =>
+                  editingBookmarkId
+                    ? handleBookmarkAssetDelete(editingBookmarkId, assetId)
+                    : undefined
+                }
                 onClose={requestCloseBookmarkComposer}
                 onSubmit={handleBookmarkSubmit}
                 onDraftChange={updateBookmarkDraft}

@@ -47,3 +47,7 @@ export function getHomeFavoriteImageLoadingPriority(
 export function getBookmarkAssetCardImageUrl(asset: BookmarkAsset) {
   return asset.thumbnailUrl ?? asset.contentUrl;
 }
+
+export function getBookmarkAssetPreviewImageUrl(asset: BookmarkAsset) {
+  return asset.thumbnailUrl ?? asset.contentUrl;
+}

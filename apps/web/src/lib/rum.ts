@@ -5,6 +5,7 @@ type RumMetricName =
   | "layout-shift"
   | "interaction"
   | "dashboard-data-refresh"
+  | "dashboard-bookmark-list-view-models"
   | "dashboard-panel-preload"
   | "dashboard-dialog-preload";
 
@@ -22,6 +23,8 @@ let hasInitializedRealUserMonitoring = false;
 let cumulativeLayoutShift = 0;
 let longestInteraction = 0;
 const DASHBOARD_DATA_REFRESH_MEASURE = "bookmark:dashboard:data-refresh";
+const DASHBOARD_BOOKMARK_LIST_VIEW_MODELS_MEASURE =
+  "bookmark:dashboard:bookmark-list-view-models";
 const DASHBOARD_PANEL_PRELOAD_MEASURE_PREFIX = "bookmark:dashboard:panel-preload:";
 const DASHBOARD_DIALOG_PRELOAD_MEASURE_PREFIX = "bookmark:dashboard:dialog-preload:";
 
@@ -44,6 +47,7 @@ function getRating(metric: RumMetricName, value: number): RumMetricRating {
 
   if (
     metric === "dashboard-data-refresh" ||
+    metric === "dashboard-bookmark-list-view-models" ||
     metric === "dashboard-panel-preload" ||
     metric === "dashboard-dialog-preload"
   ) {
@@ -153,6 +157,15 @@ function reportDashboardMeasureMetrics(entries: PerformanceEntry[]) {
         metric: "dashboard-data-refresh",
         value: entry.duration,
         rating: getRating("dashboard-data-refresh", entry.duration)
+      });
+      continue;
+    }
+
+    if (entry.name === DASHBOARD_BOOKMARK_LIST_VIEW_MODELS_MEASURE) {
+      sendRumMetric({
+        metric: "dashboard-bookmark-list-view-models",
+        value: entry.duration,
+        rating: getRating("dashboard-bookmark-list-view-models", entry.duration)
       });
       continue;
     }

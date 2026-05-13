@@ -199,171 +199,6 @@
   margin-bottom: 1rem;
 }
 
-.bookmark-list-header-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.bookmark-page-size-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.34rem;
-  min-height: 2rem;
-  padding: 0.28rem 0.44rem 0.28rem 0.58rem;
-  border: 1px solid rgba(31, 37, 51, 0.12);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.95);
-  color: #697386;
-  font-size: 0.72rem;
-  font-weight: 760;
-  white-space: nowrap;
-}
-
-.bookmark-page-size-control select {
-  min-width: 4.2rem;
-  border: 0;
-  background: transparent;
-  color: #1f2937;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.bookmark-pagination-bar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  padding-top: 1rem;
-}
-
-.bookmark-pagination-summary {
-  margin: 0;
-  color: #697386;
-  font-size: 0.82rem;
-  font-weight: 760;
-}
-
-.bookmark-pagination-more-button {
-  min-height: 2.4rem;
-  padding-inline: 1.1rem;
-}
-
-.bookmark-sort-menu-shell,
-.bookmark-view-menu-shell {
-  position: relative;
-  display: inline-flex;
-  min-width: 0;
-}
-
-.bookmark-sort-trigger,
-.bookmark-view-trigger {
-  gap: 0.34rem;
-  min-height: 2rem;
-  padding-inline: 0.62rem;
-  white-space: nowrap;
-}
-
-.bookmark-sort-trigger-label {
-  color: #697386;
-  font-size: 0.72rem;
-  font-weight: 760;
-}
-
-.bookmark-view-trigger-icon {
-  font-size: 0.96rem;
-  line-height: 1;
-}
-
-.bookmark-sort-trigger-value,
-.bookmark-view-trigger-value {
-  min-width: 0;
-  overflow: hidden;
-  color: inherit;
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-overflow: ellipsis;
-}
-
-.bookmark-sort-menu {
-  right: 0;
-  min-width: 13rem;
-  z-index: 20;
-}
-
-.bookmark-view-menu {
-  right: 0;
-  min-width: 13.5rem;
-  z-index: 21;
-}
-
-.bookmark-view-menu-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.42rem;
-  padding-bottom: 0.48rem;
-}
-
-.bookmark-view-menu-section + .bookmark-view-menu-section {
-  padding-top: 0.18rem;
-  border-top: 1px solid rgba(20, 33, 61, 0.1);
-}
-
-.bookmark-sort-menu-title,
-.bookmark-view-menu-title,
-.bookmark-cover-size-label {
-  margin: 0;
-  padding: 0 0.2rem 0.12rem;
-  color: #697386;
-  font-size: 0.72rem;
-  font-weight: 800;
-}
-
-.bookmark-sort-menu-item,
-.bookmark-view-menu-item {
-  gap: 0.48rem;
-  justify-content: flex-start;
-  text-align: left;
-}
-
-.bookmark-sort-menu-mark,
-.bookmark-view-menu-mark,
-.bookmark-view-menu-icon {
-  width: 1rem;
-  color: #1683e8;
-}
-
-.bookmark-view-menu-check {
-  width: 1rem;
-  height: 1rem;
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid rgba(22, 131, 232, 0.35);
-  border-radius: 4px;
-  color: #1683e8;
-  font-size: 0.72rem;
-  line-height: 1;
-}
-
-.bookmark-sort-menu-item-active,
-.bookmark-view-menu-item-active {
-  border-color: rgba(22, 131, 232, 0.22);
-  background: rgba(22, 131, 232, 0.12);
-}
-
-.bookmark-cover-size-section {
-  gap: 0.45rem;
-  padding-bottom: 0;
-}
-
-.bookmark-cover-size-slider {
-  width: 100%;
-  accent-color: #1683e8;
-}
-
 .bookmark-list-table {
   display: flex;
   flex-direction: column;
@@ -479,65 +314,6 @@
     align-items: flex-start;
   }
 
-  .bookmark-list-header-actions-mobile {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 0.34rem;
-    flex-wrap: nowrap;
-  }
-
-  .bookmark-list-header-actions-mobile .bookmark-sort-trigger {
-    max-width: 6.6rem;
-    min-height: 2.35rem;
-    padding-inline: 0.52rem;
-    border-radius: 12px;
-  }
-
-  .bookmark-list-header-actions-mobile .bookmark-view-trigger {
-    max-width: 5.8rem;
-    min-height: 2.35rem;
-    padding-inline: 0.48rem;
-    border-radius: 12px;
-  }
-
-  .bookmark-list-header-actions-mobile .bookmark-page-size-control {
-    max-width: 5.4rem;
-    min-height: 2.35rem;
-    padding-inline: 0.42rem;
-    border-radius: 12px;
-  }
-
-  .bookmark-list-header-actions-mobile .bookmark-page-size-control span {
-    display: none;
-  }
-
-  .bookmark-list-header-actions-mobile .bookmark-page-size-control select {
-    min-width: 3.8rem;
-    font-size: 0.72rem;
-  }
-
-  .bookmark-pagination-bar {
-    flex-direction: column;
-    gap: 0.55rem;
-  }
-
-  .bookmark-list-header-actions-mobile .bookmark-sort-trigger-label {
-    display: none;
-  }
-
-  .bookmark-list-header-actions-mobile .bookmark-sort-trigger-value {
-    max-width: 5.8rem;
-    font-size: 0.72rem;
-    white-space: nowrap;
-  }
-
-  .bookmark-list-header-actions-mobile .bookmark-view-trigger-value {
-    max-width: 3.2rem;
-    font-size: 0.72rem;
-    white-space: nowrap;
-  }
-
   .search-panel-summary-pill {
     display: none;
   }
@@ -586,35 +362,6 @@
     width: 100%;
   }
 
-  .bookmark-sort-menu {
-    position: absolute;
-    top: calc(100% + 0.42rem);
-    right: 0;
-    min-width: min(13rem, calc(100vw - 1.4rem));
-    max-width: calc(100vw - 1.4rem);
-    box-shadow: 0 18px 34px rgba(0, 0, 0, 0.18);
-  }
-
-  .bookmark-view-menu {
-    position: absolute;
-    top: calc(100% + 0.42rem);
-    right: 0;
-    min-width: min(13.5rem, calc(100vw - 1.4rem));
-    max-width: calc(100vw - 1.4rem);
-    box-shadow: 0 18px 34px rgba(0, 0, 0, 0.18);
-  }
-
-  .bookmark-sort-menu-item {
-    min-height: 2.1rem;
-    padding: 0.34rem 0.48rem;
-    font-size: 0.78rem;
-  }
-
-  .bookmark-view-menu-item {
-    min-height: 2.1rem;
-    padding: 0.34rem 0.48rem;
-    font-size: 0.78rem;
-  }
 }
 
 .app-theme-light .search-grid-surface,
@@ -632,16 +379,13 @@
 }
 
 .app-theme-light .search-panel-helper,
-.app-theme-light .bookmark-pagination-summary,
-.app-theme-light .bookmark-sort-trigger-label,
 .app-theme-light .bookmark-row-url {
   color: #66707d !important;
 }
 
 .app-theme-light .search-grid input,
 .app-theme-light .search-grid select,
-.app-theme-light .search-grid textarea,
-.app-theme-light .bookmark-page-size-control {
+.app-theme-light .search-grid textarea {
   border-color: #dfe3e8 !important;
   background: #ffffff !important;
   color: #20242b !important;
@@ -706,35 +450,6 @@
   border-color: var(--border-soft);
   color: var(--text-primary);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
-}
-
-.bookmark-sort-trigger-label,
-.bookmark-sort-menu-title,
-.bookmark-view-menu-title,
-.bookmark-cover-size-label {
-  color: var(--text-muted);
-}
-
-.bookmark-sort-menu-mark,
-.bookmark-view-menu-mark,
-.bookmark-view-menu-icon,
-.bookmark-view-menu-check {
-  color: var(--accent);
-}
-
-.bookmark-sort-menu-item-active,
-.bookmark-view-menu-item-active {
-  border-color: rgba(158, 199, 255, 0.28);
-  background: rgba(158, 199, 255, 0.14);
-  color: var(--text-strong);
-}
-
-.bookmark-view-menu-section + .bookmark-view-menu-section {
-  border-color: var(--border-soft);
-}
-
-.bookmark-cover-size-slider {
-  accent-color: var(--accent);
 }
 
 .bookmark-list-row:hover {
@@ -821,10 +536,6 @@
 
   .bookmark-list-header {
     margin-bottom: 0.72rem;
-  }
-
-  .bookmark-list-header-actions {
-    gap: 0.36rem;
   }
 
   .bookmark-list-columns {
@@ -1254,10 +965,7 @@
 .app-theme-light .search-grid-surface,
 .app-theme-light .filter-summary-card,
 .app-theme-light .bookmark-list-table,
-.app-theme-light .bookmark-list-row,
-.app-theme-light .bookmark-pagination-bar,
-.app-theme-light .bookmark-page-size-control,
-.app-theme-light .bookmark-sort-menu {
+.app-theme-light .bookmark-list-row {
   border-color: #dfe3e8 !important;
   background: #ffffff !important;
   color: #20242b !important;
@@ -1271,8 +979,6 @@
 }
 
 .app-theme-light .search-panel-helper,
-.app-theme-light .bookmark-pagination-summary,
-.app-theme-light .bookmark-sort-trigger-label,
 .app-theme-light .bookmark-row-url,
 .app-theme-light .bookmark-row-summary,
 .app-theme-light .bookmark-row-meta-line {
@@ -1282,10 +988,7 @@
 .app-theme-dark .search-grid-surface,
 .app-theme-dark .filter-summary-card,
 .app-theme-dark .bookmark-list-table,
-.app-theme-dark .bookmark-list-row,
-.app-theme-dark .bookmark-pagination-bar,
-.app-theme-dark .bookmark-page-size-control,
-.app-theme-dark .bookmark-sort-menu {
+.app-theme-dark .bookmark-list-row {
   border-color: var(--border-soft) !important;
   background: rgba(21, 28, 39, 0.72) !important;
   color: var(--text-primary) !important;
@@ -1301,8 +1004,6 @@
 }
 
 .app-theme-dark .search-panel-helper,
-.app-theme-dark .bookmark-pagination-summary,
-.app-theme-dark .bookmark-sort-trigger-label,
 .app-theme-dark .bookmark-row-url,
 .app-theme-dark .bookmark-row-summary,
 .app-theme-dark .bookmark-row-meta-line {
@@ -1311,9 +1012,7 @@
 
 .app-theme-dark .search-grid input,
 .app-theme-dark .search-grid select,
-.app-theme-dark .search-grid textarea,
-.app-theme-dark .bookmark-page-size-control,
-.app-theme-dark .bookmark-sort-trigger {
+.app-theme-dark .search-grid textarea {
   border-color: var(--border-soft) !important;
   background: rgba(23, 30, 42, 0.9) !important;
   color: var(--text-primary) !important;
