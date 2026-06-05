@@ -109,7 +109,10 @@ export function DashboardHeader({
           >
             <button
               type="button"
-              className="secondary-button"
+              className={`secondary-button hero-view-tab${
+                !isMemoView ? " hero-view-tab-active" : ""
+              }`}
+              aria-pressed={!isMemoView}
               onMouseEnter={onBookmarkWorkspacePreload}
               onFocus={onBookmarkWorkspacePreload}
               onPointerDown={onBookmarkWorkspacePreload}
@@ -119,7 +122,10 @@ export function DashboardHeader({
             </button>
             <button
               type="button"
-              className="secondary-button"
+              className={`secondary-button hero-view-tab${
+                isMemoView ? " hero-view-tab-active" : ""
+              }`}
+              aria-pressed={isMemoView}
               onMouseEnter={onMemoPreload}
               onFocus={onMemoPreload}
               onPointerDown={onMemoPreload}

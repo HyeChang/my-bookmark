@@ -1779,3 +1779,165 @@ img {
 .app-theme-dark .hero-mobile-menu {
   background: #1f2633 !important;
 }
+
+/* Header controls polish: keep dashboard view tabs and account actions aligned. */
+.hero-command-view-navigation {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 0.18rem;
+  padding: 0.16rem;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.app-hero .primary-button,
+.app-hero .secondary-button,
+.app-hero .ghost-button,
+.app-hero .danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 2.25rem;
+  height: 2.25rem;
+  padding: 0 0.78rem;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 760;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.app-hero .hero-view-tab {
+  min-width: 4.6rem;
+  padding-inline: 0.84rem;
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-hero .hero-view-tab-active {
+  background: #1683e8 !important;
+  border-color: #1683e8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 14px rgba(22, 131, 232, 0.18) !important;
+}
+
+.app-hero .hero-command-toolbar {
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.42rem;
+}
+
+.app-hero .hero-command-toolbar > .primary-button {
+  min-width: 5.8rem;
+}
+
+.app-hero .overflow-trigger {
+  width: 2.25rem;
+  min-width: 2.25rem;
+  padding: 0;
+  font-size: 1rem;
+}
+
+.app-hero .hero-actions {
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.42rem;
+}
+
+.app-hero .hero-theme-toggle {
+  min-width: 5.2rem;
+  gap: 0.34rem;
+}
+
+.app-hero .hero-install-button {
+  min-width: 4.9rem;
+}
+
+.app-hero .session-card {
+  min-height: 2.25rem;
+}
+
+.app-hero .session-card-actions {
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.42rem;
+}
+
+.app-hero .session-card-actions > .secondary-button {
+  min-width: 5.6rem;
+}
+
+.app-theme-dark .hero-command-view-navigation {
+  border-color: var(--border-soft);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.app-theme-dark .app-hero .hero-view-tab {
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .app-hero .hero-view-tab-active {
+  background: #1e88e5 !important;
+  border-color: #1e88e5 !important;
+  color: #ffffff !important;
+}
+
+@media (min-width: 1121px) {
+  .app-hero {
+    grid-template-columns: minmax(13rem, 288px) minmax(18rem, 1fr) max-content;
+    column-gap: 0.7rem;
+  }
+
+  .hero-command-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.48rem;
+    min-width: 0;
+  }
+
+  .hero-command-view-navigation {
+    margin-right: 0.22rem;
+  }
+
+  .hero-actions {
+    min-width: max-content;
+  }
+}
+
+@media (max-width: 1120px) {
+  .hero-command-view-navigation {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .app-hero .hero-view-tab {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .app-hero .hero-command-toolbar,
+  .app-hero .hero-actions,
+  .app-hero .session-card-actions {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-hero .hero-actions-mobile {
+    flex-wrap: nowrap;
+  }
+
+  .app-hero .hero-actions-mobile > .primary-button,
+  .app-hero .hero-actions-mobile > .secondary-button,
+  .app-hero .hero-mobile-menu-trigger {
+    min-height: 1.96rem;
+    height: 1.96rem;
+    font-size: 0.76rem;
+  }
+}
