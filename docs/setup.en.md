@@ -24,9 +24,22 @@ In Firebase Console:
 2. Go to Authentication.
 3. Enable Google in Sign-in method.
 4. Create a Web App.
-5. Copy the Web App config values.
+5. Copy the Web App config values from project settings.
 
-You will enter these values during setup:
+You can find the Web App config here:
+
+```txt
+Firebase Console
+-> Select your project
+-> Project settings
+-> General
+-> Your apps
+-> Web app
+-> Firebase SDK snippet
+-> Config
+```
+
+When you run `npm run setup:en`, the setup wizard asks for these values one by one. Copy the matching values from Firebase Config and paste them into the wizard.
 
 ```txt
 VITE_FIREBASE_API_KEY
@@ -35,6 +48,41 @@ VITE_FIREBASE_PROJECT_ID
 VITE_FIREBASE_APP_ID
 VITE_FIREBASE_MESSAGING_SENDER_ID
 ```
+
+Firebase Config maps to the setup wizard fields like this:
+
+```txt
+apiKey            -> VITE_FIREBASE_API_KEY
+authDomain        -> VITE_FIREBASE_AUTH_DOMAIN
+projectId         -> VITE_FIREBASE_PROJECT_ID
+appId             -> VITE_FIREBASE_APP_ID
+messagingSenderId -> VITE_FIREBASE_MESSAGING_SENDER_ID
+```
+
+For example, if Firebase Config looks like this:
+
+```js
+const firebaseConfig = {
+  apiKey: "AIza...",
+  authDomain: "my-bookmark.firebaseapp.com",
+  projectId: "my-bookmark",
+  storageBucket: "my-bookmark.appspot.com",
+  messagingSenderId: "1234567890",
+  appId: "1:1234567890:web:abcdef"
+};
+```
+
+Enter these values in the setup wizard:
+
+```txt
+VITE_FIREBASE_API_KEY=AIza...
+VITE_FIREBASE_AUTH_DOMAIN=my-bookmark.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=my-bookmark
+VITE_FIREBASE_APP_ID=1:1234567890:web:abcdef
+VITE_FIREBASE_MESSAGING_SENDER_ID=1234567890
+```
+
+The setup wizard saves these values to `.env` automatically.
 
 After deployment, also add your deployed Worker domain to Firebase Authentication authorized domains.
 
