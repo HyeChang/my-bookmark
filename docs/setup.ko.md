@@ -24,9 +24,22 @@ Firebase Console에서 아래 작업을 진행합니다.
 2. Authentication 메뉴로 이동합니다.
 3. Sign-in method에서 Google 로그인을 활성화합니다.
 4. Web App을 생성합니다.
-5. Web App 설정값을 복사합니다.
+5. 프로젝트 설정의 Web App 설정값을 복사합니다.
 
-설정 과정에서 아래 값을 입력해야 합니다.
+Web App 설정값은 Firebase Console에서 아래 위치에서 확인할 수 있습니다.
+
+```txt
+Firebase Console
+-> 프로젝트 선택
+-> 프로젝트 설정
+-> 일반
+-> 내 앱
+-> 웹 앱
+-> Firebase SDK snippet
+-> Config
+```
+
+`npm run setup:ko`를 실행하면 설치 마법사가 아래 값을 순서대로 물어봅니다. Firebase Config에 있는 값을 그대로 복사해서 입력하면 됩니다.
 
 ```txt
 VITE_FIREBASE_API_KEY
@@ -35,6 +48,41 @@ VITE_FIREBASE_PROJECT_ID
 VITE_FIREBASE_APP_ID
 VITE_FIREBASE_MESSAGING_SENDER_ID
 ```
+
+Firebase Config 값과 설치 마법사 입력값은 아래처럼 매핑됩니다.
+
+```txt
+apiKey            -> VITE_FIREBASE_API_KEY
+authDomain        -> VITE_FIREBASE_AUTH_DOMAIN
+projectId         -> VITE_FIREBASE_PROJECT_ID
+appId             -> VITE_FIREBASE_APP_ID
+messagingSenderId -> VITE_FIREBASE_MESSAGING_SENDER_ID
+```
+
+예를 들어 Firebase Config가 아래와 같다면:
+
+```js
+const firebaseConfig = {
+  apiKey: "AIza...",
+  authDomain: "my-bookmark.firebaseapp.com",
+  projectId: "my-bookmark",
+  storageBucket: "my-bookmark.appspot.com",
+  messagingSenderId: "1234567890",
+  appId: "1:1234567890:web:abcdef"
+};
+```
+
+설치 마법사에는 아래처럼 입력합니다.
+
+```txt
+VITE_FIREBASE_API_KEY=AIza...
+VITE_FIREBASE_AUTH_DOMAIN=my-bookmark.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=my-bookmark
+VITE_FIREBASE_APP_ID=1:1234567890:web:abcdef
+VITE_FIREBASE_MESSAGING_SENDER_ID=1234567890
+```
+
+설치 마법사는 입력한 값을 `.env` 파일에 자동으로 저장합니다.
 
 배포 후에는 Firebase Authentication의 Authorized domains에 배포된 Worker 도메인도 추가해야 합니다.
 
