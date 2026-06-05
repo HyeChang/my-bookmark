@@ -224,11 +224,6 @@
   text-align: right;
 }
 
-.bookmark-trash-empty-button {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
 .bookmark-row-url {
   min-width: 0;
   max-width: 100%;

@@ -631,12 +631,18 @@ img {
 }
 
 .status-banner {
-  margin-top: 1rem;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);
+  left: max(0.75rem, env(safe-area-inset-left));
+  margin: 0;
   padding: 0.9rem 1rem;
+  position: fixed;
+  right: max(0.75rem, env(safe-area-inset-right));
   border-radius: 18px;
   background: #eef8f0;
   color: #247044;
   border: 1px solid rgba(36, 112, 68, 0.14);
+  top: calc(54px + 0.75rem);
+  z-index: 70;
 }
 
 @media (max-width: 1420px) {
@@ -682,6 +688,15 @@ img {
   .hero-command-toolbar {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .hero-command-view-navigation {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .hero-command-view-navigation > .secondary-button {
+    flex: 1 1 8rem;
   }
 
   .hero-command-toolbar > button {
@@ -735,6 +750,10 @@ img {
     gap: 0.52rem;
     padding: 0.48rem 0.56rem;
     margin-bottom: 0.72rem;
+    position: sticky;
+    top: 0.5rem;
+    z-index: 120;
+    overflow: visible;
   }
 
   .hero-copy {
@@ -788,6 +807,7 @@ img {
     align-items: center;
     flex-wrap: nowrap;
     gap: 0.32rem;
+    overflow: visible;
   }
 
   .hero-actions-mobile > .primary-button,
@@ -807,6 +827,11 @@ img {
     width: 1.88rem;
     min-height: 1.88rem;
     font-size: 0.92rem;
+  }
+
+  .hero-mobile-menu-shell {
+    position: relative;
+    z-index: 130;
   }
 
   .hero-mobile-menu {
@@ -873,6 +898,8 @@ img {
   .dashboard-main {
     grid-template-columns: 1fr;
     gap: 0.72rem;
+    position: relative;
+    z-index: 0;
   }
 
   .result-primary-column {
@@ -919,6 +946,50 @@ img {
     box-shadow: none;
   }
 
+  .hero-mobile-menu {
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    right: 0;
+    isolation: isolate;
+    z-index: 140;
+    min-width: min(13rem, calc(100vw - 1.4rem));
+    max-width: calc(100vw - 1.4rem);
+    max-height: min(calc(100svh - 4.75rem), 24rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--surface-raised) !important;
+    box-shadow: 0 18px 34px rgba(20, 33, 61, 0.22);
+  }
+
+}
+
+@media (max-width: 360px) {
+  .app-hero {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "brand"
+      "account";
+    align-items: stretch;
+  }
+
+  .hero-actions-mobile {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .hero-actions-mobile > .primary-button,
+  .hero-actions-mobile > .secondary-button {
+    padding-inline: 0.46rem;
+  }
+
+  .theme-toggle-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 :root[data-app-theme="light"] {
@@ -1384,6 +1455,18 @@ img {
     gap: 0.35rem;
   }
 
+  .hero-command-view-navigation {
+    margin-right: auto;
+  }
+
+  .hero-command-view-navigation > .secondary-button {
+    min-width: 0;
+    min-height: 2rem;
+    padding: 0.32rem 0.72rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+  }
+
   .hero-command-toolbar > button,
   .hero-command-toolbar > .primary-button {
     min-width: 0;
@@ -1455,6 +1538,10 @@ img {
     grid-template-columns: 288px minmax(0, 1fr);
     gap: 0;
     min-height: calc(100vh - 54px);
+  }
+
+  .dashboard-layout.dashboard-layout-full {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .dashboard-sidebar {
@@ -1683,4 +1770,12 @@ img {
   .dashboard-main-with-rail {
     grid-template-columns: minmax(260px, 0.5fr) minmax(520px, 1fr);
   }
+}
+
+.app-theme-light .hero-mobile-menu {
+  background: #ffffff !important;
+}
+
+.app-theme-dark .hero-mobile-menu {
+  background: #1f2633 !important;
 }

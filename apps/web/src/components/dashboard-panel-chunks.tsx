@@ -24,11 +24,15 @@ const loadHomePanel = createDashboardPanelChunkLoader(() => import("./HomePanel"
 const loadBookmarkResultsPanel = createDashboardPanelChunkLoader(() =>
   import("./BookmarkResultsPanel")
 );
+const loadMemoPanel = createDashboardPanelChunkLoader(() =>
+  import("./MemoPanel")
+);
 
 export const LazyBookmarkDetailPanel = lazy(loadBookmarkDetailPanel);
 export const LazyRecommendationPanel = lazy(() => import("./RecommendationPanel"));
 export const LazyHomePanel = lazy(loadHomePanel);
 export const LazyBookmarkResultsPanel = lazy(loadBookmarkResultsPanel);
+export const LazyMemoPanel = lazy(loadMemoPanel);
 export const LazyFolderOverviewPanel = lazy(() =>
   loadFolderOverviewPanel().then((module) => ({
     default: module.FolderOverviewPanel
@@ -40,11 +44,12 @@ export const LazyMobileSidebarTabs = lazy(() =>
   }))
 );
 
-export type DashboardPanelChunk = "home" | "bookmarks" | "folder" | "detail";
+export type DashboardPanelChunk = "home" | "bookmarks" | "memos" | "folder" | "detail";
 
 const dashboardPanelChunkLoaders: Record<DashboardPanelChunk, () => Promise<unknown>> = {
   home: loadHomePanel,
   bookmarks: loadBookmarkResultsPanel,
+  memos: loadMemoPanel,
   folder: loadFolderOverviewPanel,
   detail: loadBookmarkDetailPanel
 };

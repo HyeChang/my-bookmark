@@ -22,6 +22,14 @@ import type {
   CreateBookmarkRequest,
   ExtensionToken,
   Folder,
+  Memo,
+  MemoAsset,
+  MemoFolder,
+  MemoListResponse,
+  MemoLockStatusResponse,
+  MemoRichContent,
+  MemoTag,
+  MemoViewMode,
   Tag
 } from "@bookmark/shared";
 
@@ -39,6 +47,7 @@ import {
   LazyBookmarkResultsPanel,
   LazyFolderOverviewPanel,
   LazyHomePanel,
+  LazyMemoPanel,
   LazyMobileSidebarTabs,
   LazyRecommendationPanel,
   preloadDashboardPanelChunk
@@ -49,6 +58,8 @@ import {
   LazyExtensionTokenDialog,
   LazyFolderManagerDialog,
   LazyInstallHelpDialog,
+  LazyMemoComposerDialog,
+  LazyMemoLockDialog,
   LazyTagManagerDialog,
   preloadDashboardDialogChunk
 } from "./dashboard-dialog-chunks";
@@ -57,11 +68,17 @@ import {
   createBookmark,
   createExtensionToken,
   createFolder,
+  createMemo,
+  createMemoFolder,
+  createMemoTag,
   createTag,
   deleteBookmark,
   deleteBookmarkAsset,
   emptyBookmarkTrash,
   deleteFolder,
+  deleteMemo,
+  deleteMemoFolder,
+  deleteMemoTag,
   deleteTag,
   detectBookmarkExtensionPresence,
   detectBookmarkExtensionPresenceDetails,
@@ -76,24 +93,41 @@ import {
   loadBookmarks,
   loadExtensionTokens,
   loadFolders,
+  loadMemo,
+  loadMemoFolders,
+  loadMemoLockStatus,
+  loadMemoPage,
+  loadMemoTags,
   loadRecommendations,
   loadSession,
   loadTags,
   logoutSession,
   moveFolder,
+  moveMemoFolder,
   permanentlyDeleteBookmark,
+  prepareMemoImageUploadFiles,
   preloadDashboardCoreServiceModules,
   recordBookmarkOpen,
   reextractBookmark,
   reorderFolders,
+  reorderMemoFolders,
   requestBookmarkExtensionPreview,
   restoreBookmark,
   revokeExtensionToken,
+  setupMemoLock,
   updateBookmark,
   updateFolder,
+  updateMemo,
+  updateMemoFolder,
+  updateMemoTag,
   updateTag,
-  uploadBookmarkAsset
+  unlockLockedMemo,
+  unlockMemoLock,
+  uploadBookmarkAsset,
+  uploadMemoAsset,
+  uploadPreparedMemoAsset
 } from "./dashboard-service-modules";
+import type { PreparedMemoImageUploadFile } from "../lib/memo-image-compression";
 import {
   buildBookmarkListRows,
   buildHomeFavoriteCards,
@@ -114,6 +148,7 @@ import {
 import {
   DEFAULT_BOOKMARK_PAGE_SIZE,
   DEFAULT_BOOKMARK_VIEW_MODE,
+  BOOKMARK_VIEW_SETTINGS_STORAGE_KEY,
   bookmarkPageSizeOptions,
   bookmarkSearchModeOptions,
   bookmarkSortOptions,
@@ -238,14 +273,55 @@ type TagDraft = {
   color: string;
 };
 
-type DashboardView = "home" | "bookmarks";
+type MemoComposerDraft = {
+  title: string;
+  folderId: string;
+  tagIds: string[];
+  memoColor: string;
+  isFavorite: boolean;
+  isHidden: boolean;
+  isLocked: boolean;
+  lockPassword: string;
+  contentJson: MemoRichContent;
+  contentText: string;
+};
+
+type PendingMemoImageUpload = {
+  id: string;
+  preparedFile: PreparedMemoImageUploadFile;
+  contentUrl: string;
+};
+
+type DashboardView = "home" | "bookmarks" | "memos";
 type BookmarkDetailDisplayMode = "rail" | "dialog";
 type BookmarkDetailTab = "detail" | "preview" | "extract";
 type AppThemeMode = "light" | "dark";
+type ManagerScope = "bookmarks" | "memos";
+type MemoLockPromptMode = "setup" | "unlock";
+type MemoPageLoadOptions = NonNullable<Parameters<typeof loadMemoPage>[0]>;
+type MemoPage = {
+  memos: Memo[];
+  pagination: NonNullable<MemoListResponse["pagination"]> | null;
+};
+type MemoPageCacheEntry = {
+  key: string;
+  page: MemoPage;
+};
+type MemoWorkspaceMetadata = {
+  lockStatus: MemoLockStatusResponse;
+  folders: MemoFolder[];
+  tags: MemoTag[];
+};
 
 const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
 const USERSCRIPT_DOWNLOAD_PATH = "/downloads/bookmark-saver.user.js?v=0.1.11";
 const APP_THEME_STORAGE_KEY = "bookmark-theme";
+const MEMO_VIEW_MODE_STORAGE_KEY = "memo-view-mode:v1";
+const MEMO_PAGE_SIZE = 20;
+const MEMO_PAGE_CACHE_LIMIT = 12;
+const DEFAULT_MEMO_FOLDER_FILTER_ID = "unfiled";
+const MEMO_SEARCH_DEBOUNCE_MS = 300;
+const STATUS_MESSAGE_DISMISS_MS = 3200;
 
 const emptyBookmarkDraft: BookmarkDraft = {
   url: "",
@@ -259,6 +335,243 @@ const emptyBookmarkDraft: BookmarkDraft = {
   isFavorite: false,
   isHidden: false
 };
+
+function createEmptyMemoDocument(): MemoRichContent {
+  return {
+    type: "doc",
+    content: []
+  };
+}
+
+function createEmptyMemoDraft(): MemoComposerDraft {
+  return {
+    title: "",
+    folderId: "",
+    tagIds: [],
+    memoColor: "",
+    isFavorite: false,
+    isHidden: false,
+    isLocked: false,
+    lockPassword: "",
+    contentJson: createEmptyMemoDocument(),
+    contentText: ""
+  };
+}
+
+function createMemoDraftFromMemo(memo: Memo): MemoComposerDraft {
+  return {
+    title: memo.title,
+    folderId: memo.folderId ?? "",
+    tagIds: memo.tagIds,
+    memoColor: memo.memoColor ?? "",
+    isFavorite: memo.isFavorite,
+    isHidden: memo.isHidden,
+    isLocked: memo.isLocked === true,
+    lockPassword: "",
+    contentJson: memo.contentJson,
+    contentText: memo.contentText
+  };
+}
+
+function createLockedMemoPreview(memo: Memo): Memo {
+  if (!memo.isLocked) {
+    return memo;
+  }
+
+  return {
+    ...memo,
+    contentJson: createEmptyMemoDocument(),
+    contentText: "",
+    assetCount: 0,
+    coverAsset: null
+  };
+}
+
+function filterMemosByHiddenFolders(
+  nextMemos: Memo[],
+  hiddenFolderIds: Set<string>,
+  showHiddenFolders: boolean
+) {
+  if (showHiddenFolders || hiddenFolderIds.size === 0) {
+    return nextMemos;
+  }
+
+  return nextMemos.filter((memo) => !memo.folderId || !hiddenFolderIds.has(memo.folderId));
+}
+
+function createMemoPageCacheKey(options: MemoPageLoadOptions) {
+  const folderId =
+    "folderId" in options
+      ? options.folderId === null
+        ? "__unfiled__"
+        : options.folderId ?? "__all__"
+      : "__all__";
+
+  return JSON.stringify({
+    query: options.query ?? "",
+    folderId,
+    includeDescendantFolders: options.includeDescendantFolders === true,
+    tagId: options.tagId ?? "",
+    favorite: options.favorite === true,
+    includeHidden: options.includeHidden === true,
+    includeLocked: options.includeLocked === true,
+    sort: options.sort ?? "",
+    limit: options.limit ?? MEMO_PAGE_SIZE,
+    offset: options.offset ?? 0
+  });
+}
+
+function createPendingMemoImageId() {
+  return `memo-pending-image-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function createPendingMemoImageUrl(file: File, id: string) {
+  const urlApi = globalThis.URL;
+  if (typeof urlApi?.createObjectURL === "function") {
+    return urlApi.createObjectURL(file);
+  }
+
+  return `memo-pending-image://${id}`;
+}
+
+function revokePendingMemoImageUrl(contentUrl: string) {
+  if (!contentUrl.startsWith("blob:")) {
+    return;
+  }
+
+  const urlApi = globalThis.URL;
+  if (typeof urlApi?.revokeObjectURL === "function") {
+    urlApi.revokeObjectURL(contentUrl);
+  }
+}
+
+function createPendingMemoAsset(pendingUpload: PendingMemoImageUpload): MemoAsset {
+  const timestamp = new Date().toISOString();
+  const file = pendingUpload.preparedFile.file;
+  return {
+    id: pendingUpload.id,
+    memoId: "pending",
+    mimeType: file.type || "application/octet-stream",
+    width: null,
+    height: null,
+    sortOrder: 0,
+    contentUrl: pendingUpload.contentUrl,
+    thumbnailUrl: pendingUpload.contentUrl,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+const omittedMemoNode = Symbol("omittedMemoNode");
+
+function removePendingMemoImagesFromValue(
+  value: unknown,
+  pendingSources: Set<string>
+): unknown | typeof omittedMemoNode {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => removePendingMemoImagesFromValue(item, pendingSources))
+      .filter((item) => item !== omittedMemoNode);
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  const attrs = isRecord(value.attrs) ? value.attrs : null;
+  const source = typeof attrs?.src === "string" ? attrs.src : null;
+  if (value.type === "image" && source && pendingSources.has(source)) {
+    return omittedMemoNode;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, item]) => [key, removePendingMemoImagesFromValue(item, pendingSources)] as const)
+      .filter(([, item]) => item !== omittedMemoNode)
+  );
+}
+
+function removePendingMemoImages(
+  contentJson: MemoRichContent,
+  pendingUploads: PendingMemoImageUpload[]
+): MemoRichContent {
+  if (pendingUploads.length === 0) {
+    return contentJson;
+  }
+
+  const pendingSources = new Set(pendingUploads.map((upload) => upload.contentUrl));
+  const nextContent = removePendingMemoImagesFromValue(
+    contentJson.content ?? [],
+    pendingSources
+  );
+
+  return {
+    ...contentJson,
+    content: Array.isArray(nextContent) ? nextContent : []
+  };
+}
+
+function replacePendingMemoImagesInValue(
+  value: unknown,
+  replacements: Map<string, string>
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => replacePendingMemoImagesInValue(item, replacements));
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  const entries = Object.entries(value).map(([key, item]) => [
+    key,
+    replacePendingMemoImagesInValue(item, replacements)
+  ]);
+  const nextValue = Object.fromEntries(entries);
+  const attrs = isRecord(nextValue.attrs) ? nextValue.attrs : null;
+  const source = typeof attrs?.src === "string" ? attrs.src : null;
+
+  if (nextValue.type === "image" && attrs && source && replacements.has(source)) {
+    return {
+      ...nextValue,
+      attrs: {
+        ...attrs,
+        src: replacements.get(source)
+      }
+    };
+  }
+
+  return nextValue;
+}
+
+function replacePendingMemoImages(
+  contentJson: MemoRichContent,
+  replacements: Map<string, string>
+): MemoRichContent {
+  if (replacements.size === 0) {
+    return contentJson;
+  }
+
+  const nextContent = replacePendingMemoImagesInValue(contentJson.content ?? [], replacements);
+
+  return {
+    ...contentJson,
+    content: Array.isArray(nextContent) ? nextContent : []
+  };
+}
+
+function loadStoredMemoViewMode(): MemoViewMode {
+  try {
+    const storedValue = globalThis.localStorage?.getItem(MEMO_VIEW_MODE_STORAGE_KEY);
+    return storedValue === "card" ? "card" : "list";
+  } catch {
+    return "list";
+  }
+}
 
 const emptyFolderDraft: FolderDraft = {
   name: "",
@@ -321,6 +634,36 @@ function storeAppTheme(theme: AppThemeMode) {
   }
 }
 
+function getInitialDashboardView(): DashboardView {
+  try {
+    return globalThis.location?.search
+      ? new URLSearchParams(globalThis.location.search).get("view") === "memos"
+        ? "memos"
+        : "home"
+      : "home";
+  } catch {
+    return "home";
+  }
+}
+
+function writeDashboardViewToUrl(view: DashboardView) {
+  try {
+    const currentUrl = new URL(globalThis.location.href);
+    if (view === "memos") {
+      currentUrl.searchParams.set("view", "memos");
+    } else {
+      currentUrl.searchParams.delete("view");
+    }
+    const nextUrl = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+    const currentPath = `${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash}`;
+    if (nextUrl !== currentPath) {
+      globalThis.history.replaceState(globalThis.history.state, "", nextUrl);
+    }
+  } catch {
+    // URL state is a convenience; keep the dashboard usable if history is unavailable.
+  }
+}
+
 const MOBILE_SEARCH_BREAKPOINT = 720;
 const MOBILE_SEARCH_MEDIA_QUERY = `(max-width: ${MOBILE_SEARCH_BREAKPOINT}px)`;
 
@@ -355,6 +698,34 @@ export default function AuthenticatedDashboardApp({
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [hasLoadedTags, setHasLoadedTags] = useState(false);
+  const [memos, setMemos] = useState<Memo[]>([]);
+  const [memoFolders, setMemoFolders] = useState<MemoFolder[]>([]);
+  const [memoTags, setMemoTags] = useState<MemoTag[]>([]);
+  const [memoTotalCount, setMemoTotalCount] = useState<number | null>(null);
+  const [memoSearchQuery, setMemoSearchQuery] = useState("");
+  const [debouncedMemoSearchQuery, setDebouncedMemoSearchQuery] = useState("");
+  const [memoFolderFilterId, setMemoFolderFilterId] = useState<string | null>(
+    DEFAULT_MEMO_FOLDER_FILTER_ID
+  );
+  const memoFolderFilterIdRef = useRef<string | null>(DEFAULT_MEMO_FOLDER_FILTER_ID);
+  const [memoTagFilterId, setMemoTagFilterId] = useState<string | null>(null);
+  const [memoFavoriteOnly, setMemoFavoriteOnly] = useState(false);
+  const [memoViewMode, setMemoViewMode] = useState<MemoViewMode>(() => loadStoredMemoViewMode());
+  const [memoLockStatus, setMemoLockStatus] = useState<MemoLockStatusResponse | null>(null);
+  const [memoLockPromptMode, setMemoLockPromptMode] = useState<MemoLockPromptMode | null>(null);
+  const [isMemoLockBusy, setIsMemoLockBusy] = useState(false);
+  const [memoLockError, setMemoLockError] = useState<string | null>(null);
+  const [isLoadingMemos, setIsLoadingMemos] = useState(false);
+  const [memoDraft, setMemoDraft] = useState<MemoComposerDraft>(() => createEmptyMemoDraft());
+  const memoDraftRef = useRef(memoDraft);
+  const [editingMemo, setEditingMemo] = useState<Memo | null>(null);
+  const [isMemoComposerOpen, setIsMemoComposerOpen] = useState(false);
+  const [, setPendingMemoImageUploads] = useState<
+    PendingMemoImageUpload[]
+  >([]);
+  const pendingMemoImageUploadsRef = useRef<PendingMemoImageUpload[]>([]);
+  const latestMemoCoverAssetByMemoIdRef = useRef<Record<string, MemoAsset>>({});
+  const [isSavingMemo, setIsSavingMemo] = useState(false);
   const [recommendations, setRecommendations] = useState<BookmarkRecommendationsState>(
     emptyBookmarkRecommendations
   );
@@ -365,6 +736,8 @@ export default function AuthenticatedDashboardApp({
   const [isBookmarkComposerOpen, setIsBookmarkComposerOpen] = useState(false);
   const [isBookmarkComposerClassificationOpen, setIsBookmarkComposerClassificationOpen] = useState(false);
   const [isBookmarkComposerDisplayOpen, setIsBookmarkComposerDisplayOpen] = useState(false);
+  const [folderManagerScope, setFolderManagerScope] = useState<ManagerScope>("bookmarks");
+  const [tagManagerScope, setTagManagerScope] = useState<ManagerScope>("bookmarks");
   const [isFolderManagerOpen, setIsFolderManagerOpen] = useState(false);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [editingBookmarkId, setEditingBookmarkId] = useState<string | null>(null);
@@ -396,7 +769,8 @@ export default function AuthenticatedDashboardApp({
   const [mobileSidebarPanel, setMobileSidebarPanel] = useState<MobileSidebarPanelId>("folder");
   const [isMobileHeaderMenuOpen, setIsMobileHeaderMenuOpen] = useState(false);
   const [bookmarkTagSearchQuery, setBookmarkTagSearchQuery] = useState("");
-  const [activeDashboardView, setActiveDashboardView] = useState<DashboardView>("home");
+  const [activeDashboardView, setActiveDashboardView] =
+    useState<DashboardView>(getInitialDashboardView);
   const [isHomeRecommendationOpen, setIsHomeRecommendationOpen] = useState(false);
   const [isInstallHelpDialogOpen, setIsInstallHelpDialogOpen] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] =
@@ -424,7 +798,7 @@ export default function AuthenticatedDashboardApp({
   const [bookmarkListPageSize, setBookmarkListPageSize] =
     useState<BookmarkPageSize>(DEFAULT_BOOKMARK_PAGE_SIZE);
   const [bookmarkListVisibleCount, setBookmarkListVisibleCount] =
-    useState(DEFAULT_BOOKMARK_PAGE_SIZE);
+    useState<number>(DEFAULT_BOOKMARK_PAGE_SIZE);
   const [bookmarkListTotalCount, setBookmarkListTotalCount] = useState<number | null>(null);
   const [bookmarkListNextOffset, setBookmarkListNextOffset] = useState<number | null>(null);
   const [bookmarkVirtualWindowStart, setBookmarkVirtualWindowStart] = useState(0);
@@ -435,12 +809,16 @@ export default function AuthenticatedDashboardApp({
   const [openFolderActionMenuId, setOpenFolderActionMenuId] = useState<string | null>(null);
   const [openTagActionMenuId, setOpenTagActionMenuId] = useState<string | null>(null);
   const [expandedFolderOverviewIds, setExpandedFolderOverviewIds] = useState<string[]>([]);
+  const [expandedMemoFolderOverviewIds, setExpandedMemoFolderOverviewIds] = useState<string[]>([]);
   const [expandedFolderManagerIds, setExpandedFolderManagerIds] = useState<string[]>([]);
   const [folderOverviewSpecialFilter, setFolderOverviewSpecialFilter] =
     useState<FolderOverviewSpecialFilter | null>(null);
   const [folderOverviewQuery, setFolderOverviewQuery] = useState("");
+  const [memoFolderOverviewQuery, setMemoFolderOverviewQuery] = useState("");
   const [showHiddenFolders, setShowHiddenFolders] = useState(false);
   const [showHiddenBookmarks, setShowHiddenBookmarks] = useState(false);
+  const [showHiddenMemoFolders, setShowHiddenMemoFolders] = useState(false);
+  const [showHiddenMemos, setShowHiddenMemos] = useState(false);
   const [isQuickActionsMenuOpen, setIsQuickActionsMenuOpen] = useState(false);
   const [isQuickFolderOpen, setIsQuickFolderOpen] = useState(false);
   const [isQuickTagOpen, setIsQuickTagOpen] = useState(false);
@@ -474,6 +852,12 @@ export default function AuthenticatedDashboardApp({
   const bookmarkPreviewRequestIdRef = useRef(0);
   const selectedBookmarkPreviewCachesRef = useRef(createBookmarkDetailPreviewCaches());
   const recommendationRequestIdRef = useRef(0);
+  const memoWorkspaceRequestIdRef = useRef(0);
+  const memoPageCacheRef = useRef<Map<string, MemoPage>>(new Map());
+  const hiddenMemoPageCacheRef = useRef<MemoPageCacheEntry | null>(null);
+  const memoWorkspaceMetadataRef = useRef<MemoWorkspaceMetadata | null>(null);
+  const memoWorkspaceMetadataPromiseRef = useRef<Promise<MemoWorkspaceMetadata> | null>(null);
+  const pendingLockedMemoIdRef = useRef<string | null>(null);
   const bookmarkListElementRef = useRef<HTMLUListElement | null>(null);
   const preloadingBookmarkAssetIdsRef = useRef<Set<string>>(new Set());
   const deferredBookmarkAssetPreloadTimerRef =
@@ -506,6 +890,21 @@ export default function AuthenticatedDashboardApp({
     setIsMobileHeaderMenuOpen(false);
   }
 
+  function replaceMemoFolderFilterId(nextFolderId: string | null) {
+    memoFolderFilterIdRef.current = nextFolderId;
+    setMemoFolderFilterId(nextFolderId);
+  }
+
+  function updateMemoFolderFilterId(
+    getNextFolderId: (currentFolderId: string | null) => string | null
+  ) {
+    setMemoFolderFilterId((currentFolderId) => {
+      const nextFolderId = getNextFolderId(currentFolderId);
+      memoFolderFilterIdRef.current = nextFolderId;
+      return nextFolderId;
+    });
+  }
+
   function toggleAppTheme() {
     setAppTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"));
   }
@@ -524,13 +923,96 @@ export default function AuthenticatedDashboardApp({
     setActiveDashboardView("bookmarks");
     requestDesktopRecommendationsIfNeeded();
     requestTagsIfNeeded();
+    if (!hasLoadedFullBookmarkInventory) {
+      void refreshDashboardData(appliedBookmarkSearch, "bookmarks");
+    }
     closeOpenMenus();
+  }
+
+  function openMemoWorkspace() {
+    preloadDashboardPanelChunk("memos");
+    setActiveDashboardView("memos");
+    setSelectedBookmark(null);
+    setBookmarkDetailDisplayMode("rail");
+    setIsBookmarkPreviewFullscreen(false);
+    closeOpenMenus();
+  }
+
+  function beginMemoCreate() {
+    preloadDashboardDialogChunk("memoComposer");
+    preloadDashboardPanelChunk("memos");
+    const nextDraft = createEmptyMemoDraft();
+    const currentMemoFolderFilterId = memoFolderFilterIdRef.current;
+    if (currentMemoFolderFilterId && currentMemoFolderFilterId !== "unfiled") {
+      nextDraft.folderId = currentMemoFolderFilterId;
+    }
+
+    setActiveDashboardView("memos");
+    setEditingMemo(null);
+    replaceMemoDraft(nextDraft);
+    clearPendingMemoImageUploads();
+    setIsMemoComposerOpen(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+    closeOpenMenus();
+  }
+
+  function openMemoEditor(memo: Memo) {
+    preloadDashboardDialogChunk("memoComposer");
+    preloadDashboardPanelChunk("memos");
+    setActiveDashboardView("memos");
+    setEditingMemo(memo);
+    replaceMemoDraft(createMemoDraftFromMemo(memo));
+    clearPendingMemoImageUploads();
+    setIsMemoComposerOpen(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+  }
+
+  async function openLockedMemoEditor(memoId: string) {
+    try {
+      setErrorMessage(null);
+      const loadedMemo = await loadMemo(memoId);
+      pendingLockedMemoIdRef.current = null;
+      openMemoEditor(loadedMemo);
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "잠금 메모를 불러오지 못했습니다."
+        );
+      });
+    }
+  }
+
+  async function beginMemoEdit(memo: Memo) {
+    if (memo.isLocked) {
+      pendingLockedMemoIdRef.current = memo.id;
+      openMemoLockPrompt("unlock");
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      const loadedMemo = await loadMemo(memo.id);
+      openMemoEditor(loadedMemo);
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "메모 상세 정보를 불러오지 못했습니다."
+        );
+      });
+    }
+  }
+
+  function invalidateMemoWorkspaceRequests() {
+    memoWorkspaceRequestIdRef.current += 1;
   }
 
   const queueBookmarkAssetPreload = (
     bookmarksToLoad: Bookmark[],
     currentAssetsByBookmarkId: Record<string, BookmarkAsset[]>,
-    dashboardView: DashboardView = activeDashboardView
+    dashboardView: "home" | "bookmarks" =
+      activeDashboardView === "memos" ? "bookmarks" : activeDashboardView
   ) => {
     queueDashboardBookmarkAssetPreload({
       bookmarksToLoad,
@@ -706,9 +1188,12 @@ export default function AuthenticatedDashboardApp({
     });
   }
 
-  function loadDashboardBookmarkData(search: BookmarkSearchDraft) {
+  function loadDashboardBookmarkData(
+    search: BookmarkSearchDraft,
+    dashboardView: DashboardView = activeDashboardView
+  ) {
     return loadDashboardBookmarkDataFromSources({
-      activeDashboardView,
+      activeDashboardView: dashboardView,
       search,
       loadBookmarks,
       loadBookmarkPage,
@@ -766,12 +1251,15 @@ export default function AuthenticatedDashboardApp({
       });
   }
 
-  async function refreshDashboardData(search = appliedBookmarkSearch) {
+  async function refreshDashboardData(
+    search = appliedBookmarkSearch,
+    dashboardView: DashboardView = activeDashboardView
+  ) {
     return measureAsyncPerformance("dashboard:data-refresh", async () => {
       setIsLoadingDashboard(true);
       const normalizedSearch = normalizeBookmarkSearchDraft(search);
       const shouldLoadTagsWithDashboard =
-        activeDashboardView !== "home" || hasActiveBookmarkSearch(normalizedSearch);
+        dashboardView !== "home" || hasActiveBookmarkSearch(normalizedSearch);
 
       try {
         const [
@@ -786,7 +1274,7 @@ export default function AuthenticatedDashboardApp({
           nextFolders,
           nextTags
         ] = await Promise.all([
-          loadDashboardBookmarkData(search),
+          loadDashboardBookmarkData(search, dashboardView),
           loadFolders(),
           shouldLoadTagsWithDashboard ? fetchTagsOnce() : Promise.resolve(null)
         ]);
@@ -822,10 +1310,11 @@ export default function AuthenticatedDashboardApp({
         }
 
         queueBookmarkAssetPreload(
-          activeDashboardView === "home"
+          dashboardView === "home"
             ? (nextHomeFavoriteBookmarks ?? nextBookmarkInventory)
             : nextBookmarks.slice(0, bookmarkListPageSize),
-          bookmarkAssetsByBookmarkId
+          bookmarkAssetsByBookmarkId,
+          dashboardView
         );
       } catch {
         startTransition(() => {
@@ -899,6 +1388,643 @@ export default function AuthenticatedDashboardApp({
     requestRecommendationsIfNeeded();
   }
 
+  function createCurrentMemoPageOptions(options: {
+    folderFilterId?: string | null;
+    includeHidden?: boolean;
+    tagFilterId?: string | null;
+  } = {}): MemoPageLoadOptions {
+    const nextMemoFolderFilterId =
+      "folderFilterId" in options ? options.folderFilterId ?? null : memoFolderFilterId;
+    const nextMemoTagFilterId =
+      "tagFilterId" in options ? options.tagFilterId ?? null : memoTagFilterId;
+    return {
+      query: debouncedMemoSearchQuery,
+      folderId:
+        nextMemoFolderFilterId === null
+          ? undefined
+          : nextMemoFolderFilterId === "unfiled"
+            ? null
+            : nextMemoFolderFilterId,
+      tagId: nextMemoTagFilterId ?? undefined,
+      favorite: memoFavoriteOnly ? true : undefined,
+      includeHidden: options.includeHidden ? true : undefined,
+      includeDescendantFolders:
+        typeof nextMemoFolderFilterId === "string" && nextMemoFolderFilterId !== "unfiled"
+          ? true
+          : undefined,
+      limit: MEMO_PAGE_SIZE,
+      offset: 0
+    };
+  }
+
+  function getMemoPageTotalCount(memoPage: MemoPage) {
+    return memoPage.pagination?.total ?? memoPage.memos.length;
+  }
+
+  function applyMemoPage(memoPage: MemoPage) {
+    setMemos(memoPage.memos);
+    setMemoTotalCount(getMemoPageTotalCount(memoPage));
+  }
+
+  function cacheMemoPage(cacheKey: string, memoPage: MemoPage) {
+    const cache = memoPageCacheRef.current;
+    if (cache.has(cacheKey)) {
+      cache.delete(cacheKey);
+    }
+    cache.set(cacheKey, memoPage);
+
+    while (cache.size > MEMO_PAGE_CACHE_LIMIT) {
+      const oldestKey = cache.keys().next().value;
+      if (!oldestKey) {
+        break;
+      }
+      cache.delete(oldestKey);
+    }
+  }
+
+  function clearMemoPageCaches() {
+    memoPageCacheRef.current.clear();
+    hiddenMemoPageCacheRef.current = null;
+  }
+
+  function applyCachedMemoPageOrLoading(options: MemoPageLoadOptions) {
+    const cachedMemoPage = memoPageCacheRef.current.get(createMemoPageCacheKey(options));
+
+    if (cachedMemoPage) {
+      applyMemoPage(cachedMemoPage);
+    } else {
+      setMemos([]);
+      setMemoTotalCount(null);
+    }
+
+    setIsLoadingMemos(true);
+  }
+
+  function clearMemoWorkspaceMetadataCache() {
+    memoWorkspaceMetadataRef.current = null;
+    memoWorkspaceMetadataPromiseRef.current = null;
+  }
+
+  function replaceMemoWorkspaceFolders(nextFolders: MemoFolder[]) {
+    if (memoWorkspaceMetadataRef.current) {
+      memoWorkspaceMetadataRef.current = {
+        ...memoWorkspaceMetadataRef.current,
+        folders: nextFolders
+      };
+    }
+    setMemoFolders(nextFolders);
+  }
+
+  function updateMemoWorkspaceFolders(
+    updater: (currentFolders: MemoFolder[]) => MemoFolder[]
+  ) {
+    if (memoWorkspaceMetadataRef.current) {
+      memoWorkspaceMetadataRef.current = {
+        ...memoWorkspaceMetadataRef.current,
+        folders: updater(memoWorkspaceMetadataRef.current.folders)
+      };
+    }
+    setMemoFolders(updater);
+  }
+
+  function replaceMemoWorkspaceTags(nextTags: MemoTag[]) {
+    if (memoWorkspaceMetadataRef.current) {
+      memoWorkspaceMetadataRef.current = {
+        ...memoWorkspaceMetadataRef.current,
+        tags: nextTags
+      };
+    }
+    setMemoTags(nextTags);
+  }
+
+  function updateMemoWorkspaceTags(updater: (currentTags: MemoTag[]) => MemoTag[]) {
+    if (memoWorkspaceMetadataRef.current) {
+      memoWorkspaceMetadataRef.current = {
+        ...memoWorkspaceMetadataRef.current,
+        tags: updater(memoWorkspaceMetadataRef.current.tags)
+      };
+    }
+    setMemoTags(updater);
+  }
+
+  function loadMemoWorkspaceMetadata() {
+    if (memoWorkspaceMetadataRef.current) {
+      return Promise.resolve(memoWorkspaceMetadataRef.current);
+    }
+
+    if (memoWorkspaceMetadataPromiseRef.current) {
+      return memoWorkspaceMetadataPromiseRef.current;
+    }
+
+    const metadataPromise = Promise.all([
+      loadMemoLockStatus(),
+      loadMemoFolders(),
+      loadMemoTags()
+    ])
+      .then(([lockStatus, folders, tags]) => {
+        const metadata = {
+          lockStatus,
+          folders,
+          tags
+        };
+        memoWorkspaceMetadataRef.current = metadata;
+        return metadata;
+      })
+      .finally(() => {
+        memoWorkspaceMetadataPromiseRef.current = null;
+      });
+
+    memoWorkspaceMetadataPromiseRef.current = metadataPromise;
+    return metadataPromise;
+  }
+
+  async function refreshMemoWorkspace(options: {
+    folderFilterId?: string | null;
+    tagFilterId?: string | null;
+  } = {}) {
+    const requestId = memoWorkspaceRequestIdRef.current + 1;
+    memoWorkspaceRequestIdRef.current = requestId;
+    const shouldLoadMemoMetadata = memoWorkspaceMetadataRef.current === null;
+    const memoPageOptions = createCurrentMemoPageOptions({
+      ...options,
+      includeHidden: showHiddenMemos
+    });
+    const memoPageCacheKey = createMemoPageCacheKey(memoPageOptions);
+    applyCachedMemoPageOrLoading(memoPageOptions);
+
+    try {
+      const memoMetadataPromise = shouldLoadMemoMetadata
+        ? loadMemoWorkspaceMetadata()
+        : Promise.resolve(null);
+      const hiddenMemoPageOptions = showHiddenMemos
+        ? null
+        : createCurrentMemoPageOptions({
+            ...options,
+            includeHidden: true
+          });
+      const hiddenMemoPageCacheKey = hiddenMemoPageOptions
+        ? createMemoPageCacheKey(hiddenMemoPageOptions)
+        : null;
+      if (hiddenMemoPageOptions && hiddenMemoPageCacheRef.current?.key !== hiddenMemoPageCacheKey) {
+        void loadMemoPage(hiddenMemoPageOptions)
+          .then((hiddenMemoPage) => {
+            if (memoWorkspaceRequestIdRef.current !== requestId || !hiddenMemoPageCacheKey) {
+              return;
+            }
+
+            hiddenMemoPageCacheRef.current = {
+              key: hiddenMemoPageCacheKey,
+              page: hiddenMemoPage
+            };
+            cacheMemoPage(hiddenMemoPageCacheKey, hiddenMemoPage);
+          })
+          .catch(() => {
+            if (memoWorkspaceRequestIdRef.current === requestId) {
+              hiddenMemoPageCacheRef.current = null;
+            }
+          });
+      }
+      const [memoPage, nextMemoMetadata] = await Promise.all([
+        loadMemoPage(memoPageOptions),
+        memoMetadataPromise
+      ]);
+
+      if (memoWorkspaceRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      cacheMemoPage(memoPageCacheKey, memoPage);
+      applyMemoPage(memoPage);
+      if (nextMemoMetadata) {
+        setMemoFolders(nextMemoMetadata.folders);
+        setMemoTags(nextMemoMetadata.tags);
+        setMemoLockStatus(nextMemoMetadata.lockStatus);
+      }
+      if (showHiddenMemos) {
+        hiddenMemoPageCacheRef.current = {
+          key: memoPageCacheKey,
+          page: memoPage
+        };
+      }
+    } catch (error) {
+      if (memoWorkspaceRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      startTransition(() => {
+        setMemos([]);
+        setMemoTotalCount(null);
+        if (shouldLoadMemoMetadata) {
+          clearMemoWorkspaceMetadataCache();
+          setMemoFolders([]);
+          setMemoTags([]);
+          setMemoLockStatus(null);
+        }
+        setErrorMessage(
+          error instanceof Error ? error.message : "메모를 불러오지 못했습니다."
+        );
+      });
+    } finally {
+      if (memoWorkspaceRequestIdRef.current === requestId) {
+        setIsLoadingMemos(false);
+      }
+    }
+  }
+
+  function openMemoLockPrompt(mode: MemoLockPromptMode) {
+    preloadDashboardDialogChunk("memoLock");
+    setMemoLockError(null);
+    setMemoLockPromptMode(mode);
+  }
+
+  function handleToggleHiddenMemos() {
+    const nextValue = !showHiddenMemos;
+
+    if (nextValue) {
+      const hiddenMemoPageOptions = createCurrentMemoPageOptions({ includeHidden: true });
+      const cachedHiddenMemoPage = hiddenMemoPageCacheRef.current;
+      if (cachedHiddenMemoPage?.key === createMemoPageCacheKey(hiddenMemoPageOptions)) {
+        setMemos(cachedHiddenMemoPage.page.memos);
+        setMemoTotalCount(
+          cachedHiddenMemoPage.page.pagination?.total ?? cachedHiddenMemoPage.page.memos.length
+        );
+      }
+    } else {
+      const visibleMemos = memos.filter((memo) => memo.isHidden !== true);
+      setMemos(visibleMemos);
+      setMemoTotalCount(visibleMemos.length);
+    }
+
+    if (!nextValue && editingMemo?.isHidden) {
+      setEditingMemo(null);
+      setIsMemoComposerOpen(false);
+      replaceMemoDraft(createEmptyMemoDraft());
+    }
+
+    setShowHiddenMemos(nextValue);
+  }
+
+  function handleToggleHiddenMemoFolders() {
+    const nextValue = !showHiddenMemoFolders;
+
+    if (
+      !nextValue &&
+      memoFolderFilterId &&
+      memoFolderFilterId !== "unfiled" &&
+      hiddenMemoFolderIds.has(memoFolderFilterId)
+    ) {
+      replaceMemoFolderFilterId(DEFAULT_MEMO_FOLDER_FILTER_ID);
+    }
+
+    if (!nextValue && editingMemo?.folderId && hiddenMemoFolderIds.has(editingMemo.folderId)) {
+      setEditingMemo(null);
+      setIsMemoComposerOpen(false);
+      replaceMemoDraft(createEmptyMemoDraft());
+    }
+
+    setShowHiddenMemoFolders(nextValue);
+  }
+
+  async function handleMemoLockSubmit(password: string) {
+    if (!memoLockPromptMode) {
+      return;
+    }
+    const pendingLockedMemoId = pendingLockedMemoIdRef.current;
+
+    try {
+      setIsMemoLockBusy(true);
+      setMemoLockError(null);
+      if (pendingLockedMemoId) {
+        await unlockLockedMemo(pendingLockedMemoId, password);
+        startTransition(() => {
+          setMemoLockPromptMode(null);
+        });
+        await openLockedMemoEditor(pendingLockedMemoId);
+        return;
+      }
+
+      const response =
+        memoLockPromptMode === "setup"
+          ? await setupMemoLock(password)
+          : await unlockMemoLock(password);
+
+      startTransition(() => {
+        setMemoLockStatus(response.status);
+        setMemoLockPromptMode(null);
+      });
+      clearMemoPageCaches();
+      await refreshMemoWorkspace();
+    } catch (error) {
+      startTransition(() => {
+        setMemoLockError(
+          error instanceof Error ? error.message : "메모 잠금 요청을 처리하지 못했습니다."
+        );
+      });
+    } finally {
+      setIsMemoLockBusy(false);
+    }
+  }
+
+  async function handleMemoDelete(memo: Memo) {
+    const shouldDelete = globalThis.confirm?.(`"${memo.title}" 메모를 삭제할까요?`) ?? false;
+    if (!shouldDelete) {
+      return false;
+    }
+
+    try {
+      setErrorMessage(null);
+      await deleteMemo(memo.id);
+      clearMemoPageCaches();
+      startTransition(() => {
+        setMemos((currentMemos) => currentMemos.filter((item) => item.id !== memo.id));
+        setMemoTotalCount((currentCount) =>
+          typeof currentCount === "number" ? Math.max(0, currentCount - 1) : currentCount
+        );
+        setStatusMessage("메모를 삭제했습니다.");
+      });
+      return true;
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "메모를 삭제하지 못했습니다."
+        );
+      });
+      return false;
+    }
+  }
+
+  async function handleMemoComposerDelete() {
+    if (!editingMemo) {
+      return;
+    }
+
+    const didDelete = await handleMemoDelete(editingMemo);
+    if (didDelete) {
+      closeMemoComposer();
+    }
+  }
+
+  function replaceMemoDraft(nextDraft: MemoComposerDraft) {
+    memoDraftRef.current = nextDraft;
+    setMemoDraft(nextDraft);
+  }
+
+  function updateMemoDraft(nextValues: Partial<MemoComposerDraft>) {
+    const nextDraft = {
+      ...memoDraftRef.current,
+      ...nextValues
+    };
+    memoDraftRef.current = nextDraft;
+    setMemoDraft(nextDraft);
+  }
+
+  function updateMemoDraftContent(
+    nextValues: Pick<MemoComposerDraft, "contentJson" | "contentText">
+  ) {
+    memoDraftRef.current = {
+      ...memoDraftRef.current,
+      ...nextValues
+    };
+  }
+
+  function clearPendingMemoImageUploads() {
+    pendingMemoImageUploadsRef.current.forEach((upload) =>
+      revokePendingMemoImageUrl(upload.contentUrl)
+    );
+    pendingMemoImageUploadsRef.current = [];
+    setPendingMemoImageUploads([]);
+  }
+
+  function closeMemoComposer() {
+    setIsMemoComposerOpen(false);
+    setEditingMemo(null);
+    replaceMemoDraft(createEmptyMemoDraft());
+    clearPendingMemoImageUploads();
+    setIsSavingMemo(false);
+  }
+
+  async function handleMemoImageUpload(file: File): Promise<MemoAsset> {
+    if (!editingMemo) {
+      const [preparedFile] = await prepareMemoImageUploadFiles([file]);
+      if (!preparedFile) {
+        throw new Error("지원하지 않는 이미지 형식입니다.");
+      }
+
+      const id = createPendingMemoImageId();
+      const pendingUpload = {
+        id,
+        preparedFile,
+        contentUrl: createPendingMemoImageUrl(preparedFile.file, id)
+      };
+      pendingMemoImageUploadsRef.current = [
+        ...pendingMemoImageUploadsRef.current,
+        pendingUpload
+      ];
+      setPendingMemoImageUploads(pendingMemoImageUploadsRef.current);
+      return createPendingMemoAsset(pendingUpload);
+    }
+
+    const memoId = editingMemo.id;
+    const asset = await uploadMemoAsset(memoId, file);
+    latestMemoCoverAssetByMemoIdRef.current[memoId] = asset;
+    clearMemoPageCaches();
+
+    startTransition(() => {
+      const applyAssetCount = (memo: Memo): Memo =>
+        memo.id === memoId
+          ? {
+              ...memo,
+              assetCount: memo.assetCount + 1,
+              coverAsset: asset
+            }
+          : memo;
+
+      setMemos((currentMemos) => currentMemos.map(applyAssetCount));
+      setEditingMemo((currentMemo) => (currentMemo ? applyAssetCount(currentMemo) : currentMemo));
+    });
+
+    return asset;
+  }
+
+  async function handleMemoTagCreate(input: { name: string; color?: string | null }) {
+    const createdTag = await createMemoTag({
+      name: input.name.trim(),
+      color: input.color ?? null
+    });
+
+    startTransition(() => {
+      updateMemoWorkspaceTags((currentTags) =>
+        currentTags.some((tag) => tag.id === createdTag.id)
+          ? currentTags.map((tag) => (tag.id === createdTag.id ? createdTag : tag))
+          : [...currentTags, createdTag]
+      );
+    });
+
+    return createdTag;
+  }
+
+  async function handleMemoSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSavingMemo(true);
+    setErrorMessage(null);
+
+    const currentMemoDraft = memoDraftRef.current;
+    const pendingUploads = pendingMemoImageUploadsRef.current;
+    const lockPassword = currentMemoDraft.lockPassword.trim();
+    const input = {
+      title: currentMemoDraft.title.trim() || "Untitled",
+      folderId: currentMemoDraft.folderId || null,
+      tagIds: currentMemoDraft.tagIds,
+      contentJson: editingMemo
+        ? currentMemoDraft.contentJson
+        : removePendingMemoImages(currentMemoDraft.contentJson, pendingUploads),
+      contentText: currentMemoDraft.contentText,
+      isFavorite: currentMemoDraft.isFavorite,
+      isHidden: currentMemoDraft.isHidden,
+      isLocked: currentMemoDraft.isLocked,
+      ...(currentMemoDraft.isLocked && lockPassword ? { lockPassword } : {}),
+      memoColor: currentMemoDraft.memoColor || null
+    };
+
+    try {
+      let savedMemo = editingMemo
+        ? await updateMemo(editingMemo.id, input)
+        : await createMemo(input);
+
+      if (!editingMemo && pendingUploads.length > 0) {
+        const imageReplacements = new Map<string, string>();
+
+        for (const pendingUpload of pendingUploads) {
+          const asset = await uploadPreparedMemoAsset(
+            savedMemo.id,
+            pendingUpload.preparedFile
+          );
+          imageReplacements.set(pendingUpload.contentUrl, asset.contentUrl);
+        }
+
+        savedMemo = await updateMemo(savedMemo.id, {
+          ...input,
+          contentJson: replacePendingMemoImages(currentMemoDraft.contentJson, imageReplacements),
+          contentText: currentMemoDraft.contentText
+        });
+      }
+
+      const latestCoverAsset = editingMemo
+        ? latestMemoCoverAssetByMemoIdRef.current[editingMemo.id]
+        : undefined;
+      if (latestCoverAsset && savedMemo.id === editingMemo?.id) {
+        savedMemo = {
+          ...savedMemo,
+          assetCount: Math.max(
+            savedMemo.assetCount,
+            editingMemo.assetCount,
+            latestCoverAsset.sortOrder + 1
+          ),
+          coverAsset: latestCoverAsset
+        };
+      }
+
+      const shouldCloseLockedMemo = savedMemo.isLocked;
+      const visibleSavedMemo = shouldCloseLockedMemo
+        ? createLockedMemoPreview(savedMemo)
+        : savedMemo;
+      clearMemoPageCaches();
+
+      startTransition(() => {
+        setMemos((currentMemos) => {
+          const memoIndex = currentMemos.findIndex((memo) => memo.id === visibleSavedMemo.id);
+          if (memoIndex < 0) {
+            return [visibleSavedMemo, ...currentMemos];
+          }
+
+          return currentMemos.map((memo) =>
+            memo.id === visibleSavedMemo.id ? visibleSavedMemo : memo
+          );
+        });
+        setEditingMemo(shouldCloseLockedMemo ? null : savedMemo);
+        replaceMemoDraft(
+          shouldCloseLockedMemo ? createEmptyMemoDraft() : createMemoDraftFromMemo(savedMemo)
+        );
+        setIsMemoComposerOpen(!shouldCloseLockedMemo);
+        setMemoTotalCount((currentCount) => {
+          if (editingMemo || typeof currentCount !== "number") {
+            return currentCount;
+          }
+
+          return currentCount + 1;
+        });
+        setStatusMessage(editingMemo ? "메모를 수정했습니다." : "메모를 저장했습니다.");
+      });
+      clearPendingMemoImageUploads();
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "메모를 저장하지 못했습니다."
+        );
+      });
+    } finally {
+      setIsSavingMemo(false);
+    }
+  }
+
+  useEffect(() => {
+    writeDashboardViewToUrl(activeDashboardView);
+  }, [activeDashboardView]);
+
+  useEffect(() => {
+    if (!statusMessage) {
+      return;
+    }
+
+    const timer = globalThis.setTimeout(() => {
+      setStatusMessage(null);
+    }, STATUS_MESSAGE_DISMISS_MS);
+
+    return () => {
+      globalThis.clearTimeout(timer);
+    };
+  }, [statusMessage]);
+
+  useEffect(() => {
+    try {
+      globalThis.localStorage?.setItem(MEMO_VIEW_MODE_STORAGE_KEY, memoViewMode);
+    } catch {
+      // Memo view mode is a convenience preference; storage failures should not block use.
+    }
+  }, [memoViewMode]);
+
+  useEffect(() => {
+    const timer = globalThis.setTimeout(() => {
+      setDebouncedMemoSearchQuery(memoSearchQuery);
+    }, MEMO_SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      globalThis.clearTimeout(timer);
+    };
+  }, [memoSearchQuery]);
+
+  useEffect(() => {
+    if (sessionState.status !== "authenticated" || activeDashboardView !== "memos") {
+      invalidateMemoWorkspaceRequests();
+      setIsLoadingMemos(false);
+      return;
+    }
+
+    void refreshMemoWorkspace();
+
+    return () => {
+      invalidateMemoWorkspaceRequests();
+    };
+  }, [
+    activeDashboardView,
+    debouncedMemoSearchQuery,
+    memoFavoriteOnly,
+    memoFolderFilterId,
+    memoTagFilterId,
+    showHiddenMemos,
+    sessionState.status
+  ]);
+
   useEffect(() => {
     const ownerDocument = globalThis.document;
     if (!ownerDocument) {
@@ -934,6 +2060,19 @@ export default function AuthenticatedDashboardApp({
 
     if (initialUser) {
       preloadDashboardCoreServiceModules();
+      if (activeDashboardView === "memos") {
+        startTransition(() => {
+          setSessionState({
+            status: "authenticated",
+            user: initialUser
+          });
+        });
+
+        return () => {
+          cancelled = true;
+        };
+      }
+
       void refreshDashboardData().finally(() => {
         if (cancelled) {
           return;
@@ -973,7 +2112,9 @@ export default function AuthenticatedDashboardApp({
         });
 
         preloadDashboardCoreServiceModules();
-        await refreshDashboardData();
+        if (activeDashboardView !== "memos") {
+          await refreshDashboardData();
+        }
       })
       .catch(() => {
         if (cancelled) {
@@ -1082,31 +2223,30 @@ export default function AuthenticatedDashboardApp({
   }, [folders, appliedBookmarkSearch.folderId]);
 
   useEffect(() => {
-    const folderChildrenByParentId = getFoldersByParentId(folders);
-    const folderIdsWithChildren = Array.from(folderChildrenByParentId.entries())
+    const activeMemoFolderId = isMemoComposerOpen
+      ? memoDraft.folderId || null
+      : memoFolderFilterId && memoFolderFilterId !== "unfiled"
+        ? memoFolderFilterId
+        : null;
+    const memoFolderChildrenByParentId = getFoldersByParentId(memoFolders);
+    const memoFolderIdsWithChildren = Array.from(memoFolderChildrenByParentId.entries())
       .filter(([folderId, childFolders]) => Boolean(folderId) && childFolders.length > 0)
       .map(([folderId]) => folderId as string);
 
-    setExpandedFolderManagerIds((currentIds) => {
-      const validFolderIds = new Set(folders.map((folder) => folder.id));
-      const nextIdSet = new Set(currentIds.filter((folderId) => validFolderIds.has(folderId)));
+    setExpandedMemoFolderOverviewIds((currentIds) => {
+      const visibleFolderIds = new Set(memoFolders.map((folder) => folder.id));
+      const nextIds = currentIds.filter((folderId) => visibleFolderIds.has(folderId));
+      const nextIdSet = new Set(nextIds);
 
       if (nextIdSet.size === 0) {
-        for (const folderId of folderIdsWithChildren) {
+        for (const folderId of memoFolderIdsWithChildren) {
           nextIdSet.add(folderId);
         }
       }
 
-      if (folderDraft.parentFolderId) {
-        nextIdSet.add(folderDraft.parentFolderId);
-        for (const ancestorId of getFolderAncestorIds(folders, folderDraft.parentFolderId)) {
-          nextIdSet.add(ancestorId);
-        }
-      }
-
-      if (editingFolderId) {
-        nextIdSet.add(editingFolderId);
-        for (const ancestorId of getFolderAncestorIds(folders, editingFolderId)) {
+      if (activeMemoFolderId) {
+        nextIdSet.add(activeMemoFolderId);
+        for (const ancestorId of getFolderAncestorIds(memoFolders, activeMemoFolderId)) {
           nextIdSet.add(ancestorId);
         }
       }
@@ -1117,7 +2257,46 @@ export default function AuthenticatedDashboardApp({
         ? currentIds
         : normalizedNextIds;
     });
-  }, [folders, folderDraft.parentFolderId, editingFolderId]);
+  }, [isMemoComposerOpen, memoDraft.folderId, memoFolderFilterId, memoFolders]);
+
+  useEffect(() => {
+    const managerFolders = folderManagerScope === "memos" ? memoFolders : folders;
+    const folderChildrenByParentId = getFoldersByParentId(managerFolders);
+    const folderIdsWithChildren = Array.from(folderChildrenByParentId.entries())
+      .filter(([folderId, childFolders]) => Boolean(folderId) && childFolders.length > 0)
+      .map(([folderId]) => folderId as string);
+
+    setExpandedFolderManagerIds((currentIds) => {
+      const validFolderIds = new Set(managerFolders.map((folder) => folder.id));
+      const nextIdSet = new Set(currentIds.filter((folderId) => validFolderIds.has(folderId)));
+
+      if (nextIdSet.size === 0) {
+        for (const folderId of folderIdsWithChildren) {
+          nextIdSet.add(folderId);
+        }
+      }
+
+      if (folderDraft.parentFolderId) {
+        nextIdSet.add(folderDraft.parentFolderId);
+        for (const ancestorId of getFolderAncestorIds(managerFolders, folderDraft.parentFolderId)) {
+          nextIdSet.add(ancestorId);
+        }
+      }
+
+      if (editingFolderId) {
+        nextIdSet.add(editingFolderId);
+        for (const ancestorId of getFolderAncestorIds(managerFolders, editingFolderId)) {
+          nextIdSet.add(ancestorId);
+        }
+      }
+
+      const normalizedNextIds = Array.from(nextIdSet);
+      return normalizedNextIds.length === currentIds.length &&
+        normalizedNextIds.every((folderId) => currentIds.includes(folderId))
+        ? currentIds
+        : normalizedNextIds;
+    });
+  }, [folders, folderDraft.parentFolderId, editingFolderId, folderManagerScope, memoFolders]);
 
   async function handleGoogleLogin() {
     try {
@@ -1190,6 +2369,7 @@ export default function AuthenticatedDashboardApp({
     await logoutSession();
     await signOutFromGoogle().catch(() => undefined);
     recommendationRequestIdRef.current += 1;
+    invalidateMemoWorkspaceRequests();
     tagsLoadPromiseRef.current = null;
     invalidateSelectedBookmarkPreviewCache();
 
@@ -1228,6 +2408,30 @@ export default function AuthenticatedDashboardApp({
       setIsQuickFolderOpen(false);
       setIsQuickTagOpen(false);
       setQuickTagDraft(emptyTagDraft);
+      setMemos([]);
+      setMemoFolders([]);
+      setMemoTags([]);
+      clearMemoWorkspaceMetadataCache();
+      clearMemoPageCaches();
+      setMemoTotalCount(null);
+      setMemoSearchQuery("");
+      replaceMemoFolderFilterId(DEFAULT_MEMO_FOLDER_FILTER_ID);
+      setMemoFolderOverviewQuery("");
+      setExpandedMemoFolderOverviewIds([]);
+      setMemoTagFilterId(null);
+      setMemoFavoriteOnly(false);
+      setMemoViewMode("list");
+      setMemoLockStatus(null);
+      setMemoLockPromptMode(null);
+      setIsMemoLockBusy(false);
+      setMemoLockError(null);
+      setIsLoadingMemos(false);
+      replaceMemoDraft(createEmptyMemoDraft());
+      setEditingMemo(null);
+      setIsMemoComposerOpen(false);
+      pendingMemoImageUploadsRef.current = [];
+      setPendingMemoImageUploads([]);
+      setIsSavingMemo(false);
     });
     onSessionEnd?.();
   }
@@ -1475,6 +2679,49 @@ export default function AuthenticatedDashboardApp({
       setErrorMessage(null);
       setIsSavingFolder(true);
 
+      if (folderManagerScope === "memos") {
+        if (editingFolderId) {
+          const nextFolder = await updateMemoFolder(editingFolderId, {
+            name: folderDraft.name,
+            color: folderDraft.color || null,
+            icon: folderDraft.icon || null,
+            isHidden: folderDraft.isHidden,
+            parentFolderId: folderDraft.parentFolderId || null
+          });
+
+          startTransition(() => {
+            replaceMemoFolderState(nextFolder);
+            setEditingFolderId(null);
+            setFolderDraft(emptyFolderDraft);
+            setInitialFolderDraft(emptyFolderDraft);
+          });
+        } else {
+          const createdFolder = await createMemoFolder({
+            name: folderDraft.name,
+            color: folderDraft.color || null,
+            icon: folderDraft.icon || null,
+            isHidden: folderDraft.isHidden,
+            parentFolderId: folderDraft.parentFolderId || null
+          });
+
+          clearMemoPageCaches();
+          updateMemoWorkspaceFolders((currentFolders) => [...currentFolders, createdFolder]);
+          applyCachedMemoPageOrLoading(
+            createCurrentMemoPageOptions({
+              folderFilterId: createdFolder.id,
+              includeHidden: showHiddenMemos
+            })
+          );
+          replaceMemoFolderFilterId(createdFolder.id);
+          if (isMemoComposerOpen) {
+            updateMemoDraft({ folderId: createdFolder.id });
+          }
+          setFolderDraft(emptyFolderDraft);
+          setInitialFolderDraft(emptyFolderDraft);
+        }
+        return;
+      }
+
       if (editingFolderId) {
         const nextFolder = await updateFolder(editingFolderId, {
           name: folderDraft.name,
@@ -1526,6 +2773,34 @@ export default function AuthenticatedDashboardApp({
     try {
       setErrorMessage(null);
       setIsSavingTag(true);
+
+      if (tagManagerScope === "memos") {
+        if (editingTagId) {
+          const nextTag = await updateMemoTag(editingTagId, {
+            name: tagDraft.name,
+            color: tagDraft.color || null
+          });
+
+          startTransition(() => {
+            replaceMemoTagState(nextTag);
+            setEditingTagId(null);
+            setTagDraft(emptyTagDraft);
+            setInitialTagDraft(emptyTagDraft);
+          });
+        } else {
+          const createdTag = await createMemoTag({
+            name: tagDraft.name,
+            color: tagDraft.color || null
+          });
+
+          startTransition(() => {
+            updateMemoWorkspaceTags((currentTags) => [...currentTags, createdTag]);
+            setTagDraft(emptyTagDraft);
+            setInitialTagDraft(emptyTagDraft);
+          });
+        }
+        return;
+      }
 
       if (editingTagId) {
         const nextTag = await updateTag(editingTagId, {
@@ -1653,12 +2928,22 @@ export default function AuthenticatedDashboardApp({
     }));
   }
 
-  function openFolderManager() {
+  function getManagerFoldersForScope(scope: ManagerScope) {
+    return scope === "memos" ? memoFolders : folders;
+  }
+
+  function openFolderManager(scope: ManagerScope = "bookmarks") {
     preloadDashboardDialogChunk("folderManager");
     const nextDraft = emptyFolderDraft;
     setErrorMessage(null);
+    setFolderManagerScope(scope);
+    if (scope === "memos") {
+      setActiveDashboardView("memos");
+    }
     setIsMobileHeaderMenuOpen(false);
-    setMobileSidebarPanel("folder");
+    if (scope === "bookmarks") {
+      setMobileSidebarPanel("folder");
+    }
     setEditingFolderId(null);
     setFolderDraft(nextDraft);
     setInitialFolderDraft(nextDraft);
@@ -1667,8 +2952,9 @@ export default function AuthenticatedDashboardApp({
     setIsFolderManagerOpen(true);
   }
 
-  function beginFolderEdit(folder: Folder) {
+  function beginFolderEdit(folder: Folder, scope: ManagerScope = folderManagerScope) {
     preloadDashboardDialogChunk("folderManager");
+    const managerFolders = getManagerFoldersForScope(scope);
     const nextDraft = {
       name: folder.name,
       color: folder.color ?? "",
@@ -1676,13 +2962,19 @@ export default function AuthenticatedDashboardApp({
       isHidden: folder.isHidden === true,
       parentFolderId: folder.parentFolderId ?? ""
     };
+    setFolderManagerScope(scope);
+    if (scope === "memos") {
+      setActiveDashboardView("memos");
+    }
     setIsMobileHeaderMenuOpen(false);
-    setMobileSidebarPanel("folder");
+    if (scope === "bookmarks") {
+      setMobileSidebarPanel("folder");
+    }
     setIsFolderManagerOpen(true);
     setOpenFolderActionMenuId(null);
     setExpandedFolderManagerIds((currentIds) =>
       Array.from(
-        new Set([...currentIds, folder.id, ...getFolderAncestorIds(folders, folder.id)])
+        new Set([...currentIds, folder.id, ...getFolderAncestorIds(managerFolders, folder.id)])
       )
     );
     setEditingFolderId(folder.id);
@@ -1697,13 +2989,17 @@ export default function AuthenticatedDashboardApp({
     setInitialFolderDraft(nextDraft);
   }
 
-  function beginChildFolderCreate(parentFolder: Folder) {
+  function beginChildFolderCreate(parentFolder: Folder, scope: ManagerScope = folderManagerScope) {
     preloadDashboardDialogChunk("folderManager");
     const nextDraft = {
       ...emptyFolderDraft,
       isHidden: parentFolder.isHidden === true,
       parentFolderId: parentFolder.id
     };
+    setFolderManagerScope(scope);
+    if (scope === "memos") {
+      setActiveDashboardView("memos");
+    }
     setIsFolderManagerOpen(true);
     setOpenFolderActionMenuId(null);
     setExpandedFolderManagerIds((currentIds) =>
@@ -1865,17 +3161,66 @@ export default function AuthenticatedDashboardApp({
     }
   }
 
+  function replaceMemoFolderState(nextFolder: MemoFolder) {
+    clearMemoPageCaches();
+    updateMemoWorkspaceFolders((currentFolders) =>
+      currentFolders.map((folder) => (folder.id === nextFolder.id ? nextFolder : folder))
+    );
+  }
+
+  function removeMemoFolderState(folderId: string) {
+    clearMemoPageCaches();
+    updateMemoWorkspaceFolders((currentFolders) =>
+      currentFolders
+        .filter((folder) => folder.id !== folderId)
+        .map((folder) =>
+          folder.parentFolderId === folderId ? { ...folder, parentFolderId: null } : folder
+        )
+    );
+    setMemos((currentMemos) =>
+      currentMemos.map((memo) =>
+        memo.folderId === folderId ? { ...memo, folderId: null } : memo
+      )
+    );
+    setEditingMemo((currentMemo) =>
+      currentMemo?.folderId === folderId ? { ...currentMemo, folderId: null } : currentMemo
+    );
+    if (memoDraftRef.current.folderId === folderId) {
+      replaceMemoDraft({ ...memoDraftRef.current, folderId: "" });
+    }
+    setFolderDraft((currentDraft) =>
+      currentDraft.parentFolderId === folderId
+        ? { ...currentDraft, parentFolderId: "" }
+        : currentDraft
+    );
+    updateMemoFolderFilterId((currentFolderId) =>
+      currentFolderId === folderId ? null : currentFolderId
+    );
+
+    if (editingFolderId === folderId) {
+      cancelFolderEdit();
+    }
+
+    if (draggingFolderId === folderId) {
+      setDraggingFolderId(null);
+    }
+  }
+
   function resetDraggingFolder() {
     setDraggingFolderId(null);
     setFolderOverviewDropTarget(null);
   }
 
-  function getFolderOverviewDropMode(targetFolder: Folder): FolderOverviewDropMode | null {
+  function getFolderOverviewDropMode(
+    targetFolder: Folder,
+    scope: ManagerScope = "bookmarks"
+  ): FolderOverviewDropMode | null {
     if (!draggingFolderId || draggingFolderId === targetFolder.id) {
       return null;
     }
 
-    const draggedFolder = folders.find((folder) => folder.id === draggingFolderId);
+    const managerFolders = getManagerFoldersForScope(scope);
+    const draggedFolder = managerFolders.find((folder) => folder.id === draggingFolderId);
     if (!draggedFolder) {
       return null;
     }
@@ -1884,7 +3229,7 @@ export default function AuthenticatedDashboardApp({
       return "reorder";
     }
 
-    const descendantFolderIds = getFolderDescendantIds(folders, draggingFolderId);
+    const descendantFolderIds = getFolderDescendantIds(managerFolders, draggingFolderId);
     if (descendantFolderIds.has(targetFolder.id) || draggedFolder.parentFolderId === targetFolder.id) {
       return null;
     }
@@ -1898,19 +3243,23 @@ export default function AuthenticatedDashboardApp({
     );
   }
 
-  async function handleFolderReorderDrop(targetFolder: Folder) {
+  async function handleFolderReorderDrop(
+    targetFolder: Folder,
+    scope: ManagerScope = "bookmarks"
+  ) {
+    const managerFolders = getManagerFoldersForScope(scope);
     if (!draggingFolderId || draggingFolderId === targetFolder.id) {
       resetDraggingFolder();
       return;
     }
 
-    const draggedFolder = folders.find((folder) => folder.id === draggingFolderId);
+    const draggedFolder = managerFolders.find((folder) => folder.id === draggingFolderId);
     if (!draggedFolder || draggedFolder.parentFolderId !== targetFolder.parentFolderId) {
       resetDraggingFolder();
       return;
     }
 
-    const siblingFolders = getSiblingFolders(folders, targetFolder.parentFolderId);
+    const siblingFolders = getSiblingFolders(managerFolders, targetFolder.parentFolderId);
     const reorderedSiblingFolders = reorderSiblingFolders(
       siblingFolders,
       draggingFolderId,
@@ -1928,12 +3277,19 @@ export default function AuthenticatedDashboardApp({
     try {
       setErrorMessage(null);
       setIsReorderingFolders(true);
-      const nextFolders = await reorderFolders({
+      const reorderFolderAction = scope === "memos" ? reorderMemoFolders : reorderFolders;
+      const nextFolders = await reorderFolderAction({
         parentFolderId: targetFolder.parentFolderId,
         folderIds: reorderedSiblingFolders.map((folder) => folder.id)
       });
 
       startTransition(() => {
+        if (scope === "memos") {
+          clearMemoPageCaches();
+          replaceMemoWorkspaceFolders(nextFolders);
+          return;
+        }
+
         setFolders(nextFolders);
       });
     } catch (error) {
@@ -1950,9 +3306,11 @@ export default function AuthenticatedDashboardApp({
 
   async function handleFolderReorderToPosition(
     folder: Folder,
-    position: FolderReorderPosition
+    position: FolderReorderPosition,
+    scope: ManagerScope = "bookmarks"
   ) {
-    const siblingFolders = getSiblingFolders(folders, folder.parentFolderId);
+    const managerFolders = getManagerFoldersForScope(scope);
+    const siblingFolders = getSiblingFolders(managerFolders, folder.parentFolderId);
     const reorderedSiblingFolders = moveFolderToSiblingPosition(
       siblingFolders,
       folder.id,
@@ -1969,12 +3327,19 @@ export default function AuthenticatedDashboardApp({
     try {
       setErrorMessage(null);
       setIsReorderingFolders(true);
-      const nextFolders = await reorderFolders({
+      const reorderFolderAction = scope === "memos" ? reorderMemoFolders : reorderFolders;
+      const nextFolders = await reorderFolderAction({
         parentFolderId: folder.parentFolderId,
         folderIds: reorderedSiblingFolders.map((currentFolder) => currentFolder.id)
       });
 
       startTransition(() => {
+        if (scope === "memos") {
+          clearMemoPageCaches();
+          replaceMemoWorkspaceFolders(nextFolders);
+          return;
+        }
+
         setFolders(nextFolders);
       });
     } catch (error) {
@@ -1988,19 +3353,20 @@ export default function AuthenticatedDashboardApp({
     }
   }
 
-  async function handleFolderMoveDrop(targetFolder: Folder) {
+  async function handleFolderMoveDrop(targetFolder: Folder, scope: ManagerScope = "bookmarks") {
+    const managerFolders = getManagerFoldersForScope(scope);
     if (!draggingFolderId || draggingFolderId === targetFolder.id) {
       resetDraggingFolder();
       return;
     }
 
-    const draggedFolder = folders.find((folder) => folder.id === draggingFolderId);
+    const draggedFolder = managerFolders.find((folder) => folder.id === draggingFolderId);
     if (!draggedFolder) {
       resetDraggingFolder();
       return;
     }
 
-    const descendantFolderIds = getFolderDescendantIds(folders, draggingFolderId);
+    const descendantFolderIds = getFolderDescendantIds(managerFolders, draggingFolderId);
     if (descendantFolderIds.has(targetFolder.id)) {
       resetDraggingFolder();
       return;
@@ -2014,11 +3380,18 @@ export default function AuthenticatedDashboardApp({
     try {
       setErrorMessage(null);
       setIsReorderingFolders(true);
-      const nextFolders = await moveFolder(draggingFolderId, {
+      const moveFolderAction = scope === "memos" ? moveMemoFolder : moveFolder;
+      const nextFolders = await moveFolderAction(draggingFolderId, {
         parentFolderId: targetFolder.id
       });
 
       startTransition(() => {
+        if (scope === "memos") {
+          clearMemoPageCaches();
+          replaceMemoWorkspaceFolders(nextFolders);
+          return;
+        }
+
         setFolders(nextFolders);
       });
     } catch (error) {
@@ -2033,12 +3406,17 @@ export default function AuthenticatedDashboardApp({
     }
   }
 
-  async function handleFolderMoveToParent(folder: Folder, parentFolderId: string | null) {
+  async function handleFolderMoveToParent(
+    folder: Folder,
+    parentFolderId: string | null,
+    scope: ManagerScope = "bookmarks"
+  ) {
     if (folder.parentFolderId === parentFolderId) {
       return;
     }
 
-    const descendantFolderIds = getFolderDescendantIds(folders, folder.id);
+    const managerFolders = getManagerFoldersForScope(scope);
+    const descendantFolderIds = getFolderDescendantIds(managerFolders, folder.id);
     if (parentFolderId && (parentFolderId === folder.id || descendantFolderIds.has(parentFolderId))) {
       return;
     }
@@ -2046,23 +3424,31 @@ export default function AuthenticatedDashboardApp({
     try {
       setErrorMessage(null);
       setIsReorderingFolders(true);
-      const nextFolders = await moveFolder(folder.id, {
+      const moveFolderAction = scope === "memos" ? moveMemoFolder : moveFolder;
+      const nextFolders = await moveFolderAction(folder.id, {
         parentFolderId
       });
 
       startTransition(() => {
-        setFolders(nextFolders);
+        if (scope === "memos") {
+          clearMemoPageCaches();
+          replaceMemoWorkspaceFolders(nextFolders);
+        } else {
+          setFolders(nextFolders);
+        }
         if (parentFolderId) {
           const expandedParentIds = [
             parentFolderId,
-            ...getFolderAncestorIds(folders, parentFolderId)
+            ...getFolderAncestorIds(managerFolders, parentFolderId)
           ];
           setExpandedFolderManagerIds((currentIds) =>
             Array.from(new Set([...currentIds, ...expandedParentIds]))
           );
-          setExpandedFolderOverviewIds((currentIds) =>
-            Array.from(new Set([...currentIds, ...expandedParentIds]))
-          );
+          if (scope === "bookmarks") {
+            setExpandedFolderOverviewIds((currentIds) =>
+              Array.from(new Set([...currentIds, ...expandedParentIds]))
+            );
+          }
         }
       });
     } catch (error) {
@@ -2076,13 +3462,14 @@ export default function AuthenticatedDashboardApp({
     }
   }
 
-  async function handleFolderMoveToRootDrop() {
+  async function handleFolderMoveToRootDrop(scope: ManagerScope = "bookmarks") {
+    const managerFolders = getManagerFoldersForScope(scope);
     if (!draggingFolderId) {
       resetDraggingFolder();
       return;
     }
 
-    const draggedFolder = folders.find((folder) => folder.id === draggingFolderId);
+    const draggedFolder = managerFolders.find((folder) => folder.id === draggingFolderId);
     if (!draggedFolder || draggedFolder.parentFolderId === null) {
       resetDraggingFolder();
       return;
@@ -2091,11 +3478,18 @@ export default function AuthenticatedDashboardApp({
     try {
       setErrorMessage(null);
       setIsReorderingFolders(true);
-      const nextFolders = await moveFolder(draggingFolderId, {
+      const moveFolderAction = scope === "memos" ? moveMemoFolder : moveFolder;
+      const nextFolders = await moveFolderAction(draggingFolderId, {
         parentFolderId: null
       });
 
       startTransition(() => {
+        if (scope === "memos") {
+          clearMemoPageCaches();
+          replaceMemoWorkspaceFolders(nextFolders);
+          return;
+        }
+
         setFolders(nextFolders);
       });
     } catch (error) {
@@ -2110,12 +3504,18 @@ export default function AuthenticatedDashboardApp({
     }
   }
 
-  function openTagManager() {
+  function openTagManager(scope: ManagerScope = "bookmarks") {
     preloadDashboardDialogChunk("tagManager");
     const nextDraft = emptyTagDraft;
     setErrorMessage(null);
+    setTagManagerScope(scope);
+    if (scope === "memos") {
+      setActiveDashboardView("memos");
+    }
     setIsMobileHeaderMenuOpen(false);
-    requestTagsIfNeeded();
+    if (scope === "bookmarks") {
+      requestTagsIfNeeded();
+    }
     setEditingTagId(null);
     setOpenTagActionMenuId(null);
     setTagDraft(nextDraft);
@@ -2123,12 +3523,16 @@ export default function AuthenticatedDashboardApp({
     setIsTagManagerOpen(true);
   }
 
-  function beginTagEdit(tag: Tag) {
+  function beginTagEdit(tag: Tag, scope: ManagerScope = tagManagerScope) {
     preloadDashboardDialogChunk("tagManager");
     const nextDraft = {
       name: tag.name,
       color: tag.color ?? ""
     };
+    setTagManagerScope(scope);
+    if (scope === "memos") {
+      setActiveDashboardView("memos");
+    }
     setIsTagManagerOpen(true);
     setOpenTagActionMenuId(null);
     setEditingTagId(tag.id);
@@ -2232,6 +3636,46 @@ export default function AuthenticatedDashboardApp({
           }
         : currentSearch
     );
+
+    if (editingTagId === tagId) {
+      cancelTagEdit();
+    }
+  }
+
+  function replaceMemoTagState(nextTag: MemoTag) {
+    clearMemoPageCaches();
+    updateMemoWorkspaceTags((currentTags) =>
+      currentTags.map((tag) => (tag.id === nextTag.id ? nextTag : tag))
+    );
+  }
+
+  function removeMemoTagState(tagId: string) {
+    clearMemoPageCaches();
+    updateMemoWorkspaceTags((currentTags) => currentTags.filter((tag) => tag.id !== tagId));
+    setOpenTagActionMenuId((currentTagId) => (currentTagId === tagId ? null : currentTagId));
+    setMemos((currentMemos) =>
+      currentMemos.map((memo) =>
+        memo.tagIds.includes(tagId)
+          ? {
+              ...memo,
+              tagIds: memo.tagIds.filter((currentTagId) => currentTagId !== tagId)
+            }
+          : memo
+      )
+    );
+    setEditingMemo((currentMemo) =>
+      currentMemo?.tagIds.includes(tagId)
+        ? {
+            ...currentMemo,
+            tagIds: currentMemo.tagIds.filter((currentTagId) => currentTagId !== tagId)
+          }
+        : currentMemo
+    );
+    replaceMemoDraft({
+      ...memoDraftRef.current,
+      tagIds: memoDraftRef.current.tagIds.filter((currentTagId) => currentTagId !== tagId)
+    });
+    setMemoTagFilterId((currentTagId) => (currentTagId === tagId ? null : currentTagId));
 
     if (editingTagId === tagId) {
       cancelTagEdit();
@@ -3336,7 +4780,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   function getExtensionConnectionApiBaseUrl() {
-    return globalThis.location?.origin || "";
+    return globalThis.location?.origin || "https://bookmark.keygenerator25.workers.dev";
   }
 
   function createExtensionConnectionTokenLabel() {
@@ -3609,7 +5053,7 @@ export default function AuthenticatedDashboardApp({
     }
   }
 
-  async function handleFolderDelete(folder: Folder) {
+  async function handleFolderDelete(folder: Folder, scope: ManagerScope = "bookmarks") {
     if (
       globalThis.confirm &&
       !globalThis.confirm(`'${folder.name}' 폴더를 삭제할까요?`)
@@ -3620,6 +5064,20 @@ export default function AuthenticatedDashboardApp({
     try {
       setErrorMessage(null);
       setOpenFolderActionMenuId(null);
+
+      if (scope === "memos") {
+        await deleteMemoFolder(folder.id);
+        startTransition(() => {
+          removeMemoFolderState(folder.id);
+        });
+        if (memoFolderFilterId === folder.id) {
+          void refreshMemoWorkspace({
+            folderFilterId: null
+          });
+        }
+        return;
+      }
+
       const shouldRefreshSearch = appliedBookmarkSearch.folderId === folder.id;
       const nextSearch = shouldRefreshSearch
         ? {
@@ -3655,13 +5113,27 @@ export default function AuthenticatedDashboardApp({
     setIsBookmarkDetailActionMenuOpen((currentValue) => !currentValue);
   }
 
-  async function handleTagDelete(tag: Tag) {
+  async function handleTagDelete(tag: Tag, scope: ManagerScope = "bookmarks") {
     if (globalThis.confirm && !globalThis.confirm(`'${tag.name}' 태그를 삭제할까요?`)) {
       return;
     }
 
     try {
       setErrorMessage(null);
+
+      if (scope === "memos") {
+        await deleteMemoTag(tag.id);
+        startTransition(() => {
+          removeMemoTagState(tag.id);
+        });
+        if (memoTagFilterId === tag.id) {
+          void refreshMemoWorkspace({
+            tagFilterId: null
+          });
+        }
+        return;
+      }
+
       const shouldRefreshSearch = appliedBookmarkSearch.tagIds.includes(tag.id);
       const nextSearch = shouldRefreshSearch
         ? {
@@ -3994,14 +5466,19 @@ export default function AuthenticatedDashboardApp({
   const shouldUseCompactMobileCards = isMobileSearchViewport;
   const shouldUseMobileSidebarPanels = isMobileSearchViewport;
   const isHomeDashboardView = activeDashboardView === "home";
+  const isMemoDashboardView = activeDashboardView === "memos";
+  const shouldUseMemoSidebar = isMemoDashboardView && !shouldUseMobileSidebarPanels;
+  const shouldUseBookmarkSidebarPanels = shouldUseMobileSidebarPanels && !isMemoDashboardView;
+  const shouldRenderDashboardSidebar = !isMemoDashboardView || shouldUseMemoSidebar;
   const shouldRenderMobileFolderTab =
-    shouldUseMobileSidebarPanels && mobileSidebarPanel === "folder";
+    shouldUseBookmarkSidebarPanels && mobileSidebarPanel === "folder";
   const shouldRenderMobileBookmarkTab =
-    shouldUseMobileSidebarPanels && mobileSidebarPanel === "bookmark";
+    shouldUseBookmarkSidebarPanels && mobileSidebarPanel === "bookmark";
   const shouldRenderMobileRecommendationTab =
-    shouldUseMobileSidebarPanels && mobileSidebarPanel === "recommendation";
+    shouldUseBookmarkSidebarPanels && mobileSidebarPanel === "recommendation";
   const shouldRenderBookmarkResultsPanel =
-    !isHomeDashboardView && (!shouldUseMobileSidebarPanels || shouldRenderMobileBookmarkTab);
+    activeDashboardView === "bookmarks" &&
+    (!shouldUseMobileSidebarPanels || shouldRenderMobileBookmarkTab);
   const isInitialDashboardBootstrapping =
     sessionState.status === "loading" && Boolean(initialUser);
   const shouldRenderBookmarkComposerOverlay = isBookmarkComposerOpen;
@@ -4015,6 +5492,7 @@ export default function AuthenticatedDashboardApp({
     ),
     [extensionFolderIds, rawHiddenFolderIds]
   );
+  const hiddenMemoFolderIds = useMemo(() => getHiddenFolderIds(memoFolders), [memoFolders]);
   const hasActiveAppliedBookmarkSearch = useMemo(
     () => hasActiveBookmarkSearch(appliedBookmarkSearch),
     [appliedBookmarkSearch]
@@ -4045,6 +5523,38 @@ export default function AuthenticatedDashboardApp({
           ),
     [extensionFolderIds, folders, hiddenFolderIds, showHiddenFolders]
   );
+  const visibleMemoFolders = useMemo(
+    () =>
+      showHiddenMemoFolders
+        ? memoFolders
+        : memoFolders.filter((folder) => !hiddenMemoFolderIds.has(folder.id)),
+    [hiddenMemoFolderIds, memoFolders, showHiddenMemoFolders]
+  );
+  const visibleMemoPanelMemos = useMemo(
+    () => filterMemosByHiddenFolders(memos, hiddenMemoFolderIds, showHiddenMemoFolders),
+    [hiddenMemoFolderIds, memos, showHiddenMemoFolders]
+  );
+  const visibleMemoPanelTotalCount = showHiddenMemoFolders
+    ? memoTotalCount
+    : visibleMemoPanelMemos.length;
+  const memoComposerFolders = useMemo(() => {
+    if (
+      !memoDraft.folderId ||
+      visibleMemoFolders.some((folder) => folder.id === memoDraft.folderId)
+    ) {
+      return visibleMemoFolders;
+    }
+
+    const selectedFolderIds = new Set([
+      memoDraft.folderId,
+      ...getFolderAncestorIds(memoFolders, memoDraft.folderId)
+    ]);
+    const visibleMemoFolderIds = new Set(visibleMemoFolders.map((folder) => folder.id));
+
+    return memoFolders.filter(
+      (folder) => visibleMemoFolderIds.has(folder.id) || selectedFolderIds.has(folder.id)
+    );
+  }, [memoDraft.folderId, memoFolders, visibleMemoFolders]);
   const visibleBookmarks = useMemo(
     () =>
       filterBookmarksByHiddenBookmarks(
@@ -4486,13 +5996,22 @@ export default function AuthenticatedDashboardApp({
   const disallowedParentFolderIds = useMemo(
     () =>
       editingFolderId
-        ? new Set([editingFolderId, ...getFolderDescendantIds(folders, editingFolderId)])
+        ? new Set([
+            editingFolderId,
+            ...getFolderDescendantIds(
+              folderManagerScope === "memos" ? memoFolders : folders,
+              editingFolderId
+            )
+          ])
         : new Set<string>(),
-    [editingFolderId, folders]
+    [editingFolderId, folderManagerScope, folders, memoFolders]
   );
   const manageableFolders = useMemo(
-    () => folders.filter((folder) => !extensionFolderIds.has(folder.id)),
-    [extensionFolderIds, folders]
+    () =>
+      folderManagerScope === "memos"
+        ? memoFolders
+        : folders.filter((folder) => !extensionFolderIds.has(folder.id)),
+    [extensionFolderIds, folderManagerScope, folders, memoFolders]
   );
   const parentFolderOptions = useMemo(
     () => getHierarchicalFolderOptions(
@@ -4618,6 +6137,181 @@ export default function AuthenticatedDashboardApp({
       visibleFolders
     ]
   );
+  const activeMemoFolderOverviewFolderId = isMemoComposerOpen
+    ? memoDraft.folderId || null
+    : memoFolderFilterId && memoFolderFilterId !== "unfiled"
+      ? memoFolderFilterId
+      : null;
+  const activeMemoFolderOverviewSpecialFilter: FolderOverviewSpecialFilter | null =
+    activeMemoFolderOverviewFolderId
+      ? null
+      : isMemoComposerOpen
+        ? "unfiled"
+        : memoFolderFilterId === "unfiled"
+          ? "unfiled"
+          : "all";
+  const deferredMemoFolderOverviewQuery = useDeferredValue(memoFolderOverviewQuery);
+  const isMemoFolderOverviewSearchActive = Boolean(deferredMemoFolderOverviewQuery.trim());
+  const memoFolderOverviewVisibleFolderIds = useMemo(
+    () => getFolderVisibleIdsForQuery(visibleMemoFolders, deferredMemoFolderOverviewQuery),
+    [deferredMemoFolderOverviewQuery, visibleMemoFolders]
+  );
+  const memoFolderOverviewChildrenByParentId = useMemo(
+    () =>
+      getFoldersByParentId(
+        visibleMemoFolders.filter((folder) => memoFolderOverviewVisibleFolderIds.has(folder.id))
+      ),
+    [memoFolderOverviewVisibleFolderIds, visibleMemoFolders]
+  );
+  const expandedMemoFolderOverviewIdSet = useMemo(
+    () => new Set(expandedMemoFolderOverviewIds),
+    [expandedMemoFolderOverviewIds]
+  );
+  const memoFolderOverviewNodes = useMemo<FolderOverviewNodeViewModel[]>(
+    () => {
+      const allMemoFolderChildrenByParentId = getFoldersByParentId(visibleMemoFolders);
+      const directMemoCountsByFolderId = new Map<string, number>();
+
+      for (const memo of visibleMemoPanelMemos) {
+        if (!memo.folderId) {
+          continue;
+        }
+
+        directMemoCountsByFolderId.set(
+          memo.folderId,
+          (directMemoCountsByFolderId.get(memo.folderId) ?? 0) + 1
+        );
+      }
+
+      const memoCountCache = new Map<string, number>();
+
+      function getFolderMemoCount(folderId: string): number {
+        const cachedCount = memoCountCache.get(folderId);
+        if (cachedCount !== undefined) {
+          return cachedCount;
+        }
+
+        const total =
+          (directMemoCountsByFolderId.get(folderId) ?? 0) +
+          (allMemoFolderChildrenByParentId.get(folderId) ?? []).reduce(
+            (sum, childFolder) => sum + getFolderMemoCount(childFolder.id),
+            0
+          );
+
+        memoCountCache.set(folderId, total);
+        return total;
+      }
+
+      function buildMemoFolderOverviewNodes(
+        parentFolderId: string | null,
+        depth: number
+      ): FolderOverviewNodeViewModel[] {
+        return (memoFolderOverviewChildrenByParentId.get(parentFolderId) ?? []).map((folder) => {
+          const childFolders = memoFolderOverviewChildrenByParentId.get(folder.id) ?? [];
+          const hasChildren = childFolders.length > 0;
+          const isExpanded =
+            hasChildren &&
+            (isMemoFolderOverviewSearchActive || expandedMemoFolderOverviewIdSet.has(folder.id));
+
+          return {
+            folder,
+            childNodes: isExpanded
+              ? buildMemoFolderOverviewNodes(folder.id, depth + 1)
+              : [],
+            depth,
+            bookmarkCount: getFolderMemoCount(folder.id),
+            hasChildren,
+            isExpanded,
+            isActive: activeMemoFolderOverviewFolderId === folder.id,
+            dropMode:
+              !shouldUseMobileSidebarPanels && folderOverviewDropTarget?.folderId === folder.id
+                ? folderOverviewDropTarget.mode
+                : null
+          };
+        });
+      }
+
+      return buildMemoFolderOverviewNodes(null, 0);
+    },
+    [
+      activeMemoFolderOverviewFolderId,
+      expandedMemoFolderOverviewIdSet,
+      folderOverviewDropTarget,
+      isMemoFolderOverviewSearchActive,
+      memoFolderOverviewChildrenByParentId,
+      shouldUseMobileSidebarPanels,
+      visibleMemoFolders,
+      visibleMemoPanelMemos
+    ]
+  );
+  function selectMemoFolderForCurrentWorkspace(folderId: string | null) {
+    if (isMemoComposerOpen) {
+      updateMemoDraft({ folderId: folderId ?? "" });
+      return;
+    }
+
+    applyCachedMemoPageOrLoading(
+      createCurrentMemoPageOptions({
+        folderFilterId: folderId,
+        includeHidden: showHiddenMemos
+      })
+    );
+    replaceMemoFolderFilterId(folderId);
+  }
+
+  function handleMemoFolderOverviewSelect(folder: Folder) {
+    selectMemoFolderForCurrentWorkspace(folder.id);
+  }
+
+  function handleMemoFolderOverviewReset() {
+    selectMemoFolderForCurrentWorkspace(null);
+  }
+
+  function handleMemoFolderOverviewSpecialSelect(filter: FolderOverviewSpecialFilter) {
+    if (filter === "trash") {
+      return;
+    }
+
+    if (filter === "unfiled") {
+      selectMemoFolderForCurrentWorkspace(isMemoComposerOpen ? null : "unfiled");
+      return;
+    }
+
+    selectMemoFolderForCurrentWorkspace(null);
+  }
+
+  function handleMemoTagFilterChange(tagId: string | null) {
+    applyCachedMemoPageOrLoading(
+      createCurrentMemoPageOptions({
+        tagFilterId: tagId,
+        includeHidden: showHiddenMemos
+      })
+    );
+    setMemoTagFilterId(tagId);
+  }
+
+  function toggleMemoFolderOverviewExpansion(folderId: string) {
+    setExpandedMemoFolderOverviewIds((currentIds) =>
+      currentIds.includes(folderId)
+        ? currentIds.filter((currentId) => currentId !== folderId)
+        : [...currentIds, folderId]
+    );
+  }
+
+  function collapseAllMemoFolderOverviewGroups() {
+    setExpandedMemoFolderOverviewIds([]);
+  }
+
+  function expandAllMemoFolderOverviewGroups() {
+    setExpandedMemoFolderOverviewIds(
+      visibleMemoFolders
+        .filter((folder) =>
+          visibleMemoFolders.some((childFolder) => childFolder.parentFolderId === folder.id)
+        )
+        .map((folder) => folder.id)
+    );
+  }
+
   const folderOverviewNodeActionsRef = useRef<FolderOverviewNodeActions | null>(null);
   folderOverviewNodeActionsRef.current = {
     onToggleExpansion: toggleFolderOverviewExpansion,
@@ -4664,10 +6358,10 @@ export default function AuthenticatedDashboardApp({
 
       void handleFolderMoveDrop(folder);
     },
-    onBeginEdit: beginFolderEdit,
-    onBeginChildCreate: beginChildFolderCreate,
+    onBeginEdit: (folder) => beginFolderEdit(folder, "bookmarks"),
+    onBeginChildCreate: (folder) => beginChildFolderCreate(folder, "bookmarks"),
     onToggleActionMenu: toggleFolderActionMenu,
-    onDelete: handleFolderDelete
+    onDelete: (folder) => void handleFolderDelete(folder, "bookmarks")
   };
   const folderOverviewNodeActions = useMemo<FolderOverviewNodeActions>(
     () => ({
@@ -4693,6 +6387,84 @@ export default function AuthenticatedDashboardApp({
         folderOverviewNodeActionsRef.current?.onToggleActionMenu(folderId),
       onDelete: (folder) =>
         folderOverviewNodeActionsRef.current?.onDelete(folder)
+    }),
+    []
+  );
+  const memoFolderOverviewNodeActionsRef = useRef<FolderOverviewNodeActions | null>(null);
+  memoFolderOverviewNodeActionsRef.current = {
+    onToggleExpansion: toggleMemoFolderOverviewExpansion,
+    onSelect: handleMemoFolderOverviewSelect,
+    onDragStart: (folderId, event) => {
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+      }
+      setDraggingFolderId(folderId);
+      setFolderOverviewDropTarget(null);
+    },
+    onDragEnd: resetDraggingFolder,
+    onDragOver: (folder, event) => {
+      const nextDropMode = getFolderOverviewDropMode(folder, "memos");
+      if (!nextDropMode) {
+        return;
+      }
+
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+      }
+      setFolderOverviewDropTarget({ folderId: folder.id, mode: nextDropMode });
+    },
+    onDragLeave: (folderId) => {
+      setFolderOverviewDropTarget((currentTarget) =>
+        currentTarget?.folderId === folderId ? null : currentTarget
+      );
+    },
+    onDrop: (folder, event) => {
+      const dropMode = getFolderOverviewDropMode(folder, "memos");
+      event.preventDefault();
+
+      if (!dropMode) {
+        resetDraggingFolder();
+        return;
+      }
+
+      setFolderOverviewDropTarget(null);
+      if (dropMode === "reorder") {
+        void handleFolderReorderDrop(folder, "memos");
+        return;
+      }
+
+      void handleFolderMoveDrop(folder, "memos");
+    },
+    onBeginEdit: (folder) => beginFolderEdit(folder, "memos"),
+    onBeginChildCreate: (folder) => beginChildFolderCreate(folder, "memos"),
+    onToggleActionMenu: toggleFolderActionMenu,
+    onDelete: (folder) => void handleFolderDelete(folder, "memos")
+  };
+  const memoFolderOverviewNodeActions = useMemo<FolderOverviewNodeActions>(
+    () => ({
+      onToggleExpansion: (folderId) =>
+        memoFolderOverviewNodeActionsRef.current?.onToggleExpansion(folderId),
+      onSelect: (folder) =>
+        memoFolderOverviewNodeActionsRef.current?.onSelect(folder),
+      onDragStart: (folderId, event) =>
+        memoFolderOverviewNodeActionsRef.current?.onDragStart(folderId, event),
+      onDragEnd: () =>
+        memoFolderOverviewNodeActionsRef.current?.onDragEnd(),
+      onDragOver: (folder, event) =>
+        memoFolderOverviewNodeActionsRef.current?.onDragOver(folder, event),
+      onDragLeave: (folderId) =>
+        memoFolderOverviewNodeActionsRef.current?.onDragLeave(folderId),
+      onDrop: (folder, event) =>
+        memoFolderOverviewNodeActionsRef.current?.onDrop(folder, event),
+      onBeginEdit: (folder) =>
+        memoFolderOverviewNodeActionsRef.current?.onBeginEdit(folder),
+      onBeginChildCreate: (folder) =>
+        memoFolderOverviewNodeActionsRef.current?.onBeginChildCreate(folder),
+      onToggleActionMenu: (folderId) =>
+        memoFolderOverviewNodeActionsRef.current?.onToggleActionMenu(folderId),
+      onDelete: (folder) =>
+        memoFolderOverviewNodeActionsRef.current?.onDelete(folder)
     }),
     []
   );
@@ -4738,13 +6510,15 @@ export default function AuthenticatedDashboardApp({
     bookmarkDetailDisplayMode === "rail" &&
     (Boolean(visibleSelectedBookmark) || isLoadingSelectedBookmark);
   const shouldShowDesktopRecommendationBoard =
-    !shouldUseMobileSidebarPanels && !shouldShowDesktopReadingRail;
+    activeDashboardView === "bookmarks" &&
+    !shouldUseMobileSidebarPanels &&
+    !shouldShowDesktopReadingRail;
   const shouldLoadRecommendations =
     sessionState.status === "authenticated" &&
     ((isHomeDashboardView && isHomeRecommendationOpen) ||
       (shouldUseMobileSidebarPanels && mobileSidebarPanel === "recommendation") ||
       (!shouldUseMobileSidebarPanels &&
-        !isHomeDashboardView &&
+        activeDashboardView === "bookmarks" &&
         shouldShowDesktopRecommendationBoard));
   const isRecommendationSectionLoading =
     isLoadingDashboard || (shouldLoadRecommendations && isLoadingRecommendations);
@@ -4753,6 +6527,13 @@ export default function AuthenticatedDashboardApp({
     bookmarkDetailActiveTab === "preview" &&
     isBookmarkPreviewFullscreen;
   const heroTagSummary = hasLoadedTags ? `태그 ${tags.length}개` : "태그";
+  const memoFolderOverviewUnfiledMemoCount = visibleMemoPanelMemos.filter(
+    (memo) => !memo.folderId
+  ).length;
+  const memoQuickActionSummary = `메모 ${
+    visibleMemoPanelTotalCount ?? visibleMemoPanelMemos.length
+  }개 · 폴더 ${visibleMemoFolders.length}개 · 태그 ${memoTags.length}개`;
+  const bookmarkQuickActionSummary = `북마크 ${folderOverviewAllBookmarkCount}개 · 폴더 ${visibleFolders.length}개 · ${heroTagSummary}`;
 
   function renderBookmarkDetailPlaceholder() {
     return (
@@ -4869,17 +6650,19 @@ export default function AuthenticatedDashboardApp({
     visibleRecommendations.recent.length +
     visibleRecommendations.frequent.length
   }건`;
+  const folderManagerCount = folderManagerScope === "memos" ? memoFolders.length : folders.length;
+  const tagManagerCount = tagManagerScope === "memos" ? memoTags.length : tags.length;
   const folderPanelSummary = editingFolderId
-    ? `수정 중 · 폴더 ${folders.length}개`
-    : `폴더 ${folders.length}개`;
+    ? `수정 중 · 폴더 ${folderManagerCount}개`
+    : `폴더 ${folderManagerCount}개`;
   const tagPanelSummary = editingTagId
-    ? `수정 중 · 태그 ${tags.length}개`
-    : `태그 ${tags.length}개`;
+    ? `수정 중 · 태그 ${tagManagerCount}개`
+    : `태그 ${tagManagerCount}개`;
   const bookmarkPanelKicker = "작성";
   const bookmarkBrowsePanelKicker = "보관";
   const recommendationPanelKicker = "추천";
-  const folderPanelKicker = "구조";
-  const tagPanelKicker = "분류";
+  const folderPanelKicker = folderManagerScope === "memos" ? "메모 구조" : "구조";
+  const tagPanelKicker = tagManagerScope === "memos" ? "메모 분류" : "분류";
 
   function handleMobileSidebarPanelSelect(panelId: MobileSidebarPanelId) {
     openBookmarkWorkspace();
@@ -4925,6 +6708,42 @@ export default function AuthenticatedDashboardApp({
           onReset={handleFolderOverviewReset}
           onSelectSpecialFilter={handleFolderOverviewSpecialSelect}
           onToggleHiddenFolders={handleToggleHiddenFolders}
+        />
+      </Suspense>
+    );
+  }
+
+  function renderLazyMemoFolderOverviewPanel(options?: { isHidden?: boolean }) {
+    return (
+      <Suspense fallback={null}>
+        <LazyFolderOverviewPanel
+          activeSpecialFilter={activeMemoFolderOverviewSpecialFilter}
+          allBookmarkCount={visibleMemoPanelTotalCount ?? visibleMemoPanelMemos.length}
+          allSystemItemLabel="모든 메모"
+          allSystemItemAriaLabel="모든 메모 보기"
+          allSystemItemIcon="≣"
+          contentLabel="메모"
+          isAllFolderViewActive={!isMemoComposerOpen && memoFolderFilterId === null}
+          isHidden={options?.isHidden}
+          isReorderingFolders={isReorderingFolders}
+          nodes={memoFolderOverviewNodes}
+          openFolderActionMenuId={openFolderActionMenuId}
+          query={memoFolderOverviewQuery}
+          shouldUseMobileSidebarPanels={shouldUseMobileSidebarPanels}
+          showAllSystemItem={!isMemoComposerOpen}
+          showHiddenFolderToggle
+          showHiddenFolders={showHiddenMemoFolders}
+          showNodeCounts={false}
+          showTrashSystemItem={false}
+          trashBookmarkCount={0}
+          unfiledBookmarkCount={memoFolderOverviewUnfiledMemoCount}
+          actions={memoFolderOverviewNodeActions}
+          onCollapseAll={collapseAllMemoFolderOverviewGroups}
+          onExpandAll={expandAllMemoFolderOverviewGroups}
+          onQueryChange={setMemoFolderOverviewQuery}
+          onReset={handleMemoFolderOverviewReset}
+          onSelectSpecialFilter={handleMemoFolderOverviewSpecialSelect}
+          onToggleHiddenFolders={handleToggleHiddenMemoFolders}
         />
       </Suspense>
     );
@@ -5032,6 +6851,58 @@ export default function AuthenticatedDashboardApp({
     );
   }
 
+  function renderLazyMemoPanel() {
+    if (isMemoComposerOpen) {
+      return (
+        <Suspense fallback={null}>
+          <LazyMemoComposerDialog
+            isEditing={Boolean(editingMemo)}
+            isSaving={isSavingMemo}
+            draft={memoDraftRef.current}
+            folders={memoComposerFolders}
+            lockPasswordRequired={
+              memoDraftRef.current.isLocked && (!editingMemo || !editingMemo.isLocked)
+            }
+            tags={memoTags}
+            onClose={closeMemoComposer}
+            onCreateTag={handleMemoTagCreate}
+            onDraftContentChange={updateMemoDraftContent}
+            onDraftChange={updateMemoDraft}
+            onDelete={editingMemo ? handleMemoComposerDelete : undefined}
+            onImageUpload={handleMemoImageUpload}
+            onSubmit={handleMemoSubmit}
+          />
+        </Suspense>
+      );
+    }
+
+    return (
+      <Suspense fallback={null}>
+        <LazyMemoPanel
+          activeTagId={memoTagFilterId}
+          folders={visibleMemoFolders}
+          isFavoriteOnly={memoFavoriteOnly}
+          isLoading={isLoadingMemos}
+          showHiddenMemos={showHiddenMemos}
+          memos={visibleMemoPanelMemos}
+          query={memoSearchQuery}
+          tags={memoTags}
+          totalCount={visibleMemoPanelTotalCount}
+          viewMode={memoViewMode}
+          onCreateMemo={beginMemoCreate}
+          onDeleteMemo={handleMemoDelete}
+          onEditMemo={beginMemoEdit}
+          onFavoriteOnlyChange={setMemoFavoriteOnly}
+          onMemoComposerPreload={() => preloadDashboardDialogChunk("memoComposer")}
+          onHiddenMemosToggle={handleToggleHiddenMemos}
+          onQueryChange={setMemoSearchQuery}
+          onTagFilterChange={handleMemoTagFilterChange}
+          onViewModeChange={setMemoViewMode}
+        />
+      </Suspense>
+    );
+  }
+
   function renderLazyRecommendationPanel(options?: {
     ariaLabel?: string;
     className?: string;
@@ -5102,10 +6973,13 @@ export default function AuthenticatedDashboardApp({
         appThemeToggleLabel={appThemeToggleLabel}
         isDarkAppTheme={isDarkAppTheme}
         isMobileHeaderMenuOpen={isMobileHeaderMenuOpen}
+        isMemoView={isMemoDashboardView}
         isQuickActionsMenuOpen={isQuickActionsMenuOpen}
-        quickActionSummary={`북마크 ${folderOverviewAllBookmarkCount}개 · 폴더 ${visibleFolders.length}개 · ${heroTagSummary}`}
+        quickActionSummary={isMemoDashboardView ? memoQuickActionSummary : bookmarkQuickActionSummary}
         sessionState={sessionState}
         shouldUseMobileSidebarPanels={shouldUseMobileSidebarPanels}
+        onBookmarkWorkspaceOpen={openBookmarkWorkspace}
+        onBookmarkWorkspacePreload={() => preloadDashboardPanelChunk("bookmarks")}
         onCreateBookmark={beginBookmarkCreate}
         onCreateBookmarkPreload={() => preloadDashboardDialogChunk("bookmarkComposer")}
         onExtensionDownloadPreload={() => preloadDashboardDialogChunk("extensionDownload")}
@@ -5118,10 +6992,20 @@ export default function AuthenticatedDashboardApp({
         onInstallHelpPreload={() => preloadDashboardDialogChunk("installHelp")}
         onLogout={handleLogout}
         onMobileHeaderMenuOpenChange={setIsMobileHeaderMenuOpen}
+        onMemoCreate={beginMemoCreate}
+        onMemoOpen={openMemoWorkspace}
+        onMemoPreload={() => {
+          preloadDashboardPanelChunk("memos");
+          preloadDashboardDialogChunk("memoComposer");
+        }}
         onOpenExtensionDownloadDialog={openExtensionDownloadDialog}
         onOpenExtensionTokenDialog={openExtensionTokenDialog}
-        onOpenFolderManager={openFolderManager}
-        onOpenTagManager={openTagManager}
+        onOpenFolderManager={() =>
+          openFolderManager(isMemoDashboardView ? "memos" : "bookmarks")
+        }
+        onOpenTagManager={() =>
+          openTagManager(isMemoDashboardView ? "memos" : "bookmarks")
+        }
         onPwaInstall={handlePwaInstall}
         onQuickActionsMenuOpenChange={setIsQuickActionsMenuOpen}
         onTagManagerPreload={() => preloadDashboardDialogChunk("tagManager")}
@@ -5137,26 +7021,34 @@ export default function AuthenticatedDashboardApp({
       ) : null}
       {sessionState.status === "authenticated" ? (
         <section aria-label="dashboard-workspace" className="dashboard-workspace">
-          <div className="dashboard-layout">
-            <aside
-              aria-label="dashboard-sidebar"
-              className="dashboard-sidebar"
-            >
-              {!shouldUseMobileSidebarPanels ? (
-                renderLazyFolderOverviewPanel()
-              ) : null}
-              {shouldUseMobileSidebarPanels ? (
-                renderLazyMobileSidebarTabs()
-              ) : null}
-          </aside>
+          <div
+            className={`dashboard-layout${
+              isMemoDashboardView && !shouldUseMemoSidebar ? " dashboard-layout-full" : ""
+            }`}
+          >
+            {shouldRenderDashboardSidebar ? (
+              <aside
+                aria-label="dashboard-sidebar"
+                className="dashboard-sidebar"
+              >
+                {shouldUseMemoSidebar ? (
+                  renderLazyMemoFolderOverviewPanel()
+                ) : !shouldUseMobileSidebarPanels ? (
+                  renderLazyFolderOverviewPanel()
+                ) : null}
+                {shouldUseBookmarkSidebarPanels ? (
+                  renderLazyMobileSidebarTabs()
+                ) : null}
+              </aside>
+            ) : null}
 
           <section
-            id={shouldUseMobileSidebarPanels ? `sidebar-panel-${mobileSidebarPanel}` : undefined}
-            aria-label={shouldUseMobileSidebarPanels ? mobileSidebarPanel : "dashboard-main"}
+            id={shouldUseBookmarkSidebarPanels ? `sidebar-panel-${mobileSidebarPanel}` : undefined}
+            aria-label={shouldUseBookmarkSidebarPanels ? mobileSidebarPanel : "dashboard-main"}
             aria-labelledby={
-              shouldUseMobileSidebarPanels ? `sidebar-tab-${mobileSidebarPanel}` : undefined
+              shouldUseBookmarkSidebarPanels ? `sidebar-tab-${mobileSidebarPanel}` : undefined
             }
-            role={shouldUseMobileSidebarPanels ? "tabpanel" : undefined}
+            role={shouldUseBookmarkSidebarPanels ? "tabpanel" : undefined}
             className={`dashboard-main${
               shouldShowDesktopReadingRail
                 ? " dashboard-main-with-rail"
@@ -5169,6 +7061,7 @@ export default function AuthenticatedDashboardApp({
               className="result-primary-column"
             >
             {isHomeDashboardView ? renderLazyHomePanel() : null}
+            {isMemoDashboardView ? renderLazyMemoPanel() : null}
             {shouldRenderMobileFolderTab
               ? renderLazyFolderOverviewPanel({ isHidden: isHomeDashboardView })
               : null}
@@ -5293,7 +7186,7 @@ export default function AuthenticatedDashboardApp({
               <LazyFolderManagerDialog
                 isEditing={Boolean(editingFolderId)}
                 draft={folderDraft}
-                allFolders={folders}
+                allFolders={folderManagerScope === "memos" ? memoFolders : folders}
                 managerFolders={manageableFolders}
                 parentFolderOptions={parentFolderOptions}
                 expandedFolderIds={expandedFolderManagerIds}
@@ -5308,14 +7201,22 @@ export default function AuthenticatedDashboardApp({
                 onSubmit={handleFolderSubmit}
                 onDraftChange={updateFolderDraft}
                 onCancelEdit={cancelFolderEdit}
-                onBeginFolderEdit={beginFolderEdit}
-                onBeginChildFolderCreate={beginChildFolderCreate}
-                onFolderDelete={handleFolderDelete}
-                onFolderReorderDrop={handleFolderReorderDrop}
-                onFolderReorderToPosition={handleFolderReorderToPosition}
-                onFolderMoveDrop={handleFolderMoveDrop}
-                onFolderMoveToParent={handleFolderMoveToParent}
-                onFolderMoveToRootDrop={handleFolderMoveToRootDrop}
+                onBeginFolderEdit={(folder) => beginFolderEdit(folder, folderManagerScope)}
+                onBeginChildFolderCreate={(folder) =>
+                  beginChildFolderCreate(folder, folderManagerScope)
+                }
+                onFolderDelete={(folder) => void handleFolderDelete(folder, folderManagerScope)}
+                onFolderReorderDrop={(folder) =>
+                  handleFolderReorderDrop(folder, folderManagerScope)
+                }
+                onFolderReorderToPosition={(folder, position) =>
+                  handleFolderReorderToPosition(folder, position, folderManagerScope)
+                }
+                onFolderMoveDrop={(folder) => handleFolderMoveDrop(folder, folderManagerScope)}
+                onFolderMoveToParent={(folder, parentFolderId) =>
+                  handleFolderMoveToParent(folder, parentFolderId, folderManagerScope)
+                }
+                onFolderMoveToRootDrop={() => handleFolderMoveToRootDrop(folderManagerScope)}
                 onToggleFolderExpansion={toggleFolderManagerExpansion}
                 onToggleFolderActionMenu={toggleFolderActionMenu}
                 onFolderDragStart={(folderId) => {
@@ -5331,7 +7232,7 @@ export default function AuthenticatedDashboardApp({
               <LazyTagManagerDialog
                 isEditing={Boolean(editingTagId)}
                 draft={tagDraft}
-                tags={tags}
+                tags={tagManagerScope === "memos" ? memoTags : tags}
                 openTagActionMenuId={openTagActionMenuId}
                 isSaving={isSavingTag}
                 panelSummary={tagPanelSummary}
@@ -5342,8 +7243,25 @@ export default function AuthenticatedDashboardApp({
                 onDraftChange={updateTagDraft}
                 onCancelEdit={cancelTagEdit}
                 onToggleTagActionMenu={toggleTagActionMenu}
-                onBeginTagEdit={beginTagEdit}
-                onTagDelete={handleTagDelete}
+                onBeginTagEdit={(tag) => beginTagEdit(tag, tagManagerScope)}
+                onTagDelete={(tag) => void handleTagDelete(tag, tagManagerScope)}
+              />
+            </Suspense>
+          ) : null}
+          {memoLockPromptMode ? (
+            <Suspense fallback={null}>
+              <LazyMemoLockDialog
+                mode={memoLockPromptMode}
+                isBusy={isMemoLockBusy}
+                errorMessage={memoLockError}
+                onClose={() => {
+                  if (!isMemoLockBusy) {
+                    pendingLockedMemoIdRef.current = null;
+                    setMemoLockPromptMode(null);
+                    setMemoLockError(null);
+                  }
+                }}
+                onSubmit={handleMemoLockSubmit}
               />
             </Suspense>
           ) : null}
@@ -5383,7 +7301,7 @@ export default function AuthenticatedDashboardApp({
         </Suspense>
       ) : null}
       {statusMessage ? (
-        <p className="status-banner" aria-live="polite">
+        <p className="status-banner" role="status" aria-live="polite">
           {statusMessage}
         </p>
       ) : null}

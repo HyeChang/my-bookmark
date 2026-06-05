@@ -151,8 +151,8 @@ type BookmarkResultsPanelProps = {
   hasMoreVisibleBookmarks: boolean;
   isAdvancedBookmarkSearchOpen: boolean;
   isBookmarkSortMenuOpen: boolean;
-  isBookmarkViewMenuOpen: boolean;
   isBookmarkTrashView: boolean;
+  isBookmarkViewMenuOpen: boolean;
   isEmptyingBookmarkTrash: boolean;
   isHidden?: boolean;
   isLoadingDashboard: boolean;
@@ -762,8 +762,8 @@ export default function BookmarkResultsPanel({
   hasMoreVisibleBookmarks,
   isAdvancedBookmarkSearchOpen,
   isBookmarkSortMenuOpen,
-  isBookmarkViewMenuOpen,
   isBookmarkTrashView,
+  isBookmarkViewMenuOpen,
   isEmptyingBookmarkTrash,
   isHidden,
   isLoadingDashboard,
