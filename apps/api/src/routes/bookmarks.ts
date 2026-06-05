@@ -15,6 +15,7 @@ import type {
   BookmarkListResponse,
   BookmarkResponse,
   BookmarkPermanentDeleteResponse,
+  BookmarkTrashEmptyResponse,
   CreateBookmarkRequest,
   UpdateBookmarkRequest
 } from "@bookmark/shared";
@@ -787,6 +788,66 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       return c.json<BookmarkResponse>({
         bookmark: toBookmarkResponse(bookmark)
       });
+    })
+    .delete("/trash", async (c) => {
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      const bookmarkRepository =
+        options.bookmarkRepository ??
+        (c.env?.bookmark ? createBookmarkRepository(c.env.bookmark) : null);
+      const assetRepository =
+        options.bookmarkAssetRepository ??
+        (c.env?.bookmark ? createBookmarkAssetRepository(c.env.bookmark) : null);
+      const assetStorage =
+        options.assetStorage ??
+        (c.env?.bookmark_assets ? createR2BookmarkAssetStorage(c.env.bookmark_assets) : null);
+
+      if (!bookmarkRepository) {
+        return c.json({ error: "bookmark_repository_unavailable" }, 500);
+      }
+
+      const trashedBookmarks = await bookmarkRepository.listByUser(
+        user.uid,
+        { trashMode: "trashed" },
+        { contentMode: "summary" }
+      );
+      if (trashedBookmarks.length === 0) {
+        return c.json<BookmarkTrashEmptyResponse>({ deletedCount: 0 });
+      }
+
+      const bookmarkIds = trashedBookmarks.map((bookmark) => bookmark.id);
+      const assets = assetRepository
+        ? assetRepository.listByBookmarks
+          ? await assetRepository.listByBookmarks(user.uid, bookmarkIds)
+          : (
+              await Promise.all(
+                bookmarkIds.map((bookmarkId) =>
+                  assetRepository.listByBookmark(user.uid, bookmarkId)
+                )
+              )
+            ).flat()
+        : [];
+
+      if (assets.length > 0 && !assetStorage) {
+        return c.json({ error: "bookmark_asset_repository_unavailable" }, 500);
+      }
+
+      if (assetStorage) {
+        for (const asset of assets) {
+          await assetStorage.delete(asset.objectKey);
+          await assetStorage.delete(getBookmarkAssetThumbnailObjectKey(asset.objectKey));
+        }
+      }
+
+      const deletedCount = await bookmarkRepository.emptyTrash(user.uid);
+      return c.json<BookmarkTrashEmptyResponse>({ deletedCount });
     })
     .delete("/:bookmarkId", async (c) => {
       const user = await getAuthenticatedUser(

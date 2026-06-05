@@ -136,6 +136,10 @@ export type BookmarkPermanentDeleteResponse = {
   ok: true;
 };
 
+export type BookmarkTrashEmptyResponse = {
+  deletedCount: number;
+};
+
 export type BookmarkExtractRequest = {
   url: string;
 };

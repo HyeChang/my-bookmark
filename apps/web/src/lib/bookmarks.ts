@@ -13,6 +13,7 @@ import type {
   BookmarkListResponse,
   BookmarkResponse,
   BookmarkRestoreResponse,
+  BookmarkTrashEmptyResponse,
   CreateBookmarkRequest,
   UpdateBookmarkRequest
 } from "@bookmark/shared";
@@ -285,6 +286,21 @@ export async function permanentlyDeleteBookmark(bookmarkId: string) {
       mapErrorCode: mapBookmarkErrorCode
     }
   );
+}
+
+export async function emptyBookmarkTrash() {
+  const data = await requestJson<BookmarkTrashEmptyResponse>(
+    "/api/bookmarks/trash",
+    {
+      method: "DELETE",
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "휴지통을 비우지 못했습니다.",
+      mapErrorCode: mapBookmarkErrorCode
+    }
+  );
+  return data;
 }
 
 export async function reextractBookmark(bookmarkId: string) {
