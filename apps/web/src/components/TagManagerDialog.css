@@ -1,0 +1,201 @@
+.tag-manager-dialog-shell,
+.tag-manager-panel-readable,
+.tag-manager-editor-surface,
+.tag-manager-list-surface,
+.tag-list-item-readable {
+  color: #20242b;
+}
+
+.tag-manager-dialog-shell .overlay-dialog-title h2,
+.tag-manager-panel-readable .workspace-panel-heading-row h2,
+.tag-manager-panel-readable .manager-section-header h3,
+.tag-list-item-readable .tag-list-name {
+  color: #20242b;
+}
+
+.tag-manager-dialog-shell .workspace-panel-kicker,
+.tag-manager-panel-readable .workspace-panel-kicker,
+.tag-manager-panel-readable .manager-section-kicker {
+  color: #66707d;
+}
+
+.tag-manager-panel-readable .workspace-panel-summary {
+  background: rgba(22, 131, 232, 0.1);
+  color: #1683e8;
+}
+
+.tag-manager-panel-readable .manager-section-header p,
+.tag-manager-panel-readable .field-note,
+.tag-manager-panel-readable .color-select-trigger-value,
+.tag-manager-panel-readable .color-select-option-copy,
+.tag-manager-panel-readable .picker-chip-copy {
+  color: #66707d;
+}
+
+.tag-manager-panel-readable .stack-form label,
+.tag-manager-panel-readable .picker-fieldset legend {
+  color: #20242b;
+}
+
+.tag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tag-list-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.78rem 0.9rem;
+  border: 1px solid rgba(20, 33, 61, 0.08);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.tag-list-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  font-weight: 600;
+  color: #1f2533;
+}
+
+.tag-manager-editor-surface,
+.tag-manager-list-surface,
+.tag-list-item-readable {
+  border-color: #dfe3e8;
+  background: #ffffff;
+}
+
+.tag-list-item-readable {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 4.5rem;
+}
+
+.tag-manager-panel-readable .stack-form input,
+.tag-manager-panel-readable .color-select-trigger,
+.tag-manager-panel-readable .color-select-option,
+.tag-manager-panel-readable .picker-chip {
+  border-color: #dfe3e8;
+  background: #ffffff;
+  color: #20242b;
+}
+
+.tag-manager-panel-readable .folder-action-trigger {
+  background: #f7f8fa;
+  border-color: #dfe3e8;
+  color: #20242b;
+}
+
+@media (max-width: 720px) {
+
+  .tag-manager-dialog-shell {
+    color: #20242b;
+  }
+
+  .tag-manager-panel-readable {
+    color: #20242b;
+  }
+
+  .tag-manager-panel-readable .manager-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tag-manager-panel-readable .manager-section-header h3,
+.tag-manager-dialog-shell .overlay-dialog-title h2,
+.tag-list-item-readable .tag-list-name {
+    color: #20242b;
+  }
+
+  .tag-manager-panel-readable .manager-section-header p,
+.tag-manager-panel-readable .color-select-trigger-value {
+    color: #66707d;
+  }
+
+  .tag-list-item-readable {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.62rem;
+  }
+}
+
+/* Final theme pass for the lazy-loaded tag manager chunk. */
+.app-theme-light .tag-manager-dialog-shell,
+.app-theme-light .tag-manager-panel-readable,
+.app-theme-light .tag-manager-editor-surface,
+.app-theme-light .tag-manager-list-surface,
+.app-theme-light .tag-list-item-readable {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+}
+
+.app-theme-light .tag-manager-dialog-shell .overlay-dialog-title h2,
+.app-theme-light .tag-manager-panel-readable .workspace-panel-heading-row h2,
+.app-theme-light .tag-manager-panel-readable .manager-section-header h3,
+.app-theme-light .tag-list-item-readable .tag-list-name,
+.app-theme-light .tag-manager-panel-readable .stack-form label,
+.app-theme-light .tag-manager-panel-readable .picker-fieldset legend {
+  color: #20242b !important;
+}
+
+.app-theme-light .tag-manager-dialog-shell .workspace-panel-kicker,
+.app-theme-light .tag-manager-panel-readable .workspace-panel-kicker,
+.app-theme-light .tag-manager-panel-readable .manager-section-kicker,
+.app-theme-light .tag-manager-panel-readable .manager-section-header p,
+.app-theme-light .tag-manager-panel-readable .field-note,
+.app-theme-light .tag-manager-panel-readable .color-select-trigger-value,
+.app-theme-light .tag-manager-panel-readable .color-select-option-copy,
+.app-theme-light .tag-manager-panel-readable .picker-chip-copy {
+  color: #66707d !important;
+}
+
+.app-theme-dark .tag-manager-dialog-shell,
+.app-theme-dark .tag-manager-panel-readable,
+.app-theme-dark .tag-manager-editor-surface,
+.app-theme-dark .tag-manager-list-surface,
+.app-theme-dark .tag-list-item-readable {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .tag-manager-dialog-shell .overlay-dialog-title h2,
+.app-theme-dark .tag-manager-panel-readable .workspace-panel-heading-row h2,
+.app-theme-dark .tag-manager-panel-readable .manager-section-header h3,
+.app-theme-dark .tag-list-item-readable .tag-list-name,
+.app-theme-dark .tag-manager-panel-readable .stack-form label,
+.app-theme-dark .tag-manager-panel-readable .picker-fieldset legend {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .tag-manager-dialog-shell .workspace-panel-kicker,
+.app-theme-dark .tag-manager-panel-readable .workspace-panel-kicker,
+.app-theme-dark .tag-manager-panel-readable .manager-section-kicker,
+.app-theme-dark .tag-manager-panel-readable .manager-section-header p,
+.app-theme-dark .tag-manager-panel-readable .field-note,
+.app-theme-dark .tag-manager-panel-readable .color-select-trigger-value,
+.app-theme-dark .tag-manager-panel-readable .color-select-option-copy,
+.app-theme-dark .tag-manager-panel-readable .picker-chip-copy {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .tag-manager-panel-readable .stack-form input,
+.app-theme-dark .tag-manager-panel-readable .color-select-trigger,
+.app-theme-dark .tag-manager-panel-readable .color-select-option,
+.app-theme-dark .tag-manager-panel-readable .picker-chip,
+.app-theme-dark .tag-manager-panel-readable .folder-action-trigger {
+  border-color: var(--border-soft) !important;
+  background: rgba(23, 30, 42, 0.9) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .tag-manager-panel-readable .workspace-panel-summary {
+  background: rgba(158, 199, 255, 0.14) !important;
+  color: var(--accent) !important;
+}

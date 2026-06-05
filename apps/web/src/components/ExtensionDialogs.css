@@ -1,0 +1,348 @@
+.extension-token-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.extension-download-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.extension-token-create-card,
+.extension-token-list-card,
+.extension-token-secret-card,
+.extension-download-card {
+  padding: 0.9rem;
+}
+
+.extension-download-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
+}
+
+.extension-download-card .bookmark-composer-section-header {
+  gap: 0.28rem;
+}
+
+.extension-download-card .bookmark-composer-section-header p {
+  max-width: 44rem;
+  line-height: 1.5;
+}
+
+.extension-download-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 0.08rem;
+  text-decoration: none;
+}
+
+.extension-download-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.48rem;
+  color: #556173;
+  line-height: 1.55;
+}
+
+.extension-download-steps li {
+  padding-left: 0.08rem;
+}
+
+.extension-download-steps code {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.34rem;
+  margin: 0 0.14rem;
+  border-radius: 7px;
+  background: rgba(108, 126, 164, 0.18);
+  color: #dce7fb;
+  border: 1px solid rgba(145, 168, 211, 0.2);
+  font-size: 0.82rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.extension-token-secret-card code {
+  display: block;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #d8e8ff;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.extension-token-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.extension-token-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.75rem 0.8rem;
+  border: 1px solid rgba(31, 37, 51, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.extension-token-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.extension-token-copy strong,
+.extension-token-copy span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.extension-token-copy span {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.overlay-dialog-shell.extension-token-dialog-shell,
+.overlay-dialog-shell.extension-download-dialog-shell,
+.overlay-dialog-shell.install-help-dialog-shell {
+  background: #ffffff;
+  color: #20242b;
+  border-color: #dfe3e8;
+}
+
+.extension-token-dialog-shell .overlay-dialog-title h2,
+.extension-download-dialog-shell .overlay-dialog-title h2,
+.install-help-dialog-shell .overlay-dialog-title h2,
+.extension-token-panel-readable .bookmark-composer-section-header h3,
+.extension-download-panel-readable .bookmark-composer-section-header h3 {
+  color: #20242b;
+}
+
+.extension-token-dialog-shell .workspace-panel-kicker,
+.extension-download-dialog-shell .workspace-panel-kicker,
+.install-help-dialog-shell .workspace-panel-kicker,
+.extension-token-panel-readable .bookmark-composer-section-header p,
+.extension-download-panel-readable .bookmark-composer-section-header p,
+.extension-download-panel-readable .extension-download-steps {
+  color: #66707d;
+}
+
+.extension-token-panel-readable,
+.extension-download-panel-readable {
+  color: #20242b;
+}
+
+.extension-token-panel-readable .extension-token-card-readable,
+.extension-download-panel-readable .extension-download-card-readable {
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
+  border-color: #dfe3e8;
+  background: #ffffff;
+  color: #20242b;
+}
+
+.extension-token-panel-readable label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.36rem;
+  color: #20242b;
+  font-size: 0.82rem;
+  font-weight: 740;
+}
+
+.extension-token-panel-readable input {
+  width: min(30rem, 100%);
+  min-height: 2.36rem;
+  padding: 0.44rem 0.66rem;
+  border: 1px solid #dfe3e8;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #20242b;
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.extension-token-panel-readable input::placeholder {
+  color: #8a94a3;
+}
+
+.extension-token-panel-readable .extension-token-row-readable {
+  border-color: #dfe3e8;
+  background: #f7f8fa;
+  color: #20242b;
+}
+
+.extension-token-panel-readable .extension-token-copy strong {
+  color: #20242b;
+}
+
+.extension-token-panel-readable .extension-token-copy span {
+  color: #66707d;
+}
+
+.extension-token-panel-readable .extension-token-row-readable > .ghost-button {
+  border-color: #dfe3e8;
+  background: #ffffff;
+  color: #20242b;
+}
+
+.extension-token-connection-status {
+  margin: 0;
+  padding: 0.56rem 0.66rem;
+  border: 1px solid rgba(22, 131, 232, 0.18);
+  border-radius: 10px;
+  background: rgba(22, 131, 232, 0.08);
+  color: #1466b8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.42;
+}
+
+.extension-download-panel-readable .extension-download-steps code {
+  background: #eef6ff;
+  color: #20242b;
+  border-color: #d7e5f7;
+}
+
+@media (max-width: 1120px) {
+
+  .extension-token-panel-readable .extension-token-row-readable {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .extension-token-panel-readable .extension-token-row-readable > .ghost-button {
+    width: 100%;
+  }
+}
+
+.extension-token-row {
+  background: rgba(29, 37, 49, 0.88);
+  border-color: var(--border-soft);
+}
+
+.extension-token-copy span {
+  color: #8da0bc;
+}
+
+.extension-token-secret-card code {
+  background: rgba(9, 14, 22, 0.92);
+  color: #d7ecff;
+}
+
+@media (min-width: 1121px) {
+
+  .extension-token-secret-card code {
+    background: #111827;
+    color: #e5f0ff;
+  }
+}
+
+/* Final theme pass for the lazy-loaded extension dialogs chunk. */
+.app-theme-light .extension-token-dialog-shell,
+.app-theme-light .extension-download-dialog-shell,
+.app-theme-light .install-help-dialog-shell,
+.app-theme-light .extension-token-panel-readable,
+.app-theme-light .extension-download-panel-readable,
+.app-theme-light .extension-token-panel-readable .extension-token-card-readable,
+.app-theme-light .extension-download-panel-readable .extension-download-card-readable,
+.app-theme-light .extension-token-panel-readable .extension-token-row-readable {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+}
+
+.app-theme-light .extension-token-dialog-shell .overlay-dialog-title h2,
+.app-theme-light .extension-download-dialog-shell .overlay-dialog-title h2,
+.app-theme-light .install-help-dialog-shell .overlay-dialog-title h2,
+.app-theme-light .extension-token-panel-readable .bookmark-composer-section-header h3,
+.app-theme-light .extension-download-panel-readable .bookmark-composer-section-header h3,
+.app-theme-light .extension-token-panel-readable label,
+.app-theme-light .extension-token-panel-readable .extension-token-copy strong {
+  color: #20242b !important;
+}
+
+.app-theme-light .extension-token-dialog-shell .workspace-panel-kicker,
+.app-theme-light .extension-download-dialog-shell .workspace-panel-kicker,
+.app-theme-light .install-help-dialog-shell .workspace-panel-kicker,
+.app-theme-light .extension-token-panel-readable .bookmark-composer-section-header p,
+.app-theme-light .extension-download-panel-readable .bookmark-composer-section-header p,
+.app-theme-light .extension-download-panel-readable .extension-download-steps,
+.app-theme-light .extension-token-panel-readable .extension-token-copy span {
+  color: #66707d !important;
+}
+
+.app-theme-dark .extension-token-dialog-shell,
+.app-theme-dark .extension-download-dialog-shell,
+.app-theme-dark .install-help-dialog-shell,
+.app-theme-dark .extension-token-panel-readable,
+.app-theme-dark .extension-download-panel-readable,
+.app-theme-dark .extension-token-panel-readable .extension-token-card-readable,
+.app-theme-dark .extension-download-panel-readable .extension-download-card-readable,
+.app-theme-dark .extension-token-panel-readable .extension-token-row-readable {
+  border-color: var(--border-soft) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .extension-token-dialog-shell .overlay-dialog-title h2,
+.app-theme-dark .extension-download-dialog-shell .overlay-dialog-title h2,
+.app-theme-dark .install-help-dialog-shell .overlay-dialog-title h2,
+.app-theme-dark .extension-token-panel-readable .bookmark-composer-section-header h3,
+.app-theme-dark .extension-download-panel-readable .bookmark-composer-section-header h3,
+.app-theme-dark .extension-token-panel-readable label,
+.app-theme-dark .extension-token-panel-readable .extension-token-copy strong {
+  color: var(--text-strong) !important;
+}
+
+.app-theme-dark .extension-token-dialog-shell .workspace-panel-kicker,
+.app-theme-dark .extension-download-dialog-shell .workspace-panel-kicker,
+.app-theme-dark .install-help-dialog-shell .workspace-panel-kicker,
+.app-theme-dark .extension-token-panel-readable .bookmark-composer-section-header p,
+.app-theme-dark .extension-download-panel-readable .bookmark-composer-section-header p,
+.app-theme-dark .extension-download-panel-readable .extension-download-steps,
+.app-theme-dark .extension-token-panel-readable .extension-token-copy span {
+  color: var(--text-muted) !important;
+}
+
+.app-theme-dark .extension-token-panel-readable input,
+.app-theme-dark .extension-token-panel-readable .extension-token-row-readable > .ghost-button {
+  border-color: var(--border-soft) !important;
+  background: rgba(23, 30, 42, 0.9) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-theme-dark .extension-token-secret-card code,
+.app-theme-dark .extension-download-panel-readable .extension-download-steps code {
+  border-color: rgba(158, 199, 255, 0.18) !important;
+  background: rgba(9, 14, 22, 0.92) !important;
+  color: #d7ecff !important;
+}
+
+.app-theme-dark .extension-token-connection-status {
+  border-color: rgba(158, 199, 255, 0.2) !important;
+  background: rgba(158, 199, 255, 0.12) !important;
+  color: var(--accent) !important;
+}

@@ -1,0 +1,22 @@
+name = "my-bookmark"
+main = "./apps/api/src/index.ts"
+compatibility_date = "2026-04-13"
+
+[vars]
+FIREBASE_PROJECT_ID = "your-firebase-project-id"
+
+[[d1_databases]]
+binding = "bookmark"
+database_name = "my-bookmark"
+database_id = "your-d1-database-id"
+migrations_dir = "./apps/api/migrations"
+
+[[r2_buckets]]
+binding = "bookmark_assets"
+bucket_name = "my-bookmark-assets"
+
+[assets]
+directory = "./apps/web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
