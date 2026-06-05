@@ -148,6 +148,18 @@ function createInMemoryD1() {
         }
 
         if (normalizedSql.startsWith("DELETE FROM bookmarks")) {
+          if (normalizedSql.includes("id IN")) {
+            const userId = String(params[0]);
+            const bookmarkIds = params.slice(1).map(String);
+            for (const bookmarkId of bookmarkIds) {
+              const bookmark = bookmarks.get(bookmarkId);
+              if (bookmark?.user_id === userId && bookmark.trashed_at !== null) {
+                bookmarks.delete(bookmarkId);
+              }
+            }
+            return { success: true };
+          }
+
           const bookmarkId = String(params[0]);
           const userId = String(params[1]);
           const bookmark = bookmarks.get(bookmarkId);
@@ -672,6 +684,55 @@ describe("createBookmarkRepository", () => {
     await repository.delete(created.id, "user-1");
     await expect(repository.permanentlyDelete(created.id, "user-1")).resolves.toBe(true);
     await expect(repository.listByUser("user-1", { trashMode: "all" })).resolves.toEqual([]);
+  });
+
+  it("empties only trashed bookmarks for one user", async () => {
+    const repository = createBookmarkRepository(createInMemoryD1());
+
+    const firstTrashed = await repository.create({
+      userId: "user-1",
+      normalizedUrl: "https://example.com/trash-one",
+      url: "https://example.com/trash-one",
+      userTitle: "Trash one"
+    });
+    const secondTrashed = await repository.create({
+      userId: "user-1",
+      normalizedUrl: "https://example.com/trash-two",
+      url: "https://example.com/trash-two",
+      userTitle: "Trash two"
+    });
+    const activeBookmark = await repository.create({
+      userId: "user-1",
+      normalizedUrl: "https://example.com/active",
+      url: "https://example.com/active",
+      userTitle: "Active bookmark"
+    });
+    const otherUserTrashed = await repository.create({
+      userId: "user-2",
+      normalizedUrl: "https://example.com/other-user-trash",
+      url: "https://example.com/other-user-trash",
+      userTitle: "Other user trash"
+    });
+
+    await repository.delete(firstTrashed.id, "user-1");
+    await repository.delete(secondTrashed.id, "user-1");
+    await repository.delete(otherUserTrashed.id, "user-2");
+
+    await expect(repository.emptyTrash("user-1")).resolves.toBe(2);
+
+    await expect(repository.listByUser("user-1", { trashMode: "trashed" })).resolves.toEqual([]);
+    await expect(repository.listByUser("user-1")).resolves.toMatchObject([
+      {
+        id: activeBookmark.id,
+        isTrashed: false
+      }
+    ]);
+    await expect(repository.listByUser("user-2", { trashMode: "trashed" })).resolves.toMatchObject([
+      {
+        id: otherUserTrashed.id,
+        isTrashed: true
+      }
+    ]);
   });
 
   it("persists hidden state through real D1 create, get, list, and update", async () => {

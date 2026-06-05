@@ -278,6 +278,17 @@ function createInMemoryBookmarkRepository(): BookmarkRepository {
       bookmarks.delete(bookmarkId);
       return true;
     },
+    async emptyTrash(userId) {
+      const trashedBookmarks = Array.from(bookmarks.values()).filter(
+        (bookmark) => bookmark.userId === userId && bookmark.isTrashed
+      );
+
+      for (const bookmark of trashedBookmarks) {
+        bookmarks.delete(bookmark.id);
+      }
+
+      return trashedBookmarks.length;
+    },
     async update(bookmarkId, userId, input) {
       const bookmark = bookmarks.get(bookmarkId);
       if (!bookmark || bookmark.userId !== userId) {
@@ -2036,6 +2047,77 @@ describe("bookmark routes", () => {
 
     const finalTrashListRes = await authenticatedRequest(app, "/api/bookmarks?trashed=1");
     await expect(finalTrashListRes.json()).resolves.toEqual({ bookmarks: [] });
+  });
+
+  it("empties all trashed bookmarks for the authenticated user", async () => {
+    const repository = createInMemoryBookmarkRepository();
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: repository,
+      bookmarkAssetRepository: createInMemoryBookmarkAssetRepository(),
+      bookmarkActivityRepository: createInMemoryBookmarkActivityRepository(),
+      assetStorage: createInMemoryAssetStorage()
+    } as Parameters<typeof createApp>[0]);
+
+    const firstCreateRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/trash-one",
+        userTitle: "Trash one"
+      })
+    });
+    const firstCreated = (await firstCreateRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const secondCreateRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/trash-two",
+        userTitle: "Trash two"
+      })
+    });
+    const secondCreated = (await secondCreateRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    const activeCreateRes = await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/active-bookmark",
+        userTitle: "Active bookmark"
+      })
+    });
+    const activeCreated = (await activeCreateRes.json()) as {
+      bookmark: BookmarkRecord;
+    };
+
+    await authenticatedRequest(app, `/api/bookmarks/${firstCreated.bookmark.id}`, {
+      method: "DELETE"
+    });
+    await authenticatedRequest(app, `/api/bookmarks/${secondCreated.bookmark.id}`, {
+      method: "DELETE"
+    });
+
+    const emptyTrashRes = await authenticatedRequest(app, "/api/bookmarks/trash", {
+      method: "DELETE"
+    });
+
+    expect(emptyTrashRes.status).toBe(200);
+    await expect(emptyTrashRes.json()).resolves.toEqual({ deletedCount: 2 });
+
+    const trashListRes = await authenticatedRequest(app, "/api/bookmarks?trashed=1");
+    await expect(trashListRes.json()).resolves.toEqual({ bookmarks: [] });
+
+    const activeListRes = await authenticatedRequest(app, "/api/bookmarks");
+    await expect(activeListRes.json()).resolves.toMatchObject({
+      bookmarks: [
+        {
+          id: activeCreated.bookmark.id,
+          isTrashed: false
+        }
+      ]
+    });
   });
 
   it("serves bookmark asset content with a private immutable cache policy", async () => {

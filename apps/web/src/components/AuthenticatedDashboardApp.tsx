@@ -60,6 +60,7 @@ import {
   createTag,
   deleteBookmark,
   deleteBookmarkAsset,
+  emptyBookmarkTrash,
   deleteFolder,
   deleteTag,
   detectBookmarkExtensionPresence,
@@ -461,6 +462,7 @@ export default function AuthenticatedDashboardApp({
   const [isLoadingSelectedBookmarkPreview, setIsLoadingSelectedBookmarkPreview] =
     useState(false);
   const [isSavingBookmark, setIsSavingBookmark] = useState(false);
+  const [isEmptyingBookmarkTrash, setIsEmptyingBookmarkTrash] = useState(false);
   const [isLoadingBookmarkPreview, setIsLoadingBookmarkPreview] = useState(false);
   const [isSavingFolder, setIsSavingFolder] = useState(false);
   const [isSavingQuickFolder, setIsSavingQuickFolder] = useState(false);
@@ -3788,6 +3790,82 @@ export default function AuthenticatedDashboardApp({
     }
   }
 
+  async function handleEmptyBookmarkTrash() {
+    if (isEmptyingBookmarkTrash || totalTrashBookmarkCount <= 0) {
+      return;
+    }
+
+    setOpenBookmarkActionMenuId(null);
+    setIsBookmarkDetailActionMenuOpen(false);
+
+    if (
+      globalThis.confirm &&
+      !globalThis.confirm(
+        `휴지통의 북마크 ${totalTrashBookmarkCount}개를 영구 삭제할까요? 이 작업은 되돌릴 수 없습니다.`
+      )
+    ) {
+      return;
+    }
+
+    const deletedBookmarkIds = new Set(trashedBookmarks.map((bookmark) => bookmark.id));
+
+    try {
+      setIsEmptyingBookmarkTrash(true);
+      setErrorMessage(null);
+      const { deletedCount } = await emptyBookmarkTrash();
+      startTransition(() => {
+        setTrashedBookmarks([]);
+        setBookmarks((currentBookmarks) =>
+          isTrashBookmarkView
+            ? []
+            : currentBookmarks.filter((bookmark) => !deletedBookmarkIds.has(bookmark.id))
+        );
+        setBookmarkInventory((currentBookmarks) =>
+          currentBookmarks.filter(
+            (bookmark) => !bookmark.isTrashed && !deletedBookmarkIds.has(bookmark.id)
+          )
+        );
+        setHomeFavoriteBookmarks((currentBookmarks) =>
+          currentBookmarks
+            ? currentBookmarks.filter((bookmark) => !deletedBookmarkIds.has(bookmark.id))
+            : currentBookmarks
+        );
+        setSelectedBookmark((currentSelectedBookmark) =>
+          currentSelectedBookmark?.isTrashed ||
+          (currentSelectedBookmark && deletedBookmarkIds.has(currentSelectedBookmark.id))
+            ? null
+            : currentSelectedBookmark
+        );
+        setBookmarkAssetsByBookmarkId((currentAssetsByBookmarkId) => {
+          const nextAssetsByBookmarkId = { ...currentAssetsByBookmarkId };
+          for (const bookmarkId of deletedBookmarkIds) {
+            delete nextAssetsByBookmarkId[bookmarkId];
+          }
+          return nextAssetsByBookmarkId;
+        });
+        setRecommendations((currentRecommendations) => ({
+          favorites: currentRecommendations.favorites.filter(
+            (bookmark) => !deletedBookmarkIds.has(bookmark.id)
+          ),
+          recent: currentRecommendations.recent.filter(
+            (bookmark) => !deletedBookmarkIds.has(bookmark.id)
+          ),
+          frequent: currentRecommendations.frequent.filter(
+            (bookmark) => !deletedBookmarkIds.has(bookmark.id)
+          )
+        }));
+        setStatusMessage(`휴지통의 북마크 ${deletedCount}개를 영구 삭제했습니다.`);
+      });
+      void refreshBookmarkCounts();
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(error instanceof Error ? error.message : "휴지통을 비우지 못했습니다.");
+      });
+    } finally {
+      setIsEmptyingBookmarkTrash(false);
+    }
+  }
+
   async function handleResetSourceContent(bookmarkId: string) {
     try {
       setErrorMessage(null);
@@ -4153,6 +4231,13 @@ export default function AuthenticatedDashboardApp({
           ).length
         : getBookmarkCountBucketValue(bookmarkCounts.trashed, showHiddenBookmarks),
     [bookmarkCounts, showHiddenBookmarks, trashedBookmarks]
+  );
+  const totalTrashBookmarkCount = useMemo(
+    () =>
+      bookmarkCounts
+        ? Math.max(bookmarkCounts.trashed.total, trashedBookmarks.length)
+        : trashedBookmarks.length,
+    [bookmarkCounts, trashedBookmarks]
   );
   const homeFavoriteBookmarkCount = bookmarkCounts
     ? getBookmarkCountBucketValue(bookmarkCounts.favorite, showHiddenBookmarks)
@@ -4901,7 +4986,9 @@ export default function AuthenticatedDashboardApp({
           hasMoreVisibleBookmarks={hasMoreVisibleBookmarks}
           isAdvancedBookmarkSearchOpen={isAdvancedBookmarkSearchOpen}
           isBookmarkSortMenuOpen={isBookmarkSortMenuOpen}
+          isBookmarkTrashView={isTrashBookmarkView}
           isBookmarkViewMenuOpen={isBookmarkViewMenuOpen}
+          isEmptyingBookmarkTrash={isEmptyingBookmarkTrash}
           isHidden={options?.isHidden}
           isLoadingDashboard={isLoadingDashboard}
           isLoadingMoreBookmarks={isLoadingMoreBookmarks}
@@ -4914,6 +5001,7 @@ export default function AuthenticatedDashboardApp({
           shouldUseCompactMobileCards={shouldUseCompactMobileCards}
           showHiddenBookmarks={showHiddenBookmarks}
           tags={tags}
+          totalTrashBookmarkCount={totalTrashBookmarkCount}
           visibleBookmarkCount={visibleBookmarks.length}
           visibleBookmarkTotalCount={visibleBookmarkTotalCount}
           visibleFolderOptions={visibleFolderOptions}
@@ -4927,6 +5015,7 @@ export default function AuthenticatedDashboardApp({
           handleBookmarkPageSizeChange={handleBookmarkPageSizeChange}
           handleBookmarkSearchReset={handleBookmarkSearchReset}
           handleBookmarkSearchSubmit={handleBookmarkSearchSubmit}
+          handleEmptyBookmarkTrash={handleEmptyBookmarkTrash}
           handleToggleHiddenBookmarks={handleToggleHiddenBookmarks}
           onBookmarkCoverSizeChange={updateBookmarkCoverSize}
           onBookmarkDisplaySettingChange={updateBookmarkDisplaySetting}

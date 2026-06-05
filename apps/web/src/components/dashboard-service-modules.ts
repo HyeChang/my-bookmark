@@ -144,6 +144,12 @@ function deleteBookmark(...args: Parameters<BookmarksModule["deleteBookmark"]>) 
   return callDeferredModule(bookmarksModule, (module) => module.deleteBookmark, args);
 }
 
+function emptyBookmarkTrash(
+  ...args: Parameters<BookmarksModule["emptyBookmarkTrash"]>
+) {
+  return callDeferredModule(bookmarksModule, (module) => module.emptyBookmarkTrash, args);
+}
+
 function loadBookmark(...args: Parameters<BookmarksModule["loadBookmark"]>) {
   return callDeferredModule(bookmarksModule, (module) => module.loadBookmark, args);
 }
@@ -348,6 +354,7 @@ export {
   createTag,
   deleteBookmark,
   deleteBookmarkAsset,
+  emptyBookmarkTrash,
   deleteFolder,
   deleteTag,
   detectBookmarkExtensionPresence,

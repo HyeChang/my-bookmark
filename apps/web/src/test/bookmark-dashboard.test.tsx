@@ -6213,6 +6213,287 @@ describe("bookmark dashboard", () => {
     ).toBe(false);
   });
 
+  it("empties every bookmark in the trash from the trash view", async () => {
+    let trashBookmarks = [
+      {
+        id: "trash-bookmark-1",
+        folderId: null,
+        tagIds: [],
+        url: "https://example.com/trash-one",
+        isFavorite: false,
+        isHidden: false,
+        isTrashed: true,
+        trashedAt: "2026-04-14T01:00:00.000Z",
+        bookmarkColor: null,
+        urlColor: null,
+        sourceTitle: null,
+        sourceContent: null,
+        sourceSummary: null,
+        userTitle: "Trash one",
+        userContent: "",
+        userSummary: "",
+        displayTitle: "Trash one",
+        displayContent: "",
+        displaySummary: "",
+        createdAt: "2026-04-14T01:00:00.000Z",
+        updatedAt: "2026-04-14T01:00:00.000Z"
+      },
+      {
+        id: "trash-bookmark-2",
+        folderId: null,
+        tagIds: [],
+        url: "https://example.com/trash-two",
+        isFavorite: false,
+        isHidden: true,
+        isTrashed: true,
+        trashedAt: "2026-04-14T02:00:00.000Z",
+        bookmarkColor: null,
+        urlColor: null,
+        sourceTitle: null,
+        sourceContent: null,
+        sourceSummary: null,
+        userTitle: "Trash two",
+        userContent: "",
+        userSummary: "",
+        displayTitle: "Trash two",
+        displayContent: "",
+        displaySummary: "",
+        createdAt: "2026-04-14T02:00:00.000Z",
+        updatedAt: "2026-04-14T02:00:00.000Z"
+      }
+    ];
+    const emptyTrashRequests: Array<string> = [];
+    const confirmSpy = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirmSpy);
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com",
+              name: "Bookmark Tester"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks/counts" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            counts: {
+              active: { total: 1, visible: 1 },
+              favorite: { total: 0, visible: 0 },
+              trashed: {
+                total: trashBookmarks.length,
+                visible: trashBookmarks.filter((bookmark) => !bookmark.isHidden).length
+              },
+              unfiled: { total: 1, visible: 1 },
+              byFolderId: {}
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks?favorite=1&limit=20&offset=0" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [],
+            pagination: {
+              limit: 20,
+              offset: 0,
+              total: 0,
+              hasMore: false
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (
+        (url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") &&
+        !init?.method
+      ) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "active-bookmark",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/active",
+                isFavorite: false,
+                isHidden: false,
+                isTrashed: false,
+                trashedAt: null,
+                bookmarkColor: null,
+                urlColor: null,
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Active bookmark",
+                userContent: "",
+                userSummary: "",
+                displayTitle: "Active bookmark",
+                displayContent: "",
+                displaySummary: "",
+                createdAt: "2026-04-14T00:00:00.000Z",
+                updatedAt: "2026-04-14T00:00:00.000Z"
+              }
+            ],
+            pagination: {
+              limit: 20,
+              offset: 0,
+              total: 1,
+              hasMore: false
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks?trashed=1" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: trashBookmarks
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url.startsWith("/api/bookmarks/assets?") && !init?.method) {
+        return new Response(JSON.stringify({ assetsByBookmarkId: {} }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (/^\/api\/bookmarks\/[^/]+\/assets$/.test(url) && !init?.method) {
+        return new Response(JSON.stringify({ assets: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/bookmarks/trash" && init?.method === "DELETE") {
+        emptyTrashRequests.push(url);
+        trashBookmarks = [];
+        return new Response(JSON.stringify({ deletedCount: 2 }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const mainPanel = await screen.findByRole("region", {
+      name: /dashboard-main/i
+    });
+    const sidebar = await screen.findByRole("complementary", {
+      name: /dashboard-sidebar/i
+    });
+    const folderOverview = within(sidebar).getByRole("region", {
+      name: /folder-overview/i
+    });
+
+    fireEvent.click(within(folderOverview).getByRole("button", { name: /휴지통 보기/i }));
+
+    const bookmarkListRegion = within(mainPanel).getByRole("region", {
+      name: /bookmark-list/i
+    });
+    await waitFor(() => {
+      expect(within(bookmarkListRegion).getByText(/^Trash one$/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /휴지통 비우기/i }));
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      "휴지통의 북마크 2개를 영구 삭제할까요? 이 작업은 되돌릴 수 없습니다."
+    );
+    await waitFor(() => {
+      expect(emptyTrashRequests).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(within(bookmarkListRegion).queryByText(/^Trash one$/i)).not.toBeInTheDocument();
+      expect(within(bookmarkListRegion).getByText(/^보관한 북마크가 없습니다\.$/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/^휴지통의 북마크 2개를 영구 삭제했습니다\.$/i)).toBeInTheDocument();
+  });
+
   it("updates folder results without waiting for bookmark asset preloading", async () => {
     const jsonHeaders = {
       "content-type": "application/json"

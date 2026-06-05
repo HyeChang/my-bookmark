@@ -152,6 +152,8 @@ type BookmarkResultsPanelProps = {
   isAdvancedBookmarkSearchOpen: boolean;
   isBookmarkSortMenuOpen: boolean;
   isBookmarkViewMenuOpen: boolean;
+  isBookmarkTrashView: boolean;
+  isEmptyingBookmarkTrash: boolean;
   isHidden?: boolean;
   isLoadingDashboard: boolean;
   isLoadingMoreBookmarks: boolean;
@@ -164,6 +166,7 @@ type BookmarkResultsPanelProps = {
   shouldUseCompactMobileCards: boolean;
   showHiddenBookmarks: boolean;
   tags: Tag[];
+  totalTrashBookmarkCount: number;
   visibleBookmarkCount: number;
   visibleBookmarkTotalCount: number;
   visibleFolderOptions: FolderOption[];
@@ -177,6 +180,7 @@ type BookmarkResultsPanelProps = {
   handleBookmarkPageSizeChange: (value: string) => BookmarkListRowActionResult;
   handleBookmarkSearchReset: () => BookmarkListRowActionResult;
   handleBookmarkSearchSubmit: (event: FormEvent<HTMLFormElement>) => BookmarkListRowActionResult;
+  handleEmptyBookmarkTrash: () => BookmarkListRowActionResult;
   handleToggleHiddenBookmarks: () => BookmarkListRowActionResult;
   onBookmarkCoverSizeChange: (value: number) => void;
   onBookmarkDisplaySettingChange: (
@@ -759,6 +763,8 @@ export default function BookmarkResultsPanel({
   isAdvancedBookmarkSearchOpen,
   isBookmarkSortMenuOpen,
   isBookmarkViewMenuOpen,
+  isBookmarkTrashView,
+  isEmptyingBookmarkTrash,
   isHidden,
   isLoadingDashboard,
   isLoadingMoreBookmarks,
@@ -771,6 +777,7 @@ export default function BookmarkResultsPanel({
   shouldUseCompactMobileCards,
   showHiddenBookmarks,
   tags,
+  totalTrashBookmarkCount,
   visibleBookmarkCount,
   visibleBookmarkTotalCount,
   visibleFolderOptions,
@@ -784,6 +791,7 @@ export default function BookmarkResultsPanel({
   handleBookmarkPageSizeChange,
   handleBookmarkSearchReset,
   handleBookmarkSearchSubmit,
+  handleEmptyBookmarkTrash,
   handleToggleHiddenBookmarks,
   onBookmarkCoverSizeChange,
   onBookmarkDisplaySettingChange,
@@ -1112,6 +1120,16 @@ export default function BookmarkResultsPanel({
                   </button>
                 </>
               )}
+              {isBookmarkTrashView && totalTrashBookmarkCount > 0 ? (
+                <button
+                  type="button"
+                  className="danger-button bookmark-trash-empty-button"
+                  disabled={isEmptyingBookmarkTrash}
+                  onClick={() => void handleEmptyBookmarkTrash()}
+                >
+                  {isEmptyingBookmarkTrash ? "비우는 중" : "휴지통 비우기"}
+                </button>
+              ) : null}
             </div>
           </div>
         </header>

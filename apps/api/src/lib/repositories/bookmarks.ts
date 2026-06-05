@@ -150,6 +150,7 @@ export type BookmarkRepository = {
   delete(bookmarkId: string, userId: string): Promise<boolean>;
   restore(bookmarkId: string, userId: string): Promise<BookmarkRecord | null>;
   permanentlyDelete(bookmarkId: string, userId: string): Promise<boolean>;
+  emptyTrash(userId: string): Promise<number>;
   update(
     bookmarkId: string,
     userId: string,
@@ -1202,6 +1203,46 @@ export function createBookmarkRepository(db: D1Database): BookmarkRepository {
       ]);
 
       return true;
+    },
+    async emptyTrash(userId) {
+      const trashFilters: BookmarkListFilters = { trashMode: "trashed" };
+      const trashedBookmarks = (
+        await listBookmarksByUser(userId, trashFilters, { contentMode: "summary" })
+      ).filter((bookmark) => matchesBookmarkFilters(bookmark, trashFilters));
+      const bookmarkIds = trashedBookmarks.map((bookmark) => bookmark.id);
+      if (bookmarkIds.length === 0) {
+        return 0;
+      }
+
+      const placeholders = bookmarkIds.map(() => "?").join(", ");
+      await db.batch([
+        db
+          .prepare(`DELETE FROM bookmark_tags WHERE bookmark_id IN (${placeholders})`)
+          .bind(...bookmarkIds),
+        db
+          .prepare(
+            `DELETE FROM bookmark_activity
+            WHERE user_id = ? AND bookmark_id IN (${placeholders})`
+          )
+          .bind(userId, ...bookmarkIds),
+        db
+          .prepare(`DELETE FROM bookmark_extraction_logs WHERE bookmark_id IN (${placeholders})`)
+          .bind(...bookmarkIds),
+        db
+          .prepare(
+            `DELETE FROM bookmark_assets
+            WHERE user_id = ? AND bookmark_id IN (${placeholders})`
+          )
+          .bind(userId, ...bookmarkIds),
+        db
+          .prepare(
+            `DELETE FROM bookmarks
+            WHERE user_id = ? AND trashed_at IS NOT NULL AND id IN (${placeholders})`
+          )
+          .bind(userId, ...bookmarkIds)
+      ]);
+
+      return bookmarkIds.length;
     },
     async update(bookmarkId, userId, input) {
       const existingBookmark = await getByUserAndId(userId, bookmarkId);
