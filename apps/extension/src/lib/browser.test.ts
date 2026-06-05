@@ -44,10 +44,10 @@ describe("extension browser helpers", () => {
       }
     });
 
-    await openUrlInNewTab("https://bookmark.keygenerator25.workers.dev/");
+    await openUrlInNewTab("https://bookmark.example.workers.dev/");
 
     expect(createSpy).toHaveBeenCalledWith({
-      url: "https://bookmark.keygenerator25.workers.dev/"
+      url: "https://bookmark.example.workers.dev/"
     });
   });
 
@@ -57,10 +57,10 @@ describe("extension browser helpers", () => {
       open: openSpy
     });
 
-    await openUrlInNewTab("https://bookmark.keygenerator25.workers.dev/");
+    await openUrlInNewTab("https://bookmark.example.workers.dev/");
 
     expect(openSpy).toHaveBeenCalledWith(
-      "https://bookmark.keygenerator25.workers.dev/",
+      "https://bookmark.example.workers.dev/",
       "_blank",
       "noopener,noreferrer"
     );

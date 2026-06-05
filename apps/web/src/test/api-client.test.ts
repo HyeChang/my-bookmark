@@ -34,7 +34,7 @@ describe("api client", () => {
   });
 
   it("maps network failures to a deployed server guidance message outside localhost", async () => {
-    vi.stubGlobal("location", { hostname: "bookmark.keygenerator25.workers.dev" });
+    vi.stubGlobal("location", { hostname: "bookmark.example.workers.dev" });
     vi.stubGlobal(
       "fetch",
       vi.fn().mockRejectedValue(new TypeError("Failed to fetch"))

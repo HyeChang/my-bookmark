@@ -53,8 +53,6 @@ const palette = {
   shadow: "0 16px 36px rgba(15, 23, 42, 0.12)"
 };
 
-const BOOKMARK_WEB_URL = "https://bookmark.keygenerator25.workers.dev/";
-
 function PopupApp() {
   const [settings, setSettings] = useState<ExtensionSettings>(defaultExtensionSettings);
   const [capture, setCapture] = useState<ExtensionCaptureContext>({
@@ -324,8 +322,23 @@ function PopupApp() {
     }
   }
 
+  function getMainBookmarkPageUrl() {
+    const apiBaseUrl = settings.apiBaseUrl.trim().replace(/\/+$/, "");
+    return apiBaseUrl ? `${apiBaseUrl}/` : "";
+  }
+
   function openMainBookmarkPage() {
-    void openUrlInNewTab(BOOKMARK_WEB_URL);
+    const mainPageUrl = getMainBookmarkPageUrl();
+    if (!mainPageUrl) {
+      setStatus({
+        kind: "error",
+        message: "설정 페이지에서 API 주소를 먼저 입력해주세요."
+      });
+      openOptionsPage();
+      return;
+    }
+
+    void openUrlInNewTab(mainPageUrl);
   }
 
   const fieldStyle = {

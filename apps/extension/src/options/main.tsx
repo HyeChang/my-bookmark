@@ -94,6 +94,7 @@ function OptionsApp() {
         <span>API 주소</span>
         <input
           value={apiBaseUrl}
+          placeholder="https://your-worker.example.workers.dev"
           onChange={(event) => setApiBaseUrl(event.target.value)}
           style={{
             borderRadius: 12,

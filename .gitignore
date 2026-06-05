@@ -2,13 +2,16 @@ node_modules/
 dist/
 coverage/
 .wrangler/
+.playwright-mcp/
 .playwright-cli/
 .worktrees/
+.public-export/
 output/
 .dev.vars
 .env
 .env.*
 !.env.example
+wrangler.toml
 firebase key.txt
 deleteFile/
 *.log

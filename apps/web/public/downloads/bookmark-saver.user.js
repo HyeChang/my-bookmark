@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Bookmark Saver
-// @namespace    https://bookmark.keygenerator25.workers.dev/
+// @namespace    https://github.com/HyeChang/my-bookmark
 // @version      0.1.11
 // @description  Save the current page, selected text, and page images to Bookmark from Tampermonkey.
 // @author       Bookmark
@@ -15,8 +15,6 @@
 // @grant        GM_openInTab
 // @grant        unsafeWindow
 // @connect      *
-// @updateURL    https://bookmark.keygenerator25.workers.dev/downloads/bookmark-saver.user.js?v=0.1.11
-// @downloadURL  https://bookmark.keygenerator25.workers.dev/downloads/bookmark-saver.user.js?v=0.1.11
 // ==/UserScript==
 
 (function () {
@@ -25,10 +23,10 @@
   const BOOKMARK_WEB_BRIDGE_SOURCE = "bookmark-web";
   const BOOKMARK_EXTENSION_BRIDGE_SOURCE = "bookmark-extension";
   const BOOKMARK_EXTENSION_CLIENT_TYPE = "userscript";
-  const BOOKMARK_WEB_URL = "https://bookmark.keygenerator25.workers.dev/";
   const SETTINGS_KEY = "bookmarkSaver.settings";
+  const INFERRED_BOOKMARK_ORIGIN = inferBookmarkOriginFromInstall();
   const DEFAULT_SETTINGS = {
-    apiBaseUrl: "https://bookmark.keygenerator25.workers.dev",
+    apiBaseUrl: INFERRED_BOOKMARK_ORIGIN,
     token: "",
     defaultFolderId: "",
     defaultTagIds: []
@@ -59,6 +57,23 @@
 
   function getTargetOrigin(win) {
     return win?.location?.origin || globalThis.location?.origin || "*";
+  }
+
+  function inferBookmarkOriginFromInstall() {
+    try {
+      const scriptInfo = typeof GM_info !== "undefined" ? GM_info?.script : null;
+      const installUrl = scriptInfo?.downloadURL || scriptInfo?.updateURL || "";
+      if (!installUrl) {
+        return "";
+      }
+
+      const parsedUrl = new URL(installUrl);
+      return parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:"
+        ? parsedUrl.origin
+        : "";
+    } catch {
+      return "";
+    }
   }
 
   function getTrustedTypes() {
@@ -106,11 +121,10 @@
 
   function isBookmarkWebOrigin(win) {
     const hostname = win?.location?.hostname || globalThis.location?.hostname || "";
-    return (
-      hostname === "bookmark.keygenerator25.workers.dev" ||
-      hostname === "localhost" ||
-      hostname === "127.0.0.1"
-    );
+    const currentOrigin = win?.location?.origin || globalThis.location?.origin || "";
+    const bookmarkOrigin = getBookmarkAppOrigin();
+
+    return Boolean(bookmarkOrigin && currentOrigin === bookmarkOrigin) || hostname === "localhost" || hostname === "127.0.0.1";
   }
 
   function normalizeBaseUrl(value) {
@@ -141,6 +155,15 @@
       defaultFolderId: String(source.defaultFolderId || "").trim(),
       defaultTagIds: normalizeTagIds(source.defaultTagIds)
     };
+  }
+
+  function getBookmarkAppOrigin() {
+    return normalizeBaseUrl(loadSettings().apiBaseUrl) || INFERRED_BOOKMARK_ORIGIN;
+  }
+
+  function getBookmarkWebUrl() {
+    const bookmarkOrigin = getBookmarkAppOrigin();
+    return bookmarkOrigin ? `${bookmarkOrigin}/` : "";
   }
 
   function loadSettings() {
@@ -568,12 +591,18 @@
   }
 
   function openBookmarkMainPage() {
-    if (globalThis.location?.origin === new URL(BOOKMARK_WEB_URL).origin) {
+    const bookmarkWebUrl = getBookmarkWebUrl();
+    if (!bookmarkWebUrl) {
+      notify("설정 패널에서 API 주소를 먼저 입력해주세요.");
+      return;
+    }
+
+    if (globalThis.location?.origin === new URL(bookmarkWebUrl).origin) {
       return;
     }
 
     if (typeof GM_openInTab === "function") {
-      GM_openInTab(BOOKMARK_WEB_URL, {
+      GM_openInTab(bookmarkWebUrl, {
         active: true,
         insert: true,
         setParent: true
@@ -581,7 +610,7 @@
       return;
     }
 
-    const opened = globalThis.open?.(BOOKMARK_WEB_URL, "_blank");
+    const opened = globalThis.open?.(bookmarkWebUrl, "_blank");
     if (opened && typeof opened.focus === "function") {
       opened.focus();
       return;

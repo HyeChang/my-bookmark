@@ -6,14 +6,14 @@ describe("payloadToAuthenticatedUser", () => {
   it("maps a valid Firebase token payload to the app user shape", () => {
     const user = payloadToAuthenticatedUser(
       {
-        aud: "bookmark-web-e76c7",
-        iss: "https://securetoken.google.com/bookmark-web-e76c7",
+        aud: "bookmark-test-project",
+        iss: "https://securetoken.google.com/bookmark-test-project",
         sub: "firebase-user-1",
         email: "keygenerator25@gmail.com",
         name: "Bookmark Tester",
         picture: "https://example.com/avatar.png"
       },
-      "bookmark-web-e76c7"
+      "bookmark-test-project"
     );
 
     expect(user).toEqual({
@@ -33,7 +33,7 @@ describe("payloadToAuthenticatedUser", () => {
           sub: "firebase-user-1",
           email: "keygenerator25@gmail.com"
         },
-        "bookmark-web-e76c7"
+        "bookmark-test-project"
       )
     ).toThrowError("invalid_firebase_audience");
   });
@@ -42,12 +42,12 @@ describe("payloadToAuthenticatedUser", () => {
     expect(() =>
       payloadToAuthenticatedUser(
         {
-          aud: "bookmark-web-e76c7",
-          iss: "https://securetoken.google.com/bookmark-web-e76c7",
+          aud: "bookmark-test-project",
+          iss: "https://securetoken.google.com/bookmark-test-project",
           sub: "",
           email: "keygenerator25@gmail.com"
         },
-        "bookmark-web-e76c7"
+        "bookmark-test-project"
       )
     ).toThrowError("invalid_firebase_subject");
   });

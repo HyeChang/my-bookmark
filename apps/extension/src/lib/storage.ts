@@ -32,7 +32,7 @@ type ChromeStorageArea = {
 };
 
 export const defaultExtensionSettings: ExtensionSettings = {
-  apiBaseUrl: "https://bookmark.keygenerator25.workers.dev",
+  apiBaseUrl: "",
   token: "",
   defaultFolderId: "",
   defaultTagIds: [],
