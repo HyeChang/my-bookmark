@@ -2,6 +2,11 @@
 
 Self-hosted bookmark and memo manager built with Firebase Authentication, Cloudflare Workers, Cloudflare D1, and Cloudflare R2.
 
+## Setup Guides
+
+- 한국어: [docs/setup.ko.md](docs/setup.ko.md)
+- English: [docs/setup.en.md](docs/setup.en.md)
+
 ## What You Need
 
 - Node.js 20 or newer
@@ -23,6 +28,13 @@ Create local configuration files:
 npm run setup
 ```
 
+You can also choose a language directly:
+
+```bash
+npm run setup:ko
+npm run setup:en
+```
+
 Verify the generated configuration:
 
 ```bash
@@ -41,7 +53,7 @@ Deploy to Cloudflare:
 npm run deploy
 ```
 
-Detailed setup steps are in [docs/self-host.md](docs/self-host.md).
+Detailed setup steps are in the language-specific guides above.
 
 ## Local-Only Files
 
