@@ -7,6 +7,8 @@
   ],
   "scripts": {
     "setup": "node scripts/setup-self-host.mjs",
+    "setup:ko": "node scripts/setup-self-host.mjs --lang ko",
+    "setup:en": "node scripts/setup-self-host.mjs --lang en",
     "setup:check": "node scripts/setup-check.mjs",
     "dev:web": "npm run dev --workspace apps/web",
     "db:migrate:local": "npx wrangler d1 migrations apply bookmark --local",
