@@ -202,6 +202,216 @@ export type BookmarkAssetBatchListResponse = {
   assetsByBookmarkId: Record<string, BookmarkAsset[]>;
 };
 
+export type MemoSortMode = "updated_desc" | "updated_asc" | "title_asc" | "title_desc";
+export type MemoViewMode = "list" | "card";
+
+export type MemoRichContent = {
+  type: "doc";
+  content?: unknown[];
+};
+
+export type Memo = {
+  id: string;
+  folderId: string | null;
+  tagIds: string[];
+  title: string;
+  contentJson: MemoRichContent;
+  contentText: string;
+  isFavorite: boolean;
+  isHidden: boolean;
+  isLocked: boolean;
+  memoColor: string | null;
+  assetCount: number;
+  coverAsset: MemoAsset | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateMemoRequest = {
+  folderId?: string | null;
+  tagIds?: string[];
+  title: string;
+  contentJson: MemoRichContent;
+  contentText: string;
+  isFavorite?: boolean;
+  isHidden?: boolean;
+  isLocked?: boolean;
+  lockPassword?: string | null;
+  memoColor?: string | null;
+};
+
+export type UpdateMemoRequest = {
+  folderId?: string | null;
+  tagIds?: string[];
+  title?: string;
+  contentJson?: MemoRichContent;
+  contentText?: string;
+  isFavorite?: boolean;
+  isHidden?: boolean;
+  isLocked?: boolean;
+  lockPassword?: string | null;
+  memoColor?: string | null;
+};
+
+export type MemoResponse = {
+  memo: Memo;
+};
+
+export type MemoListRequest = {
+  query?: string;
+  folderId?: string | null;
+  includeDescendantFolders?: boolean;
+  tagId?: string;
+  favorite?: boolean;
+  includeHidden?: boolean;
+  includeLocked?: boolean;
+  sort?: MemoSortMode;
+  limit?: number;
+  offset?: number;
+};
+
+export type MemoListResponse = {
+  memos: Memo[];
+  pagination?: {
+    limit: number;
+    offset: number;
+    total: number;
+    hasMore: boolean;
+  };
+};
+
+export type MemoDeleteResponse = {
+  ok: true;
+};
+
+export type MemoLockStatusResponse = {
+  isConfigured: boolean;
+  isUnlocked: boolean;
+};
+
+export type MemoLockPasswordRequest = {
+  password: string;
+};
+
+export type MemoLockResponse = {
+  ok: true;
+  status: MemoLockStatusResponse;
+};
+
+export type MemoFolder = {
+  id: string;
+  parentFolderId: string | null;
+  name: string;
+  color: string | null;
+  icon: string | null;
+  isHidden?: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateMemoFolderRequest = {
+  parentFolderId?: string | null;
+  name: string;
+  color?: string | null;
+  icon?: string | null;
+  isHidden?: boolean;
+};
+
+export type UpdateMemoFolderRequest = {
+  parentFolderId?: string | null;
+  name?: string;
+  color?: string | null;
+  icon?: string | null;
+  isHidden?: boolean;
+};
+
+export type ReorderMemoFoldersRequest = {
+  parentFolderId?: string | null;
+  folderIds: string[];
+};
+
+export type MoveMemoFolderRequest = {
+  parentFolderId?: string | null;
+};
+
+export type MemoFolderResponse = {
+  folder: MemoFolder;
+};
+
+export type MemoFolderListResponse = {
+  folders: MemoFolder[];
+};
+
+export type MemoFolderDeleteResponse = {
+  ok: true;
+};
+
+export type MemoTag = {
+  id: string;
+  name: string;
+  color: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateMemoTagRequest = {
+  name: string;
+  color?: string | null;
+};
+
+export type UpdateMemoTagRequest = {
+  name?: string;
+  color?: string | null;
+};
+
+export type MemoTagResponse = {
+  tag: MemoTag;
+};
+
+export type MemoTagListResponse = {
+  tags: MemoTag[];
+};
+
+export type MemoTagDeleteResponse = {
+  ok: true;
+};
+
+export type MemoAsset = {
+  id: string;
+  memoId: string;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  sortOrder: number;
+  contentUrl: string;
+  thumbnailUrl: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateMemoAssetRequest = {
+  mimeType: string;
+  width?: number | null;
+  height?: number | null;
+};
+
+export type UpdateMemoAssetRequest = {
+  sortOrder?: number;
+};
+
+export type MemoAssetResponse = {
+  asset: MemoAsset;
+};
+
+export type MemoAssetListResponse = {
+  assets: MemoAsset[];
+};
+
+export type MemoAssetDeleteResponse = {
+  ok: true;
+};
+
 export type Folder = {
   id: string;
   name: string;

@@ -26,6 +26,15 @@ const loadExtensionTokenDialog = createDashboardDialogChunkLoader(() =>
 const loadBookmarkComposerDialog = createDashboardDialogChunkLoader(() =>
   import("./BookmarkComposerDialog")
 );
+const loadMemoComposerDialog = createDashboardDialogChunkLoader(() =>
+  import("./MemoComposerDialog").then((module) => {
+    module.preloadMemoComposerEditorChunk();
+    return module;
+  })
+);
+const loadMemoLockDialog = createDashboardDialogChunkLoader(() =>
+  import("./MemoLockDialog")
+);
 const loadFolderManagerDialog = createDashboardDialogChunkLoader(() =>
   import("./FolderManagerDialog")
 );
@@ -37,6 +46,8 @@ export const LazyInstallHelpDialog = lazy(loadInstallHelpDialog);
 export const LazyExtensionDownloadDialog = lazy(loadExtensionDownloadDialog);
 export const LazyExtensionTokenDialog = lazy(loadExtensionTokenDialog);
 export const LazyBookmarkComposerDialog = lazy(loadBookmarkComposerDialog);
+export const LazyMemoComposerDialog = lazy(loadMemoComposerDialog);
+export const LazyMemoLockDialog = lazy(loadMemoLockDialog);
 export const LazyFolderManagerDialog = lazy(loadFolderManagerDialog);
 export const LazyTagManagerDialog = lazy(loadTagManagerDialog);
 
@@ -45,6 +56,8 @@ export type DashboardDialogChunk =
   | "extensionDownload"
   | "extensionToken"
   | "bookmarkComposer"
+  | "memoComposer"
+  | "memoLock"
   | "folderManager"
   | "tagManager";
 
@@ -53,6 +66,8 @@ const dashboardDialogChunkLoaders: Record<DashboardDialogChunk, () => Promise<un
   extensionDownload: loadExtensionDownloadDialog,
   extensionToken: loadExtensionTokenDialog,
   bookmarkComposer: loadBookmarkComposerDialog,
+  memoComposer: loadMemoComposerDialog,
+  memoLock: loadMemoLockDialog,
   folderManager: loadFolderManagerDialog,
   tagManager: loadTagManagerDialog
 };

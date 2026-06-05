@@ -1,0 +1,227 @@
+.memo-rich-editor {
+  --memo-editor-search-sticky-top: 0.5rem;
+  display: grid;
+  gap: 0.55rem;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  min-block-size: 0;
+  color: var(--text-primary);
+}
+
+.memo-editor-toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.memo-editor-toolbar {
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 0.45rem;
+}
+
+.memo-editor-search {
+  align-items: center;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(12rem, 1fr) auto auto auto;
+  padding: 0.5rem;
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  top: var(--memo-editor-search-sticky-top, 0.5rem);
+  width: min(52rem, calc(100vw - 2rem));
+  z-index: 56;
+}
+
+.memo-editor-search span {
+  white-space: nowrap;
+}
+
+.memo-editor-font-size {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.memo-editor-font-size select,
+.memo-editor-search input {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.memo-editor-font-size select:focus,
+.memo-editor-search input:focus {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none;
+}
+
+.memo-editor-search input::placeholder {
+  color: var(--text-subtle);
+}
+
+.memo-editor-error {
+  border: 1px solid rgba(190, 18, 60, 0.3);
+  border-radius: 8px;
+  color: #be123c;
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+}
+
+.memo-editor-file-input {
+  inline-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.memo-editor-shell {
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  min-block-size: clamp(28rem, calc(100vh - 280px), 64rem);
+  min-height: clamp(28rem, calc(100vh - 280px), 64rem);
+  overflow: auto;
+}
+
+.memo-editor-content {
+  min-block-size: clamp(28rem, calc(100vh - 280px), 64rem);
+  min-height: clamp(28rem, calc(100vh - 280px), 64rem);
+  outline: 0;
+  padding: 1rem;
+}
+
+.memo-editor-content p {
+  margin: 0.35rem 0;
+}
+
+.memo-editor-content ul[data-type="taskList"] {
+  list-style: none;
+  margin: 0.4rem 0;
+  padding: 0;
+}
+
+.memo-editor-content li[data-type="taskItem"],
+.memo-editor-content li[data-checked] {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.45rem;
+}
+
+.memo-editor-content li[data-type="taskItem"] > label,
+.memo-editor-content li[data-checked] > label {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-block-size: 1.45em;
+}
+
+.memo-editor-content li[data-type="taskItem"] > div,
+.memo-editor-content li[data-checked] > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.memo-editor-content li[data-type="taskItem"] p,
+.memo-editor-content li[data-checked] p {
+  margin: 0;
+}
+
+.memo-editor-content li[data-checked="true"] p {
+  text-decoration: line-through;
+}
+
+.memo-editor-content img {
+  border-radius: 8px;
+  display: block;
+  max-inline-size: 100%;
+}
+
+.memo-editor-search-hit {
+  background: rgba(250, 204, 21, 0.32);
+  border-radius: 4px;
+  box-decoration-break: clone;
+  color: inherit;
+  padding-inline: 0.05em;
+}
+
+.memo-editor-search-hit.is-active {
+  background: #facc15;
+  color: #111827;
+}
+
+.app-theme-light .memo-rich-editor,
+.app-theme-light .memo-editor-shell,
+.app-theme-light .memo-editor-search,
+.app-theme-light .memo-editor-font-size select,
+.app-theme-light .memo-editor-search input {
+  border-color: #dfe3e8 !important;
+  background: #ffffff !important;
+  color: #20242b !important;
+}
+
+.app-theme-dark .memo-rich-editor,
+.app-theme-dark .memo-editor-shell,
+.app-theme-dark .memo-editor-search,
+.app-theme-dark .memo-editor-font-size select,
+.app-theme-dark .memo-editor-search input {
+  border-color: var(--border-soft) !important;
+  background: rgba(24, 31, 43, 0.96) !important;
+  color: var(--text-primary) !important;
+}
+
+@media (max-width: 720px) {
+  .memo-rich-editor {
+    --memo-editor-search-sticky-top: 0.5rem;
+    gap: 0.48rem;
+  }
+
+  .memo-editor-toolbar {
+    align-items: stretch;
+  }
+
+  .memo-editor-search {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+    left: max(0.7rem, env(safe-area-inset-left));
+    right: max(0.7rem, env(safe-area-inset-right));
+    width: auto;
+  }
+
+  .memo-editor-shell,
+  .memo-editor-content {
+    min-block-size: clamp(24rem, calc(100dvh - 25rem), 52rem);
+  }
+
+  .memo-editor-search input {
+    grid-column: 1 / -1;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .memo-editor-search span {
+    align-self: center;
+  }
+
+  .memo-editor-search .secondary-button {
+    min-width: 0;
+    padding-inline: 0.55rem;
+    width: 100%;
+  }
+}
+
+@media (min-width: 721px) {
+  .memo-rich-editor {
+    --memo-editor-search-sticky-top: calc(54px + 0.5rem);
+  }
+}

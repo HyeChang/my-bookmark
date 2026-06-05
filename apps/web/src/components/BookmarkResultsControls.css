@@ -6,6 +6,12 @@
   flex-wrap: wrap;
 }
 
+.bookmark-trash-empty-button {
+  min-height: 2rem;
+  padding-inline: 0.78rem;
+  white-space: nowrap;
+}
+
 .bookmark-page-size-control {
   display: inline-flex;
   align-items: center;

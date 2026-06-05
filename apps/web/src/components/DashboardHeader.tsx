@@ -12,10 +12,13 @@ type DashboardHeaderProps = {
   appThemeToggleLabel: string;
   isDarkAppTheme: boolean;
   isMobileHeaderMenuOpen: boolean;
+  isMemoView: boolean;
   isQuickActionsMenuOpen: boolean;
   quickActionSummary: string;
   sessionState: DashboardHeaderSessionState;
   shouldUseMobileSidebarPanels: boolean;
+  onBookmarkWorkspaceOpen: () => void;
+  onBookmarkWorkspacePreload: () => void;
   onCreateBookmark: () => void;
   onCreateBookmarkPreload: () => void;
   onExtensionDownloadPreload: () => void;
@@ -28,6 +31,9 @@ type DashboardHeaderProps = {
   onInstallHelpPreload: () => void;
   onLogout: DashboardHeaderAction;
   onMobileHeaderMenuOpenChange: Dispatch<SetStateAction<boolean>>;
+  onMemoCreate: () => void;
+  onMemoOpen: () => void;
+  onMemoPreload: () => void;
   onOpenExtensionDownloadDialog: () => void;
   onOpenExtensionTokenDialog: DashboardHeaderAction;
   onOpenFolderManager: () => void;
@@ -42,10 +48,13 @@ export function DashboardHeader({
   appThemeToggleLabel,
   isDarkAppTheme,
   isMobileHeaderMenuOpen,
+  isMemoView,
   isQuickActionsMenuOpen,
   quickActionSummary,
   sessionState,
   shouldUseMobileSidebarPanels,
+  onBookmarkWorkspaceOpen,
+  onBookmarkWorkspacePreload,
   onCreateBookmark,
   onCreateBookmarkPreload,
   onExtensionDownloadPreload,
@@ -58,6 +67,9 @@ export function DashboardHeader({
   onInstallHelpPreload,
   onLogout,
   onMobileHeaderMenuOpenChange,
+  onMemoCreate,
+  onMemoOpen,
+  onMemoPreload,
   onOpenExtensionDownloadDialog,
   onOpenExtensionTokenDialog,
   onOpenFolderManager,
@@ -67,6 +79,11 @@ export function DashboardHeader({
   onTagManagerPreload,
   onToggleAppTheme
 }: DashboardHeaderProps) {
+  const primaryCreateLabel = isMemoView ? "새 메모" : "새 북마크";
+  const mobilePrimaryCreateLabel = isMemoView ? "새 메모" : "북마크 등록";
+  const handlePrimaryCreate = isMemoView ? onMemoCreate : onCreateBookmark;
+  const handlePrimaryCreatePreload = isMemoView ? onMemoPreload : onCreateBookmarkPreload;
+
   return (
     <header className="app-hero">
       <button
@@ -86,6 +103,31 @@ export function DashboardHeader({
             <p className="hero-command-label">빠른 작업</p>
             <p className="hero-command-summary">{quickActionSummary}</p>
           </div>
+          <nav
+            aria-label="dashboard-view-navigation"
+            className="hero-command-view-navigation"
+          >
+            <button
+              type="button"
+              className="secondary-button"
+              onMouseEnter={onBookmarkWorkspacePreload}
+              onFocus={onBookmarkWorkspacePreload}
+              onPointerDown={onBookmarkWorkspacePreload}
+              onClick={onBookmarkWorkspaceOpen}
+            >
+              북마크
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onMouseEnter={onMemoPreload}
+              onFocus={onMemoPreload}
+              onPointerDown={onMemoPreload}
+              onClick={onMemoOpen}
+            >
+              메모
+            </button>
+          </nav>
           <div
             role="toolbar"
             aria-label="quick-actions-toolbar"
@@ -94,15 +136,15 @@ export function DashboardHeader({
             <button
               type="button"
               className="primary-button"
-              onMouseEnter={onCreateBookmarkPreload}
-              onFocus={onCreateBookmarkPreload}
-              onPointerDown={onCreateBookmarkPreload}
+              onMouseEnter={handlePrimaryCreatePreload}
+              onFocus={handlePrimaryCreatePreload}
+              onPointerDown={handlePrimaryCreatePreload}
               onClick={() => {
                 onQuickActionsMenuOpenChange(false);
-                onCreateBookmark();
+                handlePrimaryCreate();
               }}
             >
-              새 북마크
+              {primaryCreateLabel}
             </button>
             <div
               className="folder-action-menu-shell hero-command-menu-shell"
@@ -181,13 +223,13 @@ export function DashboardHeader({
             <button
               type="button"
               className="primary-button hero-mobile-create-button"
-              aria-label="북마크 등록"
-              onMouseEnter={onCreateBookmarkPreload}
-              onFocus={onCreateBookmarkPreload}
-              onPointerDown={onCreateBookmarkPreload}
-              onClick={onCreateBookmark}
+              aria-label={mobilePrimaryCreateLabel}
+              onMouseEnter={handlePrimaryCreatePreload}
+              onFocus={handlePrimaryCreatePreload}
+              onPointerDown={handlePrimaryCreatePreload}
+              onClick={handlePrimaryCreate}
             >
-              등록
+              {isMemoView ? "새 메모" : "등록"}
             </button>
             <div
               className="folder-action-menu-shell hero-mobile-menu-shell"
@@ -210,6 +252,32 @@ export function DashboardHeader({
                     <p className="session-label">계정</p>
                     <strong>{sessionState.user.email}</strong>
                   </div>
+                  <button
+                    type="button"
+                    className="secondary-button folder-action-menu-item"
+                    onMouseEnter={onBookmarkWorkspacePreload}
+                    onFocus={onBookmarkWorkspacePreload}
+                    onPointerDown={onBookmarkWorkspacePreload}
+                    onClick={() => {
+                      onMobileHeaderMenuOpenChange(false);
+                      onBookmarkWorkspaceOpen();
+                    }}
+                  >
+                    북마크
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button folder-action-menu-item"
+                    onMouseEnter={onMemoPreload}
+                    onFocus={onMemoPreload}
+                    onPointerDown={onMemoPreload}
+                    onClick={() => {
+                      onMobileHeaderMenuOpenChange(false);
+                      onMemoOpen();
+                    }}
+                  >
+                    메모
+                  </button>
                   <button
                     type="button"
                     className="secondary-button folder-action-menu-item"
