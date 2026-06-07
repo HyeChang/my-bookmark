@@ -608,3 +608,15 @@
   background: rgba(40, 48, 61, 0.86) !important;
   color: var(--text-primary) !important;
 }
+
+.app-theme-light .bookmark-detail-card.bookmark-detail-card-has-accent,
+.app-theme-dark .bookmark-detail-card.bookmark-detail-card-has-accent,
+.bookmark-detail-card.bookmark-detail-card-has-accent {
+  border-left: 3px solid var(--bookmark-accent-color) !important;
+}
+
+.app-theme-light .bookmark-detail-url-accent,
+.app-theme-dark .bookmark-detail-url-accent,
+.bookmark-detail-url-accent {
+  color: var(--bookmark-url-color) !important;
+}

@@ -486,3 +486,15 @@
   background: rgba(158, 199, 255, 0.14) !important;
   color: var(--accent) !important;
 }
+
+.app-theme-light .home-favorite-card.home-favorite-card-has-accent,
+.app-theme-dark .home-favorite-card.home-favorite-card-has-accent,
+.home-favorite-card.home-favorite-card-has-accent {
+  border-left: 3px solid var(--bookmark-accent-color) !important;
+}
+
+.app-theme-light .home-favorite-url-accent,
+.app-theme-dark .home-favorite-url-accent,
+.home-favorite-url-accent {
+  color: var(--bookmark-url-color) !important;
+}

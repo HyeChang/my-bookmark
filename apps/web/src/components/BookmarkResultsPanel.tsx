@@ -503,6 +503,13 @@ function BookmarkListRow({
     shouldShowInfo
   } = row;
   const rowTitle = bookmark.displayTitle || bookmark.url;
+  const accentStyle: CSSProperties | undefined =
+    bookmark.bookmarkColor || bookmark.urlColor
+      ? ({
+          "--bookmark-accent-color": bookmark.bookmarkColor ?? undefined,
+          "--bookmark-url-color": bookmark.urlColor ?? undefined
+        } as CSSProperties)
+      : undefined;
   const handleActionMenuToggle = (event: MouseEvent<HTMLButtonElement>) => {
     if (!isActionMenuOpen && typeof window !== "undefined") {
       updateActionMenuPlacement(event);
@@ -515,16 +522,11 @@ function BookmarkListRow({
     <li
       className={`bookmark-card bookmark-list-row bookmark-list-row-view-${bookmarkViewMode}${
         isSelected ? " bookmark-list-row-selected" : ""
-      }${shouldShowListCover ? " bookmark-list-row-has-cover" : ""}`}
+      }${shouldShowListCover ? " bookmark-list-row-has-cover" : ""}${
+        bookmark.bookmarkColor ? " bookmark-list-row-has-accent" : ""
+      }`}
       data-open-action-menu={isActionMenuOpen ? "true" : undefined}
-      style={
-        bookmark.bookmarkColor
-          ? {
-              borderLeftColor: bookmark.bookmarkColor,
-              borderLeftWidth: "3px"
-            }
-          : undefined
-      }
+      style={accentStyle}
     >
       {shouldShowListCover && coverAsset ? (
         <div className="asset-grid bookmark-row-assets bookmark-row-list-thumbnail">
@@ -570,9 +572,10 @@ function BookmarkListRow({
             ) : null}
             {shouldShowInfo && !shouldUseCompactMobileCards ? (
               <p
-                className="muted-text bookmark-row-url"
+                className={`muted-text bookmark-row-url${
+                  bookmark.urlColor ? " bookmark-row-url-accent" : ""
+                }`}
                 title={bookmark.url}
-                style={bookmark.urlColor ? { color: bookmark.urlColor } : undefined}
               >
                 {bookmark.url}
               </p>
@@ -588,7 +591,14 @@ function BookmarkListRow({
             {previewText}
           </p>
         ) : shouldShowDescription && shouldUseCompactMobileCards ? (
-          <p className="bookmark-row-summary bookmark-card-summary">{bookmark.url}</p>
+          <p
+            className={`bookmark-row-summary bookmark-card-summary${
+              bookmark.urlColor ? " bookmark-row-url-accent" : ""
+            }`}
+            title={bookmark.url}
+          >
+            {bookmark.url}
+          </p>
         ) : null}
       </div>
       {shouldShowInfo || shouldShowTags ? (

@@ -1,4 +1,4 @@
-import { memo, type MouseEvent, type ReactNode } from "react";
+import { memo, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import type { Bookmark, BookmarkAsset } from "@bookmark/shared";
 import {
   getBookmarkAssetCardImageUrl,
@@ -75,6 +75,13 @@ function HomeFavoriteCard({
     menuId
   } = card;
   const cardTitle = bookmark.displayTitle || bookmark.url;
+  const accentStyle: CSSProperties | undefined =
+    bookmark.bookmarkColor || bookmark.urlColor
+      ? ({
+          "--bookmark-accent-color": bookmark.bookmarkColor ?? undefined,
+          "--bookmark-url-color": bookmark.urlColor ?? undefined
+        } as CSSProperties)
+      : undefined;
   const { actionMenuPlacement, updateActionMenuPlacement } =
     useActionMenuPlacement("below", HOME_FAVORITE_ACTION_MENU_ESTIMATED_HEIGHT);
   const handleActionMenuToggle = (event: MouseEvent<HTMLButtonElement>) => {
@@ -87,16 +94,11 @@ function HomeFavoriteCard({
 
   return (
     <li
-      className="bookmark-card home-favorite-card"
+      className={`bookmark-card home-favorite-card${
+        bookmark.bookmarkColor ? " home-favorite-card-has-accent" : ""
+      }`}
       data-open-action-menu={isActionMenuOpen ? "true" : undefined}
-      style={
-        bookmark.bookmarkColor
-          ? {
-              borderLeftColor: bookmark.bookmarkColor,
-              borderLeftWidth: "3px"
-            }
-          : undefined
-      }
+      style={accentStyle}
     >
       {coverAsset ? (
         <div className="asset-grid home-favorite-cover">
@@ -116,9 +118,10 @@ function HomeFavoriteCard({
           {renderHiddenBookmarkIndicator(bookmark.isHidden === true)}
         </div>
         <p
-          className="muted-text home-favorite-url"
+          className={`muted-text home-favorite-url${
+            bookmark.urlColor ? " home-favorite-url-accent" : ""
+          }`}
           title={bookmark.url}
-          style={bookmark.urlColor ? { color: bookmark.urlColor } : undefined}
         >
           {bookmark.url}
         </p>
