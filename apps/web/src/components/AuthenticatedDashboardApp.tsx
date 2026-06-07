@@ -4780,7 +4780,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   function getExtensionConnectionApiBaseUrl() {
-    return globalThis.location?.origin || "https://bookmark.keygenerator25.workers.dev";
+    return globalThis.location?.origin || "";
   }
 
   function createExtensionConnectionTokenLabel() {
