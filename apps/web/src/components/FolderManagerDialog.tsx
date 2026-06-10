@@ -456,17 +456,6 @@ export default function FolderManagerDialog({
                     </div>
                   ) : null}
                 </div>
-                <button
-                  type="button"
-                  className="secondary-button folder-tree-child-create"
-                  aria-label={`${folder.name} 하위 폴더 추가`}
-                  onClick={() => {
-                    closeInlineFolderMenus();
-                    onBeginChildFolderCreate(folder);
-                  }}
-                >
-                  + 하위
-                </button>
                 <div
                   className="folder-action-menu-shell folder-tree-inline-menu-shell"
                   data-open-menu-shell={isMoveMenuOpen ? "true" : undefined}
@@ -611,15 +600,19 @@ export default function FolderManagerDialog({
         role="dialog"
         aria-modal="true"
         aria-label="folder-manager-dialog"
-        className="surface-card overlay-dialog-shell"
+        className="surface-card overlay-dialog-shell folder-manager-dialog-shell"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="overlay-dialog-header">
+        <div className="overlay-dialog-header folder-manager-dialog-header">
           <div className="overlay-dialog-title">
             <p className="workspace-panel-kicker">구조</p>
             <h2>{isEditing ? "폴더 수정" : "폴더 관리"}</h2>
           </div>
-          <button type="button" className="ghost-button" onClick={() => onClose()}>
+          <button
+            type="button"
+            className="ghost-button folder-manager-dialog-close"
+            onClick={() => onClose()}
+          >
             닫기
           </button>
         </div>
