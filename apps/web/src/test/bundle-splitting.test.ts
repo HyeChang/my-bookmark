@@ -314,6 +314,22 @@ describe("bundle splitting", () => {
     expect(exportSource).toContain("new Blob([JSON.stringify");
   });
 
+  it("loads memo export generation only when export is requested", () => {
+    const dashboardSource = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.tsx"),
+      "utf8"
+    );
+    const exportSource = readFileSync(
+      join(process.cwd(), "src", "lib", "memo-export.ts"),
+      "utf8"
+    );
+
+    expect(dashboardSource).toContain('import("../lib/memo-export")');
+    expect(dashboardSource).not.toContain("memo-backup-");
+    expect(exportSource).toContain("export function downloadMemoExport");
+    expect(exportSource).toContain("new Blob([JSON.stringify");
+  });
+
   it("loads advanced bookmark search fields only when advanced filters open", () => {
     const bookmarkResultsSource = readFileSync(
       join(process.cwd(), "src", "components", "BookmarkResultsPanel.tsx"),

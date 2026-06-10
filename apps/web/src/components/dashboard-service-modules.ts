@@ -337,6 +337,10 @@ function loadMemo(...args: Parameters<MemosModule["loadMemo"]>) {
   return callDeferredModule(memosModule, (module) => module.loadMemo, args);
 }
 
+function loadMemoAssets(...args: Parameters<MemoAssetsModule["loadMemoAssets"]>) {
+  return callDeferredModule(memoAssetsModule, (module) => module.loadMemoAssets, args);
+}
+
 function loadMemoTags(...args: Parameters<MemosModule["loadMemoTags"]>) {
   return callDeferredModule(memosModule, (module) => module.loadMemoTags, args);
 }
@@ -497,6 +501,7 @@ export {
   loadBookmarks,
   loadExtensionTokens,
   loadFolders,
+  loadMemoAssets,
   loadMemoFolders,
   loadMemoLockStatus,
   loadMemo,

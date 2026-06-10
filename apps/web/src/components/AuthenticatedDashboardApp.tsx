@@ -94,6 +94,7 @@ import {
   loadExtensionTokens,
   loadFolders,
   loadMemo,
+  loadMemoAssets,
   loadMemoFolders,
   loadMemoLockStatus,
   loadMemoPage,
@@ -318,6 +319,7 @@ const USERSCRIPT_DOWNLOAD_PATH = "/downloads/bookmark-saver.user.js?v=0.1.11";
 const APP_THEME_STORAGE_KEY = "bookmark-theme";
 const MEMO_VIEW_MODE_STORAGE_KEY = "memo-view-mode:v1";
 const MEMO_PAGE_SIZE = 20;
+const MEMO_EXPORT_PAGE_SIZE = 100;
 const MEMO_PAGE_CACHE_LIMIT = 12;
 const DEFAULT_MEMO_FOLDER_FILTER_ID = "unfiled";
 const MEMO_SEARCH_DEBOUNCE_MS = 300;
@@ -4286,6 +4288,72 @@ export default function AuthenticatedDashboardApp({
     }
   }
 
+  async function loadAllMemosForExport() {
+    const exportMemos: Memo[] = [];
+    let offset = 0;
+
+    while (true) {
+      const memoPage = await loadMemoPage({
+        includeHidden: true,
+        includeLocked: true,
+        limit: MEMO_EXPORT_PAGE_SIZE,
+        offset
+      });
+      exportMemos.push(...memoPage.memos);
+
+      if (!memoPage.pagination?.hasMore || memoPage.memos.length === 0) {
+        break;
+      }
+
+      offset += memoPage.pagination.limit;
+    }
+
+    return Promise.all(
+      exportMemos.map(async (memo) => {
+        try {
+          return await loadMemo(memo.id);
+        } catch {
+          return memo;
+        }
+      })
+    );
+  }
+
+  async function handleMemoExport() {
+    try {
+      setErrorMessage(null);
+      const [exportMemos, exportFolders, exportTags] = await Promise.all([
+        loadAllMemosForExport(),
+        loadMemoFolders(),
+        loadMemoTags()
+      ]);
+      const memoAssetsByMemoIdEntries = await Promise.all(
+        exportMemos.map(async (memo) => {
+          if (memo.assetCount <= 0) {
+            return [memo.id, []] as const;
+          }
+
+          return [memo.id, await loadMemoAssets(memo.id)] as const;
+        })
+      );
+      const exportPayload = {
+        exportedAt: new Date().toISOString(),
+        memos: exportMemos,
+        folders: exportFolders,
+        tags: exportTags,
+        memoAssetsByMemoId: Object.fromEntries(memoAssetsByMemoIdEntries)
+      };
+      const { downloadMemoExport } = await import("../lib/memo-export");
+      downloadMemoExport(exportPayload);
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "메모 내보내기를 완료하지 못했습니다."
+        );
+      });
+    }
+  }
+
   function resetBookmarkDetailPreviewState() {
     bookmarkPreviewRequestIdRef.current += 1;
     setBookmarkDetailActiveTab("detail");
@@ -6892,6 +6960,7 @@ export default function AuthenticatedDashboardApp({
           onCreateMemo={beginMemoCreate}
           onDeleteMemo={handleMemoDelete}
           onEditMemo={beginMemoEdit}
+          onExportMemos={handleMemoExport}
           onFavoriteOnlyChange={setMemoFavoriteOnly}
           onMemoComposerPreload={() => preloadDashboardDialogChunk("memoComposer")}
           onHiddenMemosToggle={handleToggleHiddenMemos}

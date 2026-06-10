@@ -27,6 +27,7 @@ export type MemoPanelProps = {
   onCreateMemo: () => MemoPanelActionResult;
   onDeleteMemo: (memo: Memo) => MemoPanelActionResult;
   onEditMemo: (memo: Memo) => MemoPanelActionResult;
+  onExportMemos: () => MemoPanelActionResult;
   onFavoriteOnlyChange: (value: boolean) => void;
   onMemoComposerPreload?: () => void;
   onHiddenMemosToggle: () => MemoPanelActionResult;
@@ -189,6 +190,7 @@ export default function MemoPanel({
   onCreateMemo,
   onDeleteMemo,
   onEditMemo,
+  onExportMemos,
   onFavoriteOnlyChange,
   onMemoComposerPreload,
   onHiddenMemosToggle,
@@ -226,6 +228,13 @@ export default function MemoPanel({
             onClick={() => void onHiddenMemosToggle()}
           >
             <span aria-hidden="true">{showHiddenMemos ? "🔓" : "🔒"}</span>
+          </button>
+          <button
+            type="button"
+            className="secondary-button memo-export-button"
+            onClick={() => void onExportMemos()}
+          >
+            메모 내보내기
           </button>
           <button
             type="button"

@@ -3746,6 +3746,325 @@ describe("bookmark dashboard", () => {
     });
   });
 
+  it("exports memos, memo folders, memo tags, and memo asset metadata as a backup json file", async () => {
+    const createObjectUrlSpy = vi.fn().mockReturnValue("blob:memo-export");
+    const revokeObjectUrlSpy = vi.fn();
+    const anchorClickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    const mockUrlConstructor = Object.assign(class extends URL {}, {
+      createObjectURL: createObjectUrlSpy,
+      revokeObjectURL: revokeObjectUrlSpy
+    });
+    vi.stubGlobal("URL", mockUrlConstructor);
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/memos/lock/status" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            isConfigured: false,
+            isUnlocked: false
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "memo-folder-1",
+                parentFolderId: null,
+                name: "Memo folder",
+                color: "#2563eb",
+                icon: "folder",
+                isHidden: false,
+                sortOrder: 0,
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/tags" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            tags: [
+              {
+                id: "memo-tag-1",
+                name: "memo-tag",
+                color: "#16a34a",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (
+        (url === "/api/memos?folderId=null&limit=20&offset=0" ||
+          url === "/api/memos?folderId=null&includeHidden=1&limit=20&offset=0") &&
+        !init?.method
+      ) {
+        return new Response(
+          JSON.stringify({
+            memos: [],
+            pagination: {
+              limit: 20,
+              offset: 0,
+              total: 0,
+              hasMore: false
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (
+        url === "/api/memos?includeHidden=1&includeLocked=1&limit=100&offset=0" &&
+        !init?.method
+      ) {
+        return new Response(
+          JSON.stringify({
+            memos: [
+              {
+                id: "memo-1",
+                folderId: "memo-folder-1",
+                tagIds: ["memo-tag-1"],
+                title: "Export memo",
+                contentJson: {
+                  type: "doc"
+                },
+                contentText: "Memo summary",
+                isFavorite: true,
+                isHidden: true,
+                isLocked: false,
+                memoColor: "#f97316",
+                assetCount: 1,
+                coverAsset: null,
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:30:00.000Z"
+              }
+            ],
+            pagination: {
+              limit: 100,
+              offset: 0,
+              total: 1,
+              hasMore: false
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/memo-1" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            memo: {
+              id: "memo-1",
+              folderId: "memo-folder-1",
+              tagIds: ["memo-tag-1"],
+              title: "Export memo",
+              contentJson: {
+                type: "doc",
+                content: [
+                  {
+                    type: "paragraph",
+                    content: [{ type: "text", text: "Memo full body" }]
+                  }
+                ]
+              },
+              contentText: "Memo full body",
+              isFavorite: true,
+              isHidden: true,
+              isLocked: false,
+              memoColor: "#f97316",
+              assetCount: 1,
+              coverAsset: null,
+              createdAt: "2026-04-13T08:00:00.000Z",
+              updatedAt: "2026-04-13T08:30:00.000Z"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/memo-1/assets" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            assets: [
+              {
+                id: "memo-asset-1",
+                memoId: "memo-1",
+                mimeType: "image/webp",
+                width: 640,
+                height: 360,
+                sortOrder: 0,
+                contentUrl: "/api/memos/memo-1/assets/memo-asset-1/content",
+                thumbnailUrl: "/api/memos/memo-1/assets/memo-asset-1/thumbnail",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /^메모$/i }));
+    const memoWorkspace = await screen.findByRole("region", { name: /memo-workspace/i });
+
+    fireEvent.click(within(memoWorkspace).getByRole("button", { name: /메모 내보내기/i }));
+
+    await waitFor(() => {
+      expect(createObjectUrlSpy).toHaveBeenCalledTimes(1);
+    });
+    expect(anchorClickSpy).toHaveBeenCalledTimes(1);
+    expect(revokeObjectUrlSpy).toHaveBeenCalledWith("blob:memo-export");
+
+    const exportBlob = createObjectUrlSpy.mock.calls[0]?.[0] as Blob;
+    const exportPayload = JSON.parse(await exportBlob.text());
+
+    expect(exportPayload).toMatchObject({
+      memos: [
+        expect.objectContaining({
+          id: "memo-1",
+          folderId: "memo-folder-1",
+          title: "Export memo",
+          contentText: "Memo full body"
+        })
+      ],
+      folders: [
+        expect.objectContaining({
+          id: "memo-folder-1",
+          name: "Memo folder"
+        })
+      ],
+      tags: [
+        expect.objectContaining({
+          id: "memo-tag-1",
+          name: "memo-tag"
+        })
+      ],
+      memoAssetsByMemoId: {
+        "memo-1": [
+          expect.objectContaining({
+            id: "memo-asset-1",
+            mimeType: "image/webp"
+          })
+        ]
+      }
+    });
+  });
+
   it("creates a bookmark with selected tags and appends it to the list", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input.url;
