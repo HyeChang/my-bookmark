@@ -209,4 +209,194 @@ describe("memo import/export", () => {
       skippedAssets: 0
     });
   });
+
+  it("round-trips nested folders and image-backed memos with remapped ids", async () => {
+    const parentFolder = createFolder({
+      id: "memo-folder-parent",
+      name: "Memo parent",
+      sortOrder: 10
+    });
+    const childFolder = createFolder({
+      id: "memo-folder-child",
+      parentFolderId: "memo-folder-parent",
+      name: "Memo child",
+      sortOrder: 0
+    });
+    const nestedMemo = createMemo({
+      id: "memo-child",
+      folderId: "memo-folder-child",
+      title: "Nested memo",
+      contentJson: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Before image" }]
+          },
+          {
+            type: "image",
+            attrs: {
+              src: "/api/memos/memo-child/assets/asset-child/content"
+            }
+          }
+        ]
+      }
+    });
+    const nestedAsset = createAsset({
+      id: "asset-child",
+      memoId: "memo-child",
+      contentUrl: "/api/memos/memo-child/assets/asset-child/content",
+      thumbnailUrl: "/api/memos/memo-child/assets/asset-child/thumbnail"
+    });
+
+    const zipBlob = await createMemoBackupZipBlob(
+      {
+        exportedAt: "2026-06-10T00:00:00.000Z",
+        memos: [nestedMemo],
+        folders: [childFolder, parentFolder],
+        tags: [createTag()],
+        memoAssetsByMemoId: {
+          "memo-child": [nestedAsset]
+        }
+      },
+      {
+        fetchAssetBlob: async (url) =>
+          new Blob([url.includes("thumbnail") ? "nested-memo-thumbnail" : "nested-memo-content"], {
+            type: "image/webp"
+          })
+      }
+    );
+    const zip = await JSZip.loadAsync(zipBlob);
+    const manifest = JSON.parse(await zip.file("manifest.json")!.async("text"));
+
+    expect(manifest).toMatchObject({
+      folders: [
+        expect.objectContaining({
+          id: "memo-folder-child",
+          parentFolderId: "memo-folder-parent"
+        }),
+        expect.objectContaining({
+          id: "memo-folder-parent",
+          parentFolderId: null
+        })
+      ],
+      memos: [
+        expect.objectContaining({
+          id: "memo-child",
+          folderId: "memo-folder-child"
+        })
+      ],
+      assetFilesByMemoId: {
+        "memo-child": [
+          expect.objectContaining({
+            assetId: "asset-child",
+            contentPath: "assets/memos/memo-child/asset-child/content",
+            thumbnailPath: "assets/memos/memo-child/asset-child/thumbnail"
+          })
+        ]
+      }
+    });
+    expect(await zip.file("assets/memos/memo-child/asset-child/content")!.async("string")).toBe(
+      "nested-memo-content"
+    );
+    expect(await zip.file("assets/memos/memo-child/asset-child/thumbnail")!.async("string")).toBe(
+      "nested-memo-thumbnail"
+    );
+
+    const createMemoFolderAction = vi.fn(async (input) =>
+      createFolder({
+        id: input.name === "Memo parent" ? "new-memo-folder-parent" : "new-memo-folder-child",
+        name: input.name,
+        parentFolderId: input.parentFolderId,
+        color: input.color,
+        icon: input.icon,
+        isHidden: input.isHidden
+      })
+    );
+    const createMemoTagAction = vi.fn(async () => createTag({ id: "new-memo-tag-1" }));
+    const createMemoAction = vi.fn(async (input) =>
+      createMemo({
+        id: "new-memo-child",
+        folderId: input.folderId,
+        tagIds: input.tagIds,
+        contentJson: input.contentJson
+      })
+    );
+    const updateMemoAction = vi.fn(async (_memoId: string, input) =>
+      createMemo({
+        id: "new-memo-child",
+        contentJson: input.contentJson
+      })
+    );
+    const uploadPreparedMemoAssetAction = vi.fn(async () =>
+      createAsset({
+        id: "new-memo-asset-child",
+        memoId: "new-memo-child",
+        contentUrl: "/api/memos/new-memo-child/assets/new-memo-asset-child/content",
+        thumbnailUrl: "/api/memos/new-memo-child/assets/new-memo-asset-child/thumbnail"
+      })
+    );
+
+    const result = await importMemoBackupZipBlob(zipBlob, {
+      createMemoFolder: createMemoFolderAction,
+      createMemoTag: createMemoTagAction,
+      createMemo: createMemoAction,
+      updateMemo: updateMemoAction,
+      uploadPreparedMemoAsset: uploadPreparedMemoAssetAction
+    });
+
+    expect(createMemoFolderAction).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        name: "Memo parent",
+        parentFolderId: null
+      })
+    );
+    expect(createMemoFolderAction).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        name: "Memo child",
+        parentFolderId: "new-memo-folder-parent"
+      })
+    );
+    expect(createMemoAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Nested memo",
+        folderId: "new-memo-folder-child",
+        tagIds: ["new-memo-tag-1"]
+      })
+    );
+    const preparedFile = uploadPreparedMemoAssetAction.mock.calls[0]?.[1];
+    expect(preparedFile.file.name).toBe("asset-child.webp");
+    expect(preparedFile.thumbnail.name).toBe("asset-child-thumbnail.webp");
+    await expect(preparedFile.file.text()).resolves.toBe("nested-memo-content");
+    await expect(preparedFile.thumbnail.text()).resolves.toBe("nested-memo-thumbnail");
+    expect(updateMemoAction).toHaveBeenCalledWith(
+      "new-memo-child",
+      expect.objectContaining({
+        contentJson: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "Before image" }]
+            },
+            {
+              type: "image",
+              attrs: {
+                src: "/api/memos/new-memo-child/assets/new-memo-asset-child/content"
+              }
+            }
+          ]
+        }
+      })
+    );
+    expect(result).toEqual({
+      folders: 2,
+      tags: 1,
+      memos: 1,
+      assets: 1,
+      skippedAssets: 0
+    });
+  });
 });

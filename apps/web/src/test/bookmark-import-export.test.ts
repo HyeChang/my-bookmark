@@ -190,4 +190,147 @@ describe("bookmark import/export", () => {
       skippedAssets: 0
     });
   });
+
+  it("round-trips nested folders and image-backed bookmarks with remapped ids", async () => {
+    const parentFolder = createFolder({
+      id: "folder-parent",
+      name: "Parent",
+      sortOrder: 10
+    });
+    const childFolder = createFolder({
+      id: "folder-child",
+      name: "Child",
+      parentFolderId: "folder-parent",
+      sortOrder: 0
+    });
+    const nestedBookmark = createBookmark({
+      id: "bookmark-child",
+      folderId: "folder-child",
+      url: "https://example.com/nested"
+    });
+    const nestedAsset = createAsset({
+      id: "asset-child",
+      bookmarkId: "bookmark-child",
+      contentUrl: "/api/bookmarks/bookmark-child/assets/asset-child/content",
+      thumbnailUrl: "/api/bookmarks/bookmark-child/assets/asset-child/thumbnail"
+    });
+
+    const zipBlob = await createBookmarkBackupZipBlob(
+      {
+        exportedAt: "2026-06-10T00:00:00.000Z",
+        bookmarks: [nestedBookmark],
+        folders: [childFolder, parentFolder],
+        tags: [createTag()],
+        bookmarkAssetsByBookmarkId: {
+          "bookmark-child": [nestedAsset]
+        }
+      },
+      {
+        fetchAssetBlob: async (url) =>
+          new Blob([url.includes("thumbnail") ? "nested-thumbnail" : "nested-content"], {
+            type: "image/png"
+          })
+      }
+    );
+    const zip = await JSZip.loadAsync(zipBlob);
+    const manifest = JSON.parse(await zip.file("manifest.json")!.async("text"));
+
+    expect(manifest).toMatchObject({
+      folders: [
+        expect.objectContaining({
+          id: "folder-child",
+          parentFolderId: "folder-parent"
+        }),
+        expect.objectContaining({
+          id: "folder-parent",
+          parentFolderId: null
+        })
+      ],
+      bookmarks: [
+        expect.objectContaining({
+          id: "bookmark-child",
+          folderId: "folder-child"
+        })
+      ],
+      assetFilesByBookmarkId: {
+        "bookmark-child": [
+          expect.objectContaining({
+            assetId: "asset-child",
+            contentPath: "assets/bookmarks/bookmark-child/asset-child/content",
+            thumbnailPath: "assets/bookmarks/bookmark-child/asset-child/thumbnail"
+          })
+        ]
+      }
+    });
+    expect(
+      await zip.file("assets/bookmarks/bookmark-child/asset-child/content")!.async("string")
+    ).toBe("nested-content");
+    expect(
+      await zip.file("assets/bookmarks/bookmark-child/asset-child/thumbnail")!.async("string")
+    ).toBe("nested-thumbnail");
+
+    const createFolderAction = vi.fn(async (input) =>
+      createFolder({
+        id: input.name === "Parent" ? "new-folder-parent" : "new-folder-child",
+        name: input.name,
+        parentFolderId: input.parentFolderId,
+        color: input.color,
+        icon: input.icon,
+        isHidden: input.isHidden
+      })
+    );
+    const createTagAction = vi.fn(async () => createTag({ id: "new-tag-1" }));
+    const createBookmarkAction = vi.fn(async (input) =>
+      createBookmark({
+        id: "new-bookmark-child",
+        folderId: input.folderId,
+        tagIds: input.tagIds
+      })
+    );
+    const uploadBookmarkAssetAction = vi.fn(async () =>
+      createAsset({
+        id: "new-asset-child",
+        bookmarkId: "new-bookmark-child"
+      })
+    );
+
+    const result = await importBookmarkBackupZipBlob(zipBlob, {
+      createFolder: createFolderAction,
+      createTag: createTagAction,
+      createBookmark: createBookmarkAction,
+      uploadBookmarkAsset: uploadBookmarkAssetAction
+    });
+
+    expect(createFolderAction).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        name: "Parent",
+        parentFolderId: null
+      })
+    );
+    expect(createFolderAction).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        name: "Child",
+        parentFolderId: "new-folder-parent"
+      })
+    );
+    expect(createBookmarkAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://example.com/nested",
+        folderId: "new-folder-child",
+        tagIds: ["new-tag-1"]
+      })
+    );
+    const uploadedFile = uploadBookmarkAssetAction.mock.calls[0]?.[1] as File;
+    expect(uploadedFile.name).toBe("asset-child.png");
+    await expect(uploadedFile.text()).resolves.toBe("nested-content");
+    expect(result).toEqual({
+      folders: 2,
+      tags: 1,
+      bookmarks: 1,
+      assets: 1,
+      skippedAssets: 0
+    });
+  });
 });
