@@ -325,6 +325,10 @@ function loadMemoFolders(...args: Parameters<MemosModule["loadMemoFolders"]>) {
   return callDeferredModule(memosModule, (module) => module.loadMemoFolders, args);
 }
 
+function loadMemoCounts(...args: Parameters<MemosModule["loadMemoCounts"]>) {
+  return callDeferredModule(memosModule, (module) => module.loadMemoCounts, args);
+}
+
 function loadMemoLockStatus(...args: Parameters<MemosModule["loadMemoLockStatus"]>) {
   return callDeferredModule(memosModule, (module) => module.loadMemoLockStatus, args);
 }
@@ -507,6 +511,7 @@ export {
   loadExtensionTokens,
   loadFolders,
   loadMemoAssets,
+  loadMemoCounts,
   loadMemoFolders,
   loadMemoLockStatus,
   loadMemo,

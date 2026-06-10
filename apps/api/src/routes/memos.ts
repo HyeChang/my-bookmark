@@ -4,6 +4,7 @@ import type {
   CreateMemoTagRequest,
   MemoAssetListResponse,
   MemoAssetResponse,
+  MemoCountsResponse,
   MemoDeleteResponse,
   MemoFolderDeleteResponse,
   MemoFolderListResponse,
@@ -55,6 +56,7 @@ import {
   type MemoTagRepository
 } from "../lib/repositories/memo-tags";
 import {
+  aggregateMemoCounts,
   createMemoRepository,
   createEmptyMemoContent,
   summarizeMemoContentText,
@@ -389,6 +391,38 @@ function toMemoListResponse(
   };
 }
 
+async function aggregateMemoCountsByPaging(repository: MemoRepository, userId: string) {
+  const memos: Array<Parameters<typeof aggregateMemoCounts>[0][number]> = [];
+  const limit = 100;
+  let offset = 0;
+
+  while (true) {
+    const page = await repository.pageByUser(
+      userId,
+      {
+        includeHidden: true,
+        includeLocked: true
+      },
+      {
+        contentMode: "summary",
+        pagination: {
+          limit,
+          offset
+        }
+      }
+    );
+
+    memos.push(...page.memos);
+    offset += limit;
+
+    if (page.memos.length === 0 || offset >= page.total) {
+      break;
+    }
+  }
+
+  return aggregateMemoCounts(memos);
+}
+
 export function createMemoRoute(options: MemoRouteOptions = {}) {
   return new Hono<{ Bindings: AppBindings }>()
     .get("/", async (c) => {
@@ -573,6 +607,33 @@ export function createMemoRoute(options: MemoRouteOptions = {}) {
 
         throw error;
       }
+    })
+    .get("/counts", async (c) => {
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      if (!options.memoRepository && c.env?.bookmark) {
+        await syncAuthenticatedUser(c.env.bookmark, user);
+      }
+
+      const repository = resolveMemoRepository(c, options);
+      if (!repository) {
+        return c.json({ error: "memo_repository_unavailable" }, 500);
+      }
+
+      const counts = repository.countByUser
+        ? await repository.countByUser(user.uid)
+        : await aggregateMemoCountsByPaging(repository, user.uid);
+
+      return c.json<MemoCountsResponse>({
+        counts
+      });
     })
     .get("/folders", async (c) => {
       const user = await getAuthenticatedUser(

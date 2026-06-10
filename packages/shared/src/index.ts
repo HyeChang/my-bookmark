@@ -280,6 +280,22 @@ export type MemoListResponse = {
   };
 };
 
+export type MemoCountBucket = {
+  total: number;
+  visible: number;
+};
+
+export type MemoCounts = {
+  active: MemoCountBucket;
+  favorite: MemoCountBucket;
+  unfiled: MemoCountBucket;
+  byFolderId: Record<string, MemoCountBucket>;
+};
+
+export type MemoCountsResponse = {
+  counts: MemoCounts;
+};
+
 export type MemoDeleteResponse = {
   ok: true;
 };

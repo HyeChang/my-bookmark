@@ -59,6 +59,10 @@ type FolderOverviewNodeProps = {
 export type FolderOverviewPanelProps = {
   activeSpecialFilter: FolderOverviewSpecialFilter | null;
   allBookmarkCount: number;
+  allSystemItemAriaLabel?: string;
+  allSystemItemIcon?: string;
+  allSystemItemLabel?: string;
+  contentLabel?: string;
   isAllFolderViewActive: boolean;
   isHidden?: boolean;
   isReorderingFolders: boolean;
@@ -67,6 +71,9 @@ export type FolderOverviewPanelProps = {
   query: string;
   shouldUseMobileSidebarPanels: boolean;
   showHiddenFolders: boolean;
+  showHiddenFolderToggle?: boolean;
+  showAllSystemItem?: boolean;
+  showTrashSystemItem?: boolean;
   trashBookmarkCount: number;
   unfiledBookmarkCount: number;
   actions: FolderOverviewNodeActions;
@@ -438,6 +445,10 @@ function renderFolderOverviewSystemItem(options: {
 export function FolderOverviewPanel({
   activeSpecialFilter,
   allBookmarkCount,
+  allSystemItemAriaLabel = "모든 북마크 보기",
+  allSystemItemIcon = "☁",
+  allSystemItemLabel = "모든 북마크",
+  contentLabel = "북마크",
   isAllFolderViewActive,
   isHidden,
   isReorderingFolders,
@@ -445,7 +456,10 @@ export function FolderOverviewPanel({
   openFolderActionMenuId,
   query,
   shouldUseMobileSidebarPanels,
+  showAllSystemItem = true,
   showHiddenFolders,
+  showHiddenFolderToggle = true,
+  showTrashSystemItem = true,
   trashBookmarkCount,
   unfiledBookmarkCount,
   actions,
@@ -475,7 +489,7 @@ export function FolderOverviewPanel({
           <div className="bookmark-list-heading-copy">
             <h2>폴더</h2>
           </div>
-          {shouldUseMobileSidebarPanels
+          {shouldUseMobileSidebarPanels && showHiddenFolderToggle
             ? renderMobileVisibilityIconButton({
                 ariaLabel: showHiddenFolders ? "숨김 폴더 숨기기" : "숨김 폴더 보기",
                 isActive: showHiddenFolders,
@@ -484,15 +498,17 @@ export function FolderOverviewPanel({
             : null}
           {!shouldUseMobileSidebarPanels ? (
             <div className="folder-overview-controls">
-              <button
-                type="button"
-                className="ghost-button folder-overview-reset-button folder-overview-lock-button"
-                aria-label={showHiddenFolders ? "숨김 폴더 숨기기" : "숨김 폴더 보기"}
-                aria-pressed={showHiddenFolders}
-                onClick={() => void onToggleHiddenFolders()}
-              >
-                <span aria-hidden="true">{showHiddenFolders ? "🔓" : "🔒"}</span>
-              </button>
+              {showHiddenFolderToggle ? (
+                <button
+                  type="button"
+                  className="ghost-button folder-overview-reset-button folder-overview-lock-button"
+                  aria-label={showHiddenFolders ? "숨김 폴더 숨기기" : "숨김 폴더 보기"}
+                  aria-pressed={showHiddenFolders}
+                  onClick={() => void onToggleHiddenFolders()}
+                >
+                  <span aria-hidden="true">{showHiddenFolders ? "🔓" : "🔒"}</span>
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="ghost-button folder-overview-reset-button"
@@ -523,7 +539,7 @@ export function FolderOverviewPanel({
         </div>
         <p className="folder-overview-helper">
           {shouldUseMobileSidebarPanels
-            ? "폴더를 누르면 해당 북마크를 바로 봅니다."
+            ? `폴더를 누르면 해당 ${contentLabel}를 바로 봅니다.`
             : "범위를 바로 바꿉니다."}
         </p>
         <input
@@ -535,15 +551,17 @@ export function FolderOverviewPanel({
         />
       </header>
       <ul className="folder-overview-system-list" aria-label="folder-system-list">
-        {renderFolderOverviewSystemItem({
-          filter: "all",
-          label: "모든 북마크",
-          ariaLabel: "모든 북마크 보기",
-          icon: "☁",
-          count: allBookmarkCount,
-          activeSpecialFilter,
-          onSelect: onSelectSpecialFilter
-        })}
+        {showAllSystemItem
+          ? renderFolderOverviewSystemItem({
+              filter: "all",
+              label: allSystemItemLabel,
+              ariaLabel: allSystemItemAriaLabel,
+              icon: allSystemItemIcon,
+              count: allBookmarkCount,
+              activeSpecialFilter,
+              onSelect: onSelectSpecialFilter
+            })
+          : null}
         {renderFolderOverviewSystemItem({
           filter: "unfiled",
           label: "미분류",
@@ -553,15 +571,17 @@ export function FolderOverviewPanel({
           activeSpecialFilter,
           onSelect: onSelectSpecialFilter
         })}
-        {renderFolderOverviewSystemItem({
-          filter: "trash",
-          label: "휴지통",
-          ariaLabel: "휴지통 보기",
-          icon: "⌫",
-          count: trashBookmarkCount,
-          activeSpecialFilter,
-          onSelect: onSelectSpecialFilter
-        })}
+        {showTrashSystemItem
+          ? renderFolderOverviewSystemItem({
+              filter: "trash",
+              label: "휴지통",
+              ariaLabel: "휴지통 보기",
+              icon: "⌫",
+              count: trashBookmarkCount,
+              activeSpecialFilter,
+              onSelect: onSelectSpecialFilter
+            })
+          : null}
       </ul>
       {nodes.length === 0 ? (
         <p className="quiet-empty-state folder-overview-empty-state">

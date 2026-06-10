@@ -3,6 +3,8 @@ import type {
   CreateMemoRequest,
   CreateMemoTagRequest,
   Memo,
+  MemoCounts,
+  MemoCountsResponse,
   MemoFolder,
   MemoFolderListResponse,
   MemoFolderResponse,
@@ -36,10 +38,45 @@ type LoadMemoPageOptions = {
   offset?: number;
 };
 
+const emptyMemoCountBucket = {
+  total: 0,
+  visible: 0
+};
+
 export type MemoPage = {
   memos: Memo[];
   pagination: NonNullable<MemoListResponse["pagination"]> | null;
 };
+
+function normalizeMemoCountBucket(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return { ...emptyMemoCountBucket };
+  }
+
+  const bucket = value as Partial<{ total: number; visible: number }>;
+  return {
+    total: Number.isFinite(bucket.total) ? Math.max(0, Math.trunc(bucket.total ?? 0)) : 0,
+    visible: Number.isFinite(bucket.visible) ? Math.max(0, Math.trunc(bucket.visible ?? 0)) : 0
+  };
+}
+
+function normalizeMemoCounts(counts: Partial<MemoCounts> | undefined): MemoCounts {
+  const byFolderId: MemoCounts["byFolderId"] = {};
+  const rawFolderCounts = counts?.byFolderId;
+
+  if (rawFolderCounts && typeof rawFolderCounts === "object") {
+    for (const [folderId, bucket] of Object.entries(rawFolderCounts)) {
+      byFolderId[folderId] = normalizeMemoCountBucket(bucket);
+    }
+  }
+
+  return {
+    active: normalizeMemoCountBucket(counts?.active),
+    favorite: normalizeMemoCountBucket(counts?.favorite),
+    unfiled: normalizeMemoCountBucket(counts?.unfiled),
+    byFolderId
+  };
+}
 
 function mapMemoErrorCode(errorCode: string) {
   switch (errorCode) {
@@ -242,6 +279,21 @@ export async function loadMemoPage(options: LoadMemoPageOptions = {}): Promise<M
     memos: Array.isArray(data.memos) ? (data.memos as Memo[]) : [],
     pagination: normalizeMemoPagination(data.pagination)
   };
+}
+
+export async function loadMemoCounts() {
+  const data = await requestJson<Partial<MemoCountsResponse>>(
+    "/api/memos/counts",
+    {
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "메모 개수를 불러오지 못했습니다.",
+      mapErrorCode: mapMemoErrorCode
+    }
+  );
+
+  return normalizeMemoCounts(data.counts);
 }
 
 export async function loadMemo(memoId: string) {

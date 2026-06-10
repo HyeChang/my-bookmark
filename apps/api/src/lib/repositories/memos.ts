@@ -2,6 +2,7 @@ import type {
   CreateMemoRequest,
   Memo,
   MemoAsset,
+  MemoCounts,
   MemoRichContent,
   MemoSortMode,
   UpdateMemoRequest
@@ -37,6 +38,13 @@ type MemoCoverAssetRow = {
   sort_order: number;
   created_at: string;
   updated_at: string;
+};
+
+type MemoCountRow = {
+  folder_id: string | null;
+  is_hidden: number;
+  is_favorite: number;
+  count: number | string | null;
 };
 
 const MEMO_RELATION_QUERY_CHUNK_SIZE = 90;
@@ -87,6 +95,7 @@ export type MemoRepository = {
     filters: MemoListFilters,
     options: MemoPageOptions
   ): Promise<MemoListPage>;
+  countByUser?(userId: string): Promise<MemoCounts>;
   getByUserAndId(
     userId: string,
     memoId: string,
@@ -230,6 +239,58 @@ function chunkValues<TValue>(values: TValue[], chunkSize: number) {
   }
 
   return chunks;
+}
+
+function createMemoCountBucket() {
+  return {
+    total: 0,
+    visible: 0
+  };
+}
+
+export function createEmptyMemoCounts(): MemoCounts {
+  return {
+    active: createMemoCountBucket(),
+    favorite: createMemoCountBucket(),
+    unfiled: createMemoCountBucket(),
+    byFolderId: {}
+  };
+}
+
+function addToMemoCountBucket(
+  bucket: { total: number; visible: number },
+  count: number,
+  isHidden: boolean
+) {
+  bucket.total += count;
+  if (!isHidden) {
+    bucket.visible += count;
+  }
+}
+
+export function aggregateMemoCounts(
+  memos: Array<Pick<MemoRecord, "folderId" | "isFavorite" | "isHidden">>
+): MemoCounts {
+  const counts = createEmptyMemoCounts();
+
+  for (const memo of memos) {
+    const isHidden = memo.isHidden === true;
+    addToMemoCountBucket(counts.active, 1, isHidden);
+    if (memo.isFavorite === true) {
+      addToMemoCountBucket(counts.favorite, 1, isHidden);
+    }
+
+    if (!memo.folderId) {
+      addToMemoCountBucket(counts.unfiled, 1, isHidden);
+      continue;
+    }
+
+    const folderBucket = counts.byFolderId[memo.folderId] ?? createMemoCountBucket();
+    addToMemoCountBucket(folderBucket, 1, isHidden);
+    counts.byFolderId[memo.folderId] = folderBucket;
+  }
+
+  return counts;
 }
 
 function getMemoListOrderBy(sort: MemoSortMode = "updated_desc") {
@@ -644,6 +705,46 @@ export function createMemoRepository(db: D1Database): MemoRepository {
         memos,
         total
       };
+    },
+    async countByUser(userId) {
+      const result = await db
+        .prepare(
+          `SELECT
+            folder_id,
+            is_hidden,
+            is_favorite,
+            COUNT(*) AS count
+          FROM memos
+          WHERE user_id = ?
+          GROUP BY folder_id, is_hidden, is_favorite`
+        )
+        .bind(userId)
+        .all<MemoCountRow>();
+      const counts = createEmptyMemoCounts();
+
+      for (const row of result.results) {
+        const rowCount = Number(row.count);
+        if (!Number.isFinite(rowCount) || rowCount <= 0) {
+          continue;
+        }
+
+        const isHidden = row.is_hidden === 1;
+        addToMemoCountBucket(counts.active, rowCount, isHidden);
+        if (row.is_favorite === 1) {
+          addToMemoCountBucket(counts.favorite, rowCount, isHidden);
+        }
+
+        if (!row.folder_id) {
+          addToMemoCountBucket(counts.unfiled, rowCount, isHidden);
+          continue;
+        }
+
+        const folderBucket = counts.byFolderId[row.folder_id] ?? createMemoCountBucket();
+        addToMemoCountBucket(folderBucket, rowCount, isHidden);
+        counts.byFolderId[row.folder_id] = folderBucket;
+      }
+
+      return counts;
     },
     getByUserAndId,
     async create(input) {

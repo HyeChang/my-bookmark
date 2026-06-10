@@ -3866,6 +3866,27 @@ describe("bookmark dashboard", () => {
         );
       }
 
+      if (url === "/api/memos/counts" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            counts: {
+              active: { total: 1, visible: 0 },
+              favorite: { total: 1, visible: 0 },
+              unfiled: { total: 0, visible: 0 },
+              byFolderId: {
+                "memo-folder-1": { total: 1, visible: 0 }
+              }
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
       if (url === "/api/memos/folders" && !init?.method) {
         return new Response(
           JSON.stringify({
@@ -4153,6 +4174,27 @@ describe("bookmark dashboard", () => {
         );
       }
 
+      if (url === "/api/memos/counts" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            counts: {
+              active: { total: 1, visible: 1 },
+              favorite: { total: 0, visible: 0 },
+              unfiled: { total: 1, visible: 1 },
+              byFolderId: {
+                "memo-folder-1": { total: 0, visible: 0 }
+              }
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
       if (url === "/api/memos/folders" && !init?.method) {
         return new Response(
           JSON.stringify({
@@ -4307,7 +4349,9 @@ describe("bookmark dashboard", () => {
     );
 
     const memoWorkspace = await screen.findByRole("region", { name: /memo-workspace/i });
-    fireEvent.click(within(memoWorkspace).getByRole("button", { name: /Draft memo 메모 편집/i }));
+    fireEvent.click(
+      await within(memoWorkspace).findByRole("button", { name: /Draft memo 메모 편집/i })
+    );
 
     const titleInput = await screen.findByLabelText(/메모 제목/i);
     fireEvent.change(titleInput, { target: { value: "Changed memo" } });
@@ -4325,6 +4369,222 @@ describe("bookmark dashboard", () => {
     expect(
       await screen.findByText(/표시할 메모가 없습니다\./i)
     ).toBeInTheDocument();
+  });
+
+  it("keeps memo folder counts stable when selecting memo folders", async () => {
+    window.history.replaceState(null, "", "/?view=memos");
+    stubDashboardViewport(1200);
+
+    const makeMemo = (
+      id: string,
+      folderId: string | null,
+      title: string,
+      contentText: string
+    ) => ({
+      id,
+      folderId,
+      tagIds: [],
+      title,
+      contentJson: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: contentText }]
+          }
+        ]
+      },
+      contentText,
+      isFavorite: false,
+      isHidden: false,
+      isLocked: false,
+      memoColor: null,
+      assetCount: 0,
+      coverAsset: null,
+      createdAt: "2026-04-13T08:00:00.000Z",
+      updatedAt: "2026-04-13T08:00:00.000Z"
+    });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/memos/lock/status" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            isConfigured: false,
+            isUnlocked: false
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/counts" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            counts: {
+              active: { total: 4, visible: 4 },
+              favorite: { total: 0, visible: 0 },
+              unfiled: { total: 1, visible: 1 },
+              byFolderId: {
+                "memo-folder-1": { total: 2, visible: 2 },
+                "memo-folder-2": { total: 1, visible: 1 }
+              }
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "memo-folder-1",
+                parentFolderId: null,
+                name: "Work notes",
+                color: "#2563eb",
+                icon: "folder",
+                isHidden: false,
+                sortOrder: 0,
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              },
+              {
+                id: "memo-folder-2",
+                parentFolderId: null,
+                name: "Other notes",
+                color: "#16a34a",
+                icon: "folder",
+                isHidden: false,
+                sortOrder: 1,
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (
+        (url === "/api/memos?folderId=null&limit=20&offset=0" ||
+          url === "/api/memos?folderId=null&includeHidden=1&limit=20&offset=0") &&
+        !init?.method
+      ) {
+        return new Response(
+          JSON.stringify({
+            memos: [makeMemo("memo-unfiled-1", null, "Unfiled memo", "Unfiled body")],
+            pagination: {
+              limit: 20,
+              offset: 0,
+              total: 1,
+              hasMore: false
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (
+        (url ===
+          "/api/memos?folderId=memo-folder-1&includeDescendantFolders=1&limit=20&offset=0" ||
+          url ===
+            "/api/memos?folderId=memo-folder-1&includeDescendantFolders=1&includeHidden=1&limit=20&offset=0") &&
+        !init?.method
+      ) {
+        return new Response(
+          JSON.stringify({
+            memos: [
+              makeMemo("memo-work-1", "memo-folder-1", "Work memo A", "Work body A"),
+              makeMemo("memo-work-2", "memo-folder-1", "Work memo B", "Work body B")
+            ],
+            pagination: {
+              limit: 20,
+              offset: 0,
+              total: 2,
+              hasMore: false
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(
+      <AuthenticatedDashboardApp
+        initialUser={{
+          uid: "firebase-user-1",
+          email: "keygenerator25@gmail.com"
+        }}
+      />
+    );
+
+    expect(await screen.findByRole("button", { name: /모든 메모 보기/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /휴지통 보기/i })).not.toBeInTheDocument();
+    const workFolderButton = await screen.findByRole("button", {
+      name: /Work notes 폴더 보기/i
+    });
+    const otherFolderButton = screen.getByRole("button", {
+      name: /Other notes 폴더 보기/i
+    });
+
+    await waitFor(() => {
+      expect(within(workFolderButton).getByText("2")).toBeInTheDocument();
+      expect(within(otherFolderButton).getByText("1")).toBeInTheDocument();
+    });
+
+    fireEvent.click(workFolderButton);
+
+    expect(await screen.findByText(/Work memo A/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText(/메모를 불러오는 중입니다\./i)).not.toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(
+        within(screen.getByRole("button", { name: /Work notes 폴더 보기/i })).getByText("2")
+      ).toBeInTheDocument();
+      expect(
+        within(screen.getByRole("button", { name: /Other notes 폴더 보기/i })).getByText("1")
+      ).toBeInTheDocument();
+    });
   });
 
   it("creates a bookmark with selected tags and appends it to the list", async () => {

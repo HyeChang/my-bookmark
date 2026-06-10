@@ -24,6 +24,7 @@ import type {
   Folder,
   Memo,
   MemoAsset,
+  MemoCounts,
   MemoFolder,
   MemoListResponse,
   MemoLockStatusResponse,
@@ -102,6 +103,7 @@ import {
   loadFolders,
   loadMemo,
   loadMemoAssets,
+  loadMemoCounts,
   loadMemoFolders,
   loadMemoLockStatus,
   loadMemoPage,
@@ -324,6 +326,7 @@ type MemoWorkspaceMetadata = {
   lockStatus: MemoLockStatusResponse;
   folders: MemoFolder[];
   tags: MemoTag[];
+  counts: MemoCounts;
 };
 
 const EXTENSION_DOWNLOAD_PATH = "/downloads/bookmark-saver-extension.zip";
@@ -732,6 +735,7 @@ export default function AuthenticatedDashboardApp({
   const [memoFolders, setMemoFolders] = useState<MemoFolder[]>([]);
   const [memoTags, setMemoTags] = useState<MemoTag[]>([]);
   const [memoTotalCount, setMemoTotalCount] = useState<number | null>(null);
+  const [memoCounts, setMemoCounts] = useState<MemoCounts | null>(null);
   const [memoSearchQuery, setMemoSearchQuery] = useState("");
   const [debouncedMemoSearchQuery, setDebouncedMemoSearchQuery] = useState("");
   const [memoFolderFilterId, setMemoFolderFilterId] = useState<string | null>(
@@ -1255,6 +1259,28 @@ export default function AuthenticatedDashboardApp({
     }
   }
 
+  async function refreshMemoCounts() {
+    try {
+      const nextMemoCounts = await loadMemoCounts();
+      if (memoWorkspaceMetadataRef.current) {
+        memoWorkspaceMetadataRef.current = {
+          ...memoWorkspaceMetadataRef.current,
+          counts: nextMemoCounts
+        };
+      }
+      startTransition(() => {
+        setMemoCounts(nextMemoCounts);
+      });
+    } catch {
+      if (memoWorkspaceMetadataRef.current) {
+        memoWorkspaceMetadataRef.current = null;
+      }
+      startTransition(() => {
+        setMemoCounts(null);
+      });
+    }
+  }
+
   async function fetchTagsOnce() {
     if (hasLoadedTags) {
       return tags;
@@ -1556,13 +1582,15 @@ export default function AuthenticatedDashboardApp({
     const metadataPromise = Promise.all([
       loadMemoLockStatus(),
       loadMemoFolders(),
-      loadMemoTags()
+      loadMemoTags(),
+      loadMemoCounts()
     ])
-      .then(([lockStatus, folders, tags]) => {
+      .then(([lockStatus, folders, tags, counts]) => {
         const metadata = {
           lockStatus,
           folders,
-          tags
+          tags,
+          counts
         };
         memoWorkspaceMetadataRef.current = metadata;
         return metadata;
@@ -1636,6 +1664,7 @@ export default function AuthenticatedDashboardApp({
         setMemoFolders(nextMemoMetadata.folders);
         setMemoTags(nextMemoMetadata.tags);
         setMemoLockStatus(nextMemoMetadata.lockStatus);
+        setMemoCounts(nextMemoMetadata.counts);
       }
       if (showHiddenMemos) {
         hiddenMemoPageCacheRef.current = {
@@ -1656,6 +1685,7 @@ export default function AuthenticatedDashboardApp({
           setMemoFolders([]);
           setMemoTags([]);
           setMemoLockStatus(null);
+          setMemoCounts(null);
         }
         setErrorMessage(
           error instanceof Error ? error.message : "메모를 불러오지 못했습니다."
@@ -1779,6 +1809,7 @@ export default function AuthenticatedDashboardApp({
         );
         setStatusMessage("메모를 삭제했습니다.");
       });
+      void refreshMemoCounts();
       return true;
     } catch (error) {
       startTransition(() => {
@@ -2048,6 +2079,7 @@ export default function AuthenticatedDashboardApp({
         setStatusMessage(editingMemo ? "메모를 수정했습니다." : "메모를 저장했습니다.");
       });
       clearPendingMemoImageUploads();
+      void refreshMemoCounts();
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
@@ -2506,6 +2538,7 @@ export default function AuthenticatedDashboardApp({
       clearMemoWorkspaceMetadataCache();
       clearMemoPageCaches();
       setMemoTotalCount(null);
+      setMemoCounts(null);
       setMemoSearchQuery("");
       replaceMemoFolderFilterId(DEFAULT_MEMO_FOLDER_FILTER_ID);
       setMemoFolderOverviewQuery("");
@@ -5355,6 +5388,7 @@ export default function AuthenticatedDashboardApp({
             folderFilterId: null
           });
         }
+        void refreshMemoCounts();
         return;
       }
 
@@ -5835,6 +5869,61 @@ export default function AuthenticatedDashboardApp({
       (folder) => visibleMemoFolderIds.has(folder.id) || selectedFolderIds.has(folder.id)
     );
   }, [memoDraft.folderId, memoFolders, visibleMemoFolders]);
+  const memoFolderOverviewCountsById = useMemo(() => {
+    const allMemoFolderChildrenByParentId = getFoldersByParentId(visibleMemoFolders);
+    const directMemoCountsByFolderId = new Map<string, number>();
+
+    if (memoCounts) {
+      for (const folder of visibleMemoFolders) {
+        directMemoCountsByFolderId.set(
+          folder.id,
+          getBookmarkCountBucketValue(memoCounts.byFolderId[folder.id], showHiddenMemos)
+        );
+      }
+    } else {
+      for (const memo of visibleMemoPanelMemos) {
+        if (!memo.folderId) {
+          continue;
+        }
+
+        directMemoCountsByFolderId.set(
+          memo.folderId,
+          (directMemoCountsByFolderId.get(memo.folderId) ?? 0) + 1
+        );
+      }
+    }
+
+    const memoCountCache = new Map<string, number>();
+
+    function getFolderMemoCount(folderId: string): number {
+      const cachedCount = memoCountCache.get(folderId);
+      if (cachedCount !== undefined) {
+        return cachedCount;
+      }
+
+      const total =
+        (directMemoCountsByFolderId.get(folderId) ?? 0) +
+        (allMemoFolderChildrenByParentId.get(folderId) ?? []).reduce(
+          (sum, childFolder) => sum + getFolderMemoCount(childFolder.id),
+          0
+        );
+
+      memoCountCache.set(folderId, total);
+      return total;
+    }
+
+    for (const folder of visibleMemoFolders) {
+      getFolderMemoCount(folder.id);
+    }
+
+    return memoCountCache;
+  }, [memoCounts, showHiddenMemos, visibleMemoFolders, visibleMemoPanelMemos]);
+  const memoFolderOverviewUnfiledMemoCount = memoCounts
+    ? getBookmarkCountBucketValue(memoCounts.unfiled, showHiddenMemos)
+    : visibleMemoPanelMemos.filter((memo) => !memo.folderId).length;
+  const memoFolderOverviewAllMemoCount = memoCounts
+    ? getBookmarkCountBucketValue(memoCounts.active, showHiddenMemos)
+    : visibleMemoPanelTotalCount ?? visibleMemoPanelMemos.length;
   const visibleBookmarks = useMemo(
     () =>
       filterBookmarksByHiddenBookmarks(
@@ -6449,39 +6538,6 @@ export default function AuthenticatedDashboardApp({
   );
   const memoFolderOverviewNodes = useMemo<FolderOverviewNodeViewModel[]>(
     () => {
-      const allMemoFolderChildrenByParentId = getFoldersByParentId(visibleMemoFolders);
-      const directMemoCountsByFolderId = new Map<string, number>();
-
-      for (const memo of visibleMemoPanelMemos) {
-        if (!memo.folderId) {
-          continue;
-        }
-
-        directMemoCountsByFolderId.set(
-          memo.folderId,
-          (directMemoCountsByFolderId.get(memo.folderId) ?? 0) + 1
-        );
-      }
-
-      const memoCountCache = new Map<string, number>();
-
-      function getFolderMemoCount(folderId: string): number {
-        const cachedCount = memoCountCache.get(folderId);
-        if (cachedCount !== undefined) {
-          return cachedCount;
-        }
-
-        const total =
-          (directMemoCountsByFolderId.get(folderId) ?? 0) +
-          (allMemoFolderChildrenByParentId.get(folderId) ?? []).reduce(
-            (sum, childFolder) => sum + getFolderMemoCount(childFolder.id),
-            0
-          );
-
-        memoCountCache.set(folderId, total);
-        return total;
-      }
-
       function buildMemoFolderOverviewNodes(
         parentFolderId: string | null,
         depth: number
@@ -6499,7 +6555,7 @@ export default function AuthenticatedDashboardApp({
               ? buildMemoFolderOverviewNodes(folder.id, depth + 1)
               : [],
             depth,
-            bookmarkCount: getFolderMemoCount(folder.id),
+            bookmarkCount: memoFolderOverviewCountsById.get(folder.id) ?? 0,
             hasChildren,
             isExpanded,
             isActive: activeMemoFolderOverviewFolderId === folder.id,
@@ -6518,10 +6574,10 @@ export default function AuthenticatedDashboardApp({
       expandedMemoFolderOverviewIdSet,
       folderOverviewDropTarget,
       isMemoFolderOverviewSearchActive,
+      memoFolderOverviewCountsById,
       memoFolderOverviewChildrenByParentId,
       shouldUseMobileSidebarPanels,
-      visibleMemoFolders,
-      visibleMemoPanelMemos
+      visibleMemoFolders
     ]
   );
   function selectMemoFolderForCurrentWorkspace(folderId: string | null) {
@@ -6809,11 +6865,8 @@ export default function AuthenticatedDashboardApp({
     bookmarkDetailActiveTab === "preview" &&
     isBookmarkPreviewFullscreen;
   const heroTagSummary = hasLoadedTags ? `태그 ${tags.length}개` : "태그";
-  const memoFolderOverviewUnfiledMemoCount = visibleMemoPanelMemos.filter(
-    (memo) => !memo.folderId
-  ).length;
   const memoQuickActionSummary = `메모 ${
-    visibleMemoPanelTotalCount ?? visibleMemoPanelMemos.length
+    memoFolderOverviewAllMemoCount
   }개 · 폴더 ${visibleMemoFolders.length}개 · 태그 ${memoTags.length}개`;
   const bookmarkQuickActionSummary = `북마크 ${folderOverviewAllBookmarkCount}개 · 폴더 ${visibleFolders.length}개 · ${heroTagSummary}`;
 
@@ -7000,7 +7053,7 @@ export default function AuthenticatedDashboardApp({
       <Suspense fallback={null}>
         <LazyFolderOverviewPanel
           activeSpecialFilter={activeMemoFolderOverviewSpecialFilter}
-          allBookmarkCount={visibleMemoPanelTotalCount ?? visibleMemoPanelMemos.length}
+          allBookmarkCount={memoFolderOverviewAllMemoCount}
           allSystemItemLabel="모든 메모"
           allSystemItemAriaLabel="모든 메모 보기"
           allSystemItemIcon="≣"
@@ -7015,7 +7068,6 @@ export default function AuthenticatedDashboardApp({
           showAllSystemItem={!isMemoComposerOpen}
           showHiddenFolderToggle
           showHiddenFolders={showHiddenMemoFolders}
-          showNodeCounts={false}
           showTrashSystemItem={false}
           trashBookmarkCount={0}
           unfiledBookmarkCount={memoFolderOverviewUnfiledMemoCount}
