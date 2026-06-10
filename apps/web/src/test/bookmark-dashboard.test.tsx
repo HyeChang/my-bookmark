@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import JSZip from "jszip";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
@@ -3545,7 +3546,7 @@ describe("bookmark dashboard", () => {
     expect(within(composerDialog).getByLabelText(/저장 폴더/i)).toHaveValue("folder-1");
   });
 
-  it("exports bookmarks, folders, tags, and asset metadata as a backup json file", async () => {
+  it("exports bookmarks, folders, tags, and image files as a backup zip file", async () => {
     const createObjectUrlSpy = vi.fn().mockReturnValue("blob:bookmark-export");
     const revokeObjectUrlSpy = vi.fn();
     const anchorClickSpy = vi
@@ -3638,6 +3639,12 @@ describe("bookmark dashboard", () => {
         );
       }
 
+      if (url === "https://cdn.example.com/thumb.png" && !init?.method) {
+        return new Response(new Blob(["bookmark-image"], { type: "image/png" }), {
+          status: 200
+        });
+      }
+
       if (url === "/api/folders" && !init?.method) {
         return new Response(
           JSON.stringify({
@@ -3707,6 +3714,10 @@ describe("bookmark dashboard", () => {
     render(<App />);
     const bookmarkListRegion = await screen.findByRole("region", { name: /bookmark-list/i });
 
+    expect(
+      within(bookmarkListRegion).getByRole("button", { name: /북마크 불러오기/i })
+    ).toBeInTheDocument();
+
     fireEvent.click(within(bookmarkListRegion).getByRole("button", { name: /북마크 내보내기/i }));
 
     await waitFor(() => {
@@ -3716,9 +3727,17 @@ describe("bookmark dashboard", () => {
     expect(revokeObjectUrlSpy).toHaveBeenCalledWith("blob:bookmark-export");
 
     const exportBlob = createObjectUrlSpy.mock.calls[0]?.[0] as Blob;
-    const exportPayload = JSON.parse(await exportBlob.text());
+    const zip = await JSZip.loadAsync(exportBlob);
+    const manifestFile = zip.file("manifest.json");
+    expect(manifestFile).not.toBeNull();
+    const exportPayload = JSON.parse(await manifestFile!.async("text"));
+    const assetFile = zip.file("assets/bookmarks/bookmark-1/asset-1/content");
+    expect(assetFile).not.toBeNull();
+    await expect(assetFile!.async("string")).resolves.toBe("bookmark-image");
 
     expect(exportPayload).toMatchObject({
+      kind: "bookmarks",
+      version: 2,
       bookmarks: [
         expect.objectContaining({
           id: "bookmark-1",
@@ -3744,11 +3763,19 @@ describe("bookmark dashboard", () => {
             fileName: "thumb.png"
           })
         ]
+      },
+      assetFilesByBookmarkId: {
+        "bookmark-1": [
+          expect.objectContaining({
+            assetId: "asset-1",
+            contentPath: "assets/bookmarks/bookmark-1/asset-1/content"
+          })
+        ]
       }
     });
   });
 
-  it("exports memos, memo folders, memo tags, and memo asset metadata as a backup json file", async () => {
+  it("exports memos, memo folders, memo tags, and image files as a backup zip file", async () => {
     const createObjectUrlSpy = vi.fn().mockReturnValue("blob:memo-export");
     const revokeObjectUrlSpy = vi.fn();
     const anchorClickSpy = vi
@@ -4017,12 +4044,28 @@ describe("bookmark dashboard", () => {
         );
       }
 
+      if (url === "/api/memos/memo-1/assets/memo-asset-1/content" && !init?.method) {
+        return new Response(new Blob(["memo-image"], { type: "image/webp" }), {
+          status: 200
+        });
+      }
+
+      if (url === "/api/memos/memo-1/assets/memo-asset-1/thumbnail" && !init?.method) {
+        return new Response(new Blob(["memo-thumbnail"], { type: "image/webp" }), {
+          status: 200
+        });
+      }
+
       throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
     });
 
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: /^메모$/i }));
     const memoWorkspace = await screen.findByRole("region", { name: /memo-workspace/i });
+
+    expect(
+      within(memoWorkspace).getByRole("button", { name: /메모 불러오기/i })
+    ).toBeInTheDocument();
 
     fireEvent.click(within(memoWorkspace).getByRole("button", { name: /메모 내보내기/i }));
 
@@ -4033,9 +4076,20 @@ describe("bookmark dashboard", () => {
     expect(revokeObjectUrlSpy).toHaveBeenCalledWith("blob:memo-export");
 
     const exportBlob = createObjectUrlSpy.mock.calls[0]?.[0] as Blob;
-    const exportPayload = JSON.parse(await exportBlob.text());
+    const zip = await JSZip.loadAsync(exportBlob);
+    const manifestFile = zip.file("manifest.json");
+    expect(manifestFile).not.toBeNull();
+    const exportPayload = JSON.parse(await manifestFile!.async("text"));
+    const assetFile = zip.file("assets/memos/memo-1/memo-asset-1/content");
+    const thumbnailFile = zip.file("assets/memos/memo-1/memo-asset-1/thumbnail");
+    expect(assetFile).not.toBeNull();
+    expect(thumbnailFile).not.toBeNull();
+    await expect(assetFile!.async("string")).resolves.toBe("memo-image");
+    await expect(thumbnailFile!.async("string")).resolves.toBe("memo-thumbnail");
 
     expect(exportPayload).toMatchObject({
+      kind: "memos",
+      version: 2,
       memos: [
         expect.objectContaining({
           id: "memo-1",
@@ -4061,6 +4115,15 @@ describe("bookmark dashboard", () => {
           expect.objectContaining({
             id: "memo-asset-1",
             mimeType: "image/webp"
+          })
+        ]
+      },
+      assetFilesByMemoId: {
+        "memo-1": [
+          expect.objectContaining({
+            assetId: "memo-asset-1",
+            contentPath: "assets/memos/memo-1/memo-asset-1/content",
+            thumbnailPath: "assets/memos/memo-1/memo-asset-1/thumbnail"
           })
         ]
       }

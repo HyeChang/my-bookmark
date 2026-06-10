@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type {
   Memo,
   MemoFolder,
@@ -28,6 +29,7 @@ export type MemoPanelProps = {
   onDeleteMemo: (memo: Memo) => MemoPanelActionResult;
   onEditMemo: (memo: Memo) => MemoPanelActionResult;
   onExportMemos: () => MemoPanelActionResult;
+  onImportMemos: (file: File) => MemoPanelActionResult;
   onFavoriteOnlyChange: (value: boolean) => void;
   onMemoComposerPreload?: () => void;
   onHiddenMemosToggle: () => MemoPanelActionResult;
@@ -191,6 +193,7 @@ export default function MemoPanel({
   onDeleteMemo,
   onEditMemo,
   onExportMemos,
+  onImportMemos,
   onFavoriteOnlyChange,
   onMemoComposerPreload,
   onHiddenMemosToggle,
@@ -198,6 +201,7 @@ export default function MemoPanel({
   onTagFilterChange,
   onViewModeChange
 }: MemoPanelProps) {
+  const memoImportInputRef = useRef<HTMLInputElement | null>(null);
   const foldersById = new Map(folders.map((folder) => [folder.id, folder] as const));
   const tagsById = new Map(tags.map((tag) => [tag.id, tag] as const));
   const hiddenMemoToggleLabel = showHiddenMemos ? "숨김 메모 숨기기" : "숨김 메모 보기";
@@ -232,9 +236,32 @@ export default function MemoPanel({
           <button
             type="button"
             className="secondary-button memo-export-button"
+            aria-label="메모 내보내기"
             onClick={() => void onExportMemos()}
           >
             메모 내보내기
+          </button>
+          <input
+            ref={memoImportInputRef}
+            className="backup-file-input"
+            type="file"
+            accept=".zip,application/zip,application/x-zip-compressed"
+            aria-label="메모 백업 파일 선택"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              if (file) {
+                void onImportMemos(file);
+              }
+              event.currentTarget.value = "";
+            }}
+          />
+          <button
+            type="button"
+            className="secondary-button memo-import-button"
+            aria-label="메모 불러오기"
+            onClick={() => memoImportInputRef.current?.click()}
+          >
+            메모 불러오기
           </button>
           <button
             type="button"

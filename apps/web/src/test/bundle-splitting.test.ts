@@ -310,8 +310,10 @@ describe("bundle splitting", () => {
     expect(dashboardSource).toContain('import("../lib/bookmark-export")');
     expect(dashboardSource).not.toContain("new Blob([JSON.stringify");
     expect(dashboardSource).not.toContain("globalThis.URL.createObjectURL");
-    expect(exportSource).toContain("export function downloadBookmarkExport");
-    expect(exportSource).toContain("new Blob([JSON.stringify");
+    expect(dashboardSource).not.toContain("createBackupZipBlob");
+    expect(exportSource).toContain("export async function downloadBookmarkExport");
+    expect(exportSource).toContain("createBackupZipBlob");
+    expect(exportSource).toContain("globalThis.URL.createObjectURL");
   });
 
   it("loads memo export generation only when export is requested", () => {
@@ -326,8 +328,10 @@ describe("bundle splitting", () => {
 
     expect(dashboardSource).toContain('import("../lib/memo-export")');
     expect(dashboardSource).not.toContain("memo-backup-");
-    expect(exportSource).toContain("export function downloadMemoExport");
-    expect(exportSource).toContain("new Blob([JSON.stringify");
+    expect(dashboardSource).not.toContain("createBackupZipBlob");
+    expect(exportSource).toContain("export async function downloadMemoExport");
+    expect(exportSource).toContain("createBackupZipBlob");
+    expect(exportSource).toContain("globalThis.URL.createObjectURL");
   });
 
   it("loads advanced bookmark search fields only when advanced filters open", () => {

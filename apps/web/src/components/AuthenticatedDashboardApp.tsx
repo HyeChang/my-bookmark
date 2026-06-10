@@ -4361,11 +4361,38 @@ export default function AuthenticatedDashboardApp({
         bookmarkAssetsByBookmarkId: exportBookmarkAssetsByBookmarkId
       };
       const { downloadBookmarkExport } = await import("../lib/bookmark-export");
-      downloadBookmarkExport(exportPayload);
+      await downloadBookmarkExport(exportPayload);
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
           error instanceof Error ? error.message : "북마크 내보내기를 완료하지 못했습니다."
+        );
+      });
+    }
+  }
+
+  async function handleBookmarkImport(file: File) {
+    try {
+      setErrorMessage(null);
+      setStatusMessage(null);
+      const { importBookmarkBackupZipBlob } = await import("../lib/bookmark-export");
+      const result = await importBookmarkBackupZipBlob(file, {
+        createFolder,
+        createTag,
+        createBookmark,
+        uploadBookmarkAsset
+      });
+      setBookmarkAssetsByBookmarkId({});
+      await refreshDashboardData(appliedBookmarkSearch, activeDashboardView);
+      startTransition(() => {
+        setStatusMessage(
+          `북마크 백업을 불러왔습니다. 폴더 ${result.folders}개, 태그 ${result.tags}개, 북마크 ${result.bookmarks}개, 이미지 ${result.assets}개`
+        );
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "북마크 백업을 불러오지 못했습니다."
         );
       });
     }
@@ -4427,11 +4454,40 @@ export default function AuthenticatedDashboardApp({
         memoAssetsByMemoId: Object.fromEntries(memoAssetsByMemoIdEntries)
       };
       const { downloadMemoExport } = await import("../lib/memo-export");
-      downloadMemoExport(exportPayload);
+      await downloadMemoExport(exportPayload);
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
           error instanceof Error ? error.message : "메모 내보내기를 완료하지 못했습니다."
+        );
+      });
+    }
+  }
+
+  async function handleMemoImport(file: File) {
+    try {
+      setErrorMessage(null);
+      setStatusMessage(null);
+      const { importMemoBackupZipBlob } = await import("../lib/memo-export");
+      const result = await importMemoBackupZipBlob(file, {
+        createMemoFolder,
+        createMemoTag,
+        createMemo,
+        updateMemo,
+        uploadPreparedMemoAsset
+      });
+      clearMemoWorkspaceMetadataCache();
+      clearMemoPageCaches();
+      await refreshMemoWorkspace();
+      startTransition(() => {
+        setStatusMessage(
+          `메모 백업을 불러왔습니다. 폴더 ${result.folders}개, 태그 ${result.tags}개, 메모 ${result.memos}개, 이미지 ${result.assets}개`
+        );
+      });
+    } catch (error) {
+      startTransition(() => {
+        setErrorMessage(
+          error instanceof Error ? error.message : "메모 백업을 불러오지 못했습니다."
         );
       });
     }
@@ -6983,6 +7039,7 @@ export default function AuthenticatedDashboardApp({
           actions={bookmarkListRowActions}
           applyBookmarkSearch={applyBookmarkSearch}
           handleBookmarkExport={handleBookmarkExport}
+          handleBookmarkImport={handleBookmarkImport}
           handleBookmarkListLoadMore={handleBookmarkListLoadMore}
           handleBookmarkPageSizeChange={handleBookmarkPageSizeChange}
           handleBookmarkSearchReset={handleBookmarkSearchReset}
@@ -7046,6 +7103,7 @@ export default function AuthenticatedDashboardApp({
           onDeleteMemo={handleMemoDelete}
           onEditMemo={beginMemoEdit}
           onExportMemos={handleMemoExport}
+          onImportMemos={handleMemoImport}
           onFavoriteOnlyChange={setMemoFavoriteOnly}
           onMemoComposerPreload={() => preloadDashboardDialogChunk("memoComposer")}
           onHiddenMemosToggle={handleToggleHiddenMemos}

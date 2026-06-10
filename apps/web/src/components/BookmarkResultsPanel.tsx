@@ -2,6 +2,7 @@ import {
   lazy,
   memo,
   Suspense,
+  useRef,
   type CSSProperties,
   type FormEvent,
   type MouseEvent,
@@ -176,6 +177,7 @@ type BookmarkResultsPanelProps = {
   actions: BookmarkListRowActions;
   applyBookmarkSearch: (search: BookmarkSearchDraft) => BookmarkListRowActionResult;
   handleBookmarkExport: () => BookmarkListRowActionResult;
+  handleBookmarkImport: (file: File) => BookmarkListRowActionResult;
   handleBookmarkListLoadMore: () => BookmarkListRowActionResult;
   handleBookmarkPageSizeChange: (value: string) => BookmarkListRowActionResult;
   handleBookmarkSearchReset: () => BookmarkListRowActionResult;
@@ -797,6 +799,7 @@ export default function BookmarkResultsPanel({
   actions,
   applyBookmarkSearch,
   handleBookmarkExport,
+  handleBookmarkImport,
   handleBookmarkListLoadMore,
   handleBookmarkPageSizeChange,
   handleBookmarkSearchReset,
@@ -814,6 +817,7 @@ export default function BookmarkResultsPanel({
   toggleBookmarkSearchTag,
   updateBookmarkSearchDraft
 }: BookmarkResultsPanelProps) {
+  const bookmarkImportInputRef = useRef<HTMLInputElement | null>(null);
   const shouldShowAdvancedBookmarkSearch = isAdvancedBookmarkSearchOpen;
   const shouldShowSearchPanelBody =
     !isMobileSearchViewport || isMobileSearchPanelOpen;
@@ -1127,6 +1131,28 @@ export default function BookmarkResultsPanel({
                     onClick={() => void handleBookmarkExport()}
                   >
                     내보내기
+                  </button>
+                  <input
+                    ref={bookmarkImportInputRef}
+                    className="backup-file-input"
+                    type="file"
+                    accept=".zip,application/zip,application/x-zip-compressed"
+                    aria-label="북마크 백업 파일 선택"
+                    onChange={(event) => {
+                      const file = event.currentTarget.files?.[0];
+                      if (file) {
+                        void handleBookmarkImport(file);
+                      }
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="secondary-button bookmark-list-import-button"
+                    aria-label="북마크 불러오기"
+                    onClick={() => bookmarkImportInputRef.current?.click()}
+                  >
+                    불러오기
                   </button>
                 </>
               )}
