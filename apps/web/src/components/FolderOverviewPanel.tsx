@@ -286,6 +286,17 @@ function FolderOverviewNode({
             <div className="folder-overview-mobile-actions">
               <button
                 type="button"
+                className="secondary-button folder-overview-child-create folder-overview-child-create-compact"
+                aria-label={`${folder.name} 하위 폴더 추가`}
+                title="하위 폴더 추가"
+                onClick={() => {
+                  void actions.onBeginChildCreate(folder);
+                }}
+              >
+                +
+              </button>
+              <button
+                type="button"
                 className="secondary-button folder-overview-mobile-edit"
                 aria-label={`${folder.name} 폴더 수정`}
                 onClick={() => {
@@ -301,11 +312,12 @@ function FolderOverviewNode({
                 type="button"
                 className="secondary-button folder-overview-child-create"
                 aria-label={`${folder.name} 하위 폴더 추가`}
+                title="하위 폴더 추가"
                 onClick={() => {
                   void actions.onBeginChildCreate(folder);
                 }}
               >
-                + 하위
+                +
               </button>
               <div
                 className="folder-action-menu-shell folder-overview-menu-shell"

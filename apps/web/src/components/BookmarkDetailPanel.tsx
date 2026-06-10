@@ -1,4 +1,4 @@
-import type { MouseEvent } from "react";
+import type { CSSProperties, MouseEvent } from "react";
 import type {
   Bookmark,
   BookmarkAsset,
@@ -147,22 +147,22 @@ export default function BookmarkDetailPanel({
       </span>
     </button>
   );
+  const accentStyle: CSSProperties | undefined =
+    bookmark.bookmarkColor || bookmark.urlColor
+      ? ({
+          "--bookmark-accent-color": bookmark.bookmarkColor ?? undefined,
+          "--bookmark-url-color": bookmark.urlColor ?? undefined
+        } as CSSProperties)
+      : undefined;
 
   return (
     <section
       aria-label="bookmark-detail"
       className={`surface-card panel-card bookmark-detail-card${
         isPreviewFullscreen ? " bookmark-detail-card-preview-fullscreen" : ""
-      }`}
+      }${bookmark.bookmarkColor ? " bookmark-detail-card-has-accent" : ""}`}
       aria-busy={isLoadingBookmark || isLoadingAssets || isLoadingPreview}
-      style={
-        bookmark.bookmarkColor
-          ? {
-              borderLeftColor: bookmark.bookmarkColor,
-              borderLeftWidth: "3px"
-            }
-          : undefined
-      }
+      style={accentStyle}
     >
       {isPreviewFullscreen ? (
         <div className="bookmark-preview-fullscreen-controls">
@@ -200,9 +200,10 @@ export default function BookmarkDetailPanel({
                 </div>
               </div>
               <p
-                className="muted-text bookmark-detail-url"
+                className={`muted-text bookmark-detail-url${
+                  bookmark.urlColor ? " bookmark-detail-url-accent" : ""
+                }`}
                 title={bookmark.url}
-                style={bookmark.urlColor ? { color: bookmark.urlColor } : undefined}
               >
                 {bookmark.url}
               </p>

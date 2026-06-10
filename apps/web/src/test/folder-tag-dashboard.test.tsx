@@ -45,6 +45,18 @@ function openFolderActionMenu(folderManager: HTMLElement, folderName: string) {
   );
 }
 
+function beginChildFolderCreateFromFolderMenu(folderManager: HTMLElement, folderName: string) {
+  openFolderActionMenu(folderManager, folderName);
+  const folderMenu = within(folderManager).getByRole("menu", {
+    name: new RegExp(`${folderName} 폴더 메뉴`, "i")
+  });
+  fireEvent.click(
+    within(folderMenu).getByRole("button", {
+      name: new RegExp(`${folderName} 하위 폴더 추가`, "i")
+    })
+  );
+}
+
 async function openTagManagerOverlay() {
   const navigationSidebar = await screen.findByRole("region", {
     name: /navigation-sidebar/i
@@ -309,11 +321,8 @@ describe("folder and tag dashboard", () => {
       within(folderItem).getByRole("button", { name: /reading 폴더 더보기/i })
     ).toHaveTextContent("...");
     expect(
-      within(folderItem).getByRole("button", { name: /reading 하위 폴더 추가/i })
-    ).toBeInTheDocument();
-    expect(
-      within(folderItem).getByRole("button", { name: /reading 하위 폴더 추가/i })
-    ).toHaveTextContent("+ 하위");
+      within(folderItem).queryByRole("button", { name: /reading 하위 폴더 추가/i })
+    ).not.toBeInTheDocument();
     expect(
       within(folderItem).getByRole("button", { name: /reading 폴더 이동/i })
     ).toHaveTextContent("이동");
@@ -436,9 +445,7 @@ describe("folder and tag dashboard", () => {
     render(<App />);
 
     const folderManager = await openFolderManagerOverlay();
-    fireEvent.click(
-      within(folderManager).getByRole("button", { name: /reading 하위 폴더 추가/i })
-    );
+    beginChildFolderCreateFromFolderMenu(folderManager, "Reading");
 
     expect(within(folderManager).getByRole("button", { name: /^폴더 추가$/i })).toHaveTextContent(
       /^추가$/i
@@ -551,6 +558,107 @@ describe("folder and tag dashboard", () => {
     expect(within(folderManager).getByText(/^Papers$/i)).toBeInTheDocument();
   });
 
+  it("keeps child folder creation behind each folder menu in the manager tree", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(JSON.stringify({ bookmarks: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "folder-1",
+                name: "Reading",
+                color: "#f97316",
+                icon: "book-open",
+                parentFolderId: null,
+                sortOrder: 0,
+                createdAt: "2026-04-13T10:00:00.000Z",
+                updatedAt: "2026-04-13T10:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    const folderManager = await openFolderManagerOverlay();
+    expect(folderManager.querySelector(".folder-tree-child-create")).not.toBeInTheDocument();
+    expect(
+      within(folderManager).queryByRole("button", { name: /reading 하위 폴더 추가/i })
+    ).not.toBeInTheDocument();
+
+    openFolderActionMenu(folderManager, "Reading");
+    const folderMenu = within(folderManager).getByRole("menu", {
+      name: /reading 폴더 메뉴/i
+    });
+    expect(
+      within(folderMenu).getByRole("button", { name: /reading 하위 폴더 추가/i })
+    ).toBeInTheDocument();
+  });
+
   it("closes the folder manager from the backdrop without confirmation when the child draft is unchanged", async () => {
     const confirmSpy = vi.fn(() => false);
     vi.stubGlobal("confirm", confirmSpy);
@@ -640,9 +748,7 @@ describe("folder and tag dashboard", () => {
     render(<App />);
 
     const folderManager = await openFolderManagerOverlay();
-    fireEvent.click(
-      within(folderManager).getByRole("button", { name: /reading 하위 폴더 추가/i })
-    );
+    beginChildFolderCreateFromFolderMenu(folderManager, "Reading");
 
     const folderDialog = screen.getByRole("dialog", {
       name: /folder-manager-dialog/i

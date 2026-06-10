@@ -326,6 +326,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 0.34rem;
 }
 
 .folder-overview-child-create,
@@ -336,6 +337,12 @@
   font-size: 0.74rem;
   background: #ffffff;
   border-color: rgba(31, 37, 51, 0.1);
+}
+
+.folder-overview-child-create-compact {
+  min-width: 2.12rem;
+  padding-inline: 0;
+  font-size: 0.92rem;
 }
 
 .folder-overview-mobile-edit {
@@ -788,10 +795,6 @@
 
   .dashboard-sidebar .folder-overview-inline-actions-visible {
     display: flex;
-  }
-
-  .dashboard-sidebar .folder-overview-inline-actions-visible .folder-overview-child-create {
-    display: none;
   }
 
   .dashboard-sidebar .folder-overview-inline-actions-visible .folder-overview-menu-shell .folder-action-trigger {

@@ -62,8 +62,15 @@
   display: inline-flex;
 }
 
+.folder-manager-dialog-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+
 .folder-tree-handle,
-.folder-tree-child-create,
 .folder-tree-drop-action {
   min-height: 1.84rem;
   padding: 0.3rem 0.56rem;
@@ -97,11 +104,6 @@
 
 .folder-tree-disclosure:hover {
   color: #1f2533;
-}
-
-.folder-tree-child-create {
-  min-height: 1.84rem;
-  padding-inline: 0.52rem;
 }
 
 .folder-tree-drop-action {
@@ -160,6 +162,20 @@
 }
 
 @media (max-width: 720px) {
+  .folder-manager-dialog-shell {
+    max-height: calc(100dvh - 1.2rem);
+  }
+
+  .folder-manager-dialog-header {
+    top: 0;
+    margin: -0.1rem -0.1rem 0;
+    padding: 0.18rem 0.1rem 0.7rem;
+  }
+
+  .folder-manager-dialog-close {
+    min-width: 3.1rem;
+  }
+
   .folder-tree-item,
   .folder-tree-row {
     display: flex;
@@ -188,7 +204,8 @@
 .app-theme-light .folder-tree-item,
 .app-theme-light .folder-tree-row,
 .app-theme-light .folder-tree-inline-menu,
-.app-theme-light .folder-tree-move-menu {
+.app-theme-light .folder-tree-move-menu,
+.app-theme-light .folder-manager-dialog-header {
   border-color: #dfe3e8 !important;
   background: #ffffff !important;
   color: #20242b !important;
@@ -210,7 +227,8 @@
 .app-theme-dark .folder-tree-item,
 .app-theme-dark .folder-tree-row,
 .app-theme-dark .folder-tree-inline-menu,
-.app-theme-dark .folder-tree-move-menu {
+.app-theme-dark .folder-tree-move-menu,
+.app-theme-dark .folder-manager-dialog-header {
   border-color: var(--border-soft) !important;
   background: var(--surface-raised) !important;
   color: var(--text-primary) !important;

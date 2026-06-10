@@ -1376,8 +1376,11 @@ describe("bookmark dashboard", () => {
       /^https:\/\/example\.com\/post$/i
     );
     expect(bookmarkUrlLine).toHaveClass("bookmark-row-url");
+    expect(bookmarkUrlLine).toHaveClass("bookmark-row-url-accent");
     expect(bookmarkUrlLine).toHaveAttribute("title", "https://example.com/post");
-    expect(bookmarkUrlLine).toHaveStyle({ color: "#0f172a" });
+    expect(bookmarkListRow as HTMLElement).toHaveStyle({
+      "--bookmark-url-color": "#0f172a"
+    });
     expect(
       await within(bookmarkListRegion).findByRole("img", { name: /업로드 이미지 1/i })
     ).toBeInTheDocument();
@@ -9241,9 +9244,29 @@ describe("bookmark dashboard", () => {
       name: /folder-overview/i
     });
 
+    fireEvent.click(within(folderOverview).getByRole("button", { name: /Visible 하위 폴더 추가/i }));
+
+    let folderDialog = await screen.findByRole("dialog", {
+      name: /folder-manager-dialog/i
+    });
+    expect(folderDialog).toHaveClass("folder-manager-dialog-shell");
+    const childFolderManager = within(folderDialog).getByRole("region", { name: /folder-manager/i });
+    expect(
+      (within(childFolderManager).getByLabelText(/부모 폴더/i) as HTMLSelectElement).value
+    ).toBe("folder-visible");
+    expect(
+      within(folderDialog)
+        .getByRole("button", { name: /^닫기$/i })
+        .closest(".folder-manager-dialog-header")
+    ).toBeInTheDocument();
+    fireEvent.click(within(folderDialog).getByRole("button", { name: /^닫기$/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /folder-manager-dialog/i })).not.toBeInTheDocument();
+    });
+
     fireEvent.click(within(folderOverview).getByRole("button", { name: /Visible 폴더 수정/i }));
 
-    const folderDialog = await screen.findByRole("dialog", {
+    folderDialog = await screen.findByRole("dialog", {
       name: /folder-manager-dialog/i
     });
     const folderManager = within(folderDialog).getByRole("region", { name: /folder-manager/i });
@@ -9496,6 +9519,153 @@ describe("bookmark dashboard", () => {
     expect(within(bookmarkMenu).getByRole("button", { name: /^삭제$/i })).toHaveClass(
       "bookmark-card-action-menu-item"
     );
+  });
+
+  it("applies bookmark and URL colors to mobile card URL fallbacks", async () => {
+    stubDashboardViewport(640);
+    globalThis.localStorage?.setItem(
+      "bookmark-view-settings:v2",
+      JSON.stringify({
+        mode: "card",
+        list: {
+          coverImage: false,
+          title: true,
+          description: false,
+          tags: false,
+          bookmarkInfo: false,
+          coverSize: 132
+        },
+        card: {
+          coverImage: false,
+          title: true,
+          description: true,
+          tags: false,
+          bookmarkInfo: false,
+          coverSize: 132
+        }
+      })
+    );
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/auth/session" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            authenticated: true,
+            user: {
+              uid: "firebase-user-1",
+              email: "keygenerator25@gmail.com",
+              name: "Bookmark Tester"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/bookmarks" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            bookmarks: [
+              {
+                id: "bookmark-mobile-color",
+                folderId: null,
+                tagIds: [],
+                url: "https://example.com/mobile-color",
+                isFavorite: false,
+                isHidden: false,
+                bookmarkColor: "#dc2626",
+                urlColor: "#1d4ed8",
+                sourceTitle: null,
+                sourceContent: null,
+                sourceSummary: null,
+                userTitle: "Mobile color title",
+                userContent: "",
+                userSummary: "",
+                displayTitle: "Mobile color title",
+                displayContent: "",
+                displaySummary: "",
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/recommendations" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            favorites: [],
+            recent: [],
+            frequent: []
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("tab", { name: /북마크/i }));
+
+    const bookmarkListRegion = await screen.findByRole("region", {
+      name: /bookmark-list/i
+    });
+    const mobileCard = within(bookmarkListRegion)
+      .getByText(/^Mobile color title$/i)
+      .closest(".bookmark-list-row");
+    expect(mobileCard).not.toBeNull();
+    expect(mobileCard as HTMLElement).toHaveClass("bookmark-list-row-has-accent");
+    expect(mobileCard as HTMLElement).toHaveStyle({
+      "--bookmark-accent-color": "#dc2626",
+      "--bookmark-url-color": "#1d4ed8"
+    });
+    const mobileUrlFallback = within(mobileCard as HTMLElement).getByText(
+      /^https:\/\/example\.com\/mobile-color$/i
+    );
+    expect(mobileUrlFallback).toHaveClass(
+      "bookmark-row-summary",
+      "bookmark-card-summary",
+      "bookmark-row-url-accent"
+    );
+    expect(mobileUrlFallback).toHaveAttribute("title", "https://example.com/mobile-color");
   });
 
   it("applies bookmark sorting from the mobile bookmark header", async () => {
@@ -10333,6 +10503,19 @@ describe("bookmark dashboard", () => {
       bookmarkColor: "#dc2626",
       urlColor: "#1d4ed8"
     });
+    const updatedBookmarkRow = within(bookmarkListRegion)
+      .getByText(/^After title$/i)
+      .closest(".bookmark-list-row");
+    expect(updatedBookmarkRow).not.toBeNull();
+    expect(updatedBookmarkRow as HTMLElement).toHaveClass("bookmark-list-row-has-accent");
+    expect(updatedBookmarkRow as HTMLElement).toHaveStyle({
+      "--bookmark-accent-color": "#dc2626",
+      "--bookmark-url-color": "#1d4ed8"
+    });
+    const updatedBookmarkUrlLine = within(updatedBookmarkRow as HTMLElement).getByText(
+      /^https:\/\/example\.com\/updated-post$/i
+    );
+    expect(updatedBookmarkUrlLine).toHaveClass("bookmark-row-url-accent");
   });
 
   it("initializes edit mode with hidden bookmarks checked", async () => {
