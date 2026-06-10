@@ -185,6 +185,27 @@ describe("CSS budget", () => {
     }
   });
 
+  it("keeps modal overlays above the mobile dashboard header", () => {
+    const dashboardCss = readFileSync(
+      join(process.cwd(), "src", "components", "AuthenticatedDashboardApp.css"),
+      "utf8"
+    );
+    const overlayCss = readFileSync(
+      join(process.cwd(), "src", "components", "OverlayDialog.css"),
+      "utf8"
+    );
+    const mobileHeaderZIndex = Number(
+      dashboardCss.match(
+        /@media\s*\(max-width:\s*720px\)[\s\S]*?\.app-hero\s*\{[\s\S]*?z-index:\s*(\d+)/s
+      )?.[1]
+    );
+    const overlayZIndex = Number(
+      overlayCss.match(/\.overlay-backdrop\s*\{[\s\S]*?z-index:\s*(\d+)/)?.[1]
+    );
+
+    expect(overlayZIndex).toBeGreaterThan(mobileHeaderZIndex);
+  });
+
   it("gives long lazy lists browser-level render containment", () => {
     const folderManagerCss = readFileSync(
       join(process.cwd(), "src", "components", "FolderManagerDialog.css"),
