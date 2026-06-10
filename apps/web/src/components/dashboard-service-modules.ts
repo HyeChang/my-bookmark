@@ -341,6 +341,10 @@ function loadMemoAssets(...args: Parameters<MemoAssetsModule["loadMemoAssets"]>)
   return callDeferredModule(memoAssetsModule, (module) => module.loadMemoAssets, args);
 }
 
+function deleteMemoAsset(...args: Parameters<MemoAssetsModule["deleteMemoAsset"]>) {
+  return callDeferredModule(memoAssetsModule, (module) => module.deleteMemoAsset, args);
+}
+
 function loadMemoTags(...args: Parameters<MemosModule["loadMemoTags"]>) {
   return callDeferredModule(memosModule, (module) => module.loadMemoTags, args);
 }
@@ -485,6 +489,7 @@ export {
   emptyBookmarkTrash,
   deleteFolder,
   deleteMemo,
+  deleteMemoAsset,
   deleteMemoFolder,
   deleteMemoTag,
   deleteTag,

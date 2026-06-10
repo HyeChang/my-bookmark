@@ -2,11 +2,13 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
+import AuthenticatedDashboardApp from "../components/AuthenticatedDashboardApp";
 
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   globalThis.localStorage?.clear();
+  window.history.replaceState(null, "", "/");
 });
 
 function openBookmarkActionMenu(bookmarkListRegion: HTMLElement, bookmarkName: string) {
@@ -4063,6 +4065,203 @@ describe("bookmark dashboard", () => {
         ]
       }
     });
+  });
+
+  it("asks before leaving a dirty memo editor from the folder tree and opens the selected folder after confirmation", async () => {
+    window.history.replaceState(null, "", "/?view=memos");
+    const confirmSpy = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
+    vi.stubGlobal("confirm", confirmSpy);
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/memos/lock/status" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            isConfigured: false,
+            isUnlocked: false
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/folders" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            folders: [
+              {
+                id: "memo-folder-1",
+                parentFolderId: null,
+                name: "Work notes",
+                color: "#2563eb",
+                icon: "folder",
+                isHidden: false,
+                sortOrder: 0,
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/memos?folderId=null&limit=20&offset=0" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            memos: [
+              {
+                id: "memo-1",
+                folderId: null,
+                tagIds: [],
+                title: "Draft memo",
+                contentJson: {
+                  type: "doc",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [{ type: "text", text: "Original body" }]
+                    }
+                  ]
+                },
+                contentText: "Original body",
+                isFavorite: false,
+                isHidden: false,
+                isLocked: false,
+                memoColor: null,
+                assetCount: 0,
+                coverAsset: null,
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
+              }
+            ],
+            pagination: {
+              limit: 20,
+              offset: 0,
+              total: 1,
+              hasMore: false
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (
+        url ===
+          "/api/memos?folderId=memo-folder-1&includeDescendantFolders=1&limit=20&offset=0" &&
+        !init?.method
+      ) {
+        return new Response(
+          JSON.stringify({
+            memos: [],
+            pagination: {
+              limit: 20,
+              offset: 0,
+              total: 0,
+              hasMore: false
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/memo-1" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            memo: {
+              id: "memo-1",
+              folderId: null,
+              tagIds: [],
+              title: "Draft memo",
+              contentJson: {
+                type: "doc",
+                content: [
+                  {
+                    type: "paragraph",
+                    content: [{ type: "text", text: "Original body" }]
+                  }
+                ]
+              },
+              contentText: "Original body",
+              isFavorite: false,
+              isHidden: false,
+              isLocked: false,
+              memoColor: null,
+              assetCount: 0,
+              coverAsset: null,
+              createdAt: "2026-04-13T08:00:00.000Z",
+              updatedAt: "2026-04-13T08:00:00.000Z"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(
+      <AuthenticatedDashboardApp
+        initialUser={{
+          uid: "firebase-user-1",
+          email: "keygenerator25@gmail.com"
+        }}
+      />
+    );
+
+    const memoWorkspace = await screen.findByRole("region", { name: /memo-workspace/i });
+    fireEvent.click(within(memoWorkspace).getByRole("button", { name: /Draft memo 메모 편집/i }));
+
+    const titleInput = await screen.findByLabelText(/메모 제목/i);
+    fireEvent.change(titleInput, { target: { value: "Changed memo" } });
+
+    fireEvent.click(await screen.findByRole("button", { name: /Work notes 폴더 보기/i }));
+
+    expect(confirmSpy).toHaveBeenCalledWith("저장하지 않은 메모 변경 사항이 있습니다. 닫을까요?");
+    expect(screen.getByLabelText(/메모 제목/i)).toHaveValue("Changed memo");
+
+    fireEvent.click(await screen.findByRole("button", { name: /Work notes 폴더 보기/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/메모 제목/i)).not.toBeInTheDocument();
+    });
+    expect(
+      await screen.findByText(/표시할 메모가 없습니다\./i)
+    ).toBeInTheDocument();
   });
 
   it("creates a bookmark with selected tags and appends it to the list", async () => {

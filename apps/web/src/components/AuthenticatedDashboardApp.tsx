@@ -77,6 +77,7 @@ import {
   emptyBookmarkTrash,
   deleteFolder,
   deleteMemo,
+  deleteMemoAsset,
   deleteMemoFolder,
   deleteMemoTag,
   deleteTag,
@@ -128,6 +129,11 @@ import {
   uploadMemoAsset,
   uploadPreparedMemoAsset
 } from "./dashboard-service-modules";
+import {
+  applyMemoContentAssetPreview,
+  getReferencedMemoAssets,
+  getReferencedMemoImageUploads
+} from "../lib/memo-content-assets";
 import type { PreparedMemoImageUploadFile } from "../lib/memo-image-compression";
 import {
   buildBookmarkListRows,
@@ -373,6 +379,22 @@ function createMemoDraftFromMemo(memo: Memo): MemoComposerDraft {
     contentJson: memo.contentJson,
     contentText: memo.contentText
   };
+}
+
+function areMemoDraftsEqual(left: MemoComposerDraft, right: MemoComposerDraft) {
+  return (
+    left.title === right.title &&
+    left.folderId === right.folderId &&
+    left.memoColor === right.memoColor &&
+    left.isFavorite === right.isFavorite &&
+    left.isHidden === right.isHidden &&
+    left.isLocked === right.isLocked &&
+    left.lockPassword === right.lockPassword &&
+    left.contentText === right.contentText &&
+    left.tagIds.length === right.tagIds.length &&
+    left.tagIds.every((tagId, index) => tagId === right.tagIds[index]) &&
+    JSON.stringify(left.contentJson) === JSON.stringify(right.contentJson)
+  );
 }
 
 function createLockedMemoPreview(memo: Memo): Memo {
@@ -720,6 +742,9 @@ export default function AuthenticatedDashboardApp({
   const [isLoadingMemos, setIsLoadingMemos] = useState(false);
   const [memoDraft, setMemoDraft] = useState<MemoComposerDraft>(() => createEmptyMemoDraft());
   const memoDraftRef = useRef(memoDraft);
+  const [initialMemoDraft, setInitialMemoDraft] = useState<MemoComposerDraft>(() =>
+    createEmptyMemoDraft()
+  );
   const [editingMemo, setEditingMemo] = useState<Memo | null>(null);
   const [isMemoComposerOpen, setIsMemoComposerOpen] = useState(false);
   const [, setPendingMemoImageUploads] = useState<
@@ -952,6 +977,7 @@ export default function AuthenticatedDashboardApp({
     setActiveDashboardView("memos");
     setEditingMemo(null);
     replaceMemoDraft(nextDraft);
+    setInitialMemoDraft(nextDraft);
     clearPendingMemoImageUploads();
     setIsMemoComposerOpen(true);
     setErrorMessage(null);
@@ -962,9 +988,11 @@ export default function AuthenticatedDashboardApp({
   function openMemoEditor(memo: Memo) {
     preloadDashboardDialogChunk("memoComposer");
     preloadDashboardPanelChunk("memos");
+    const nextDraft = createMemoDraftFromMemo(memo);
     setActiveDashboardView("memos");
     setEditingMemo(memo);
-    replaceMemoDraft(createMemoDraftFromMemo(memo));
+    replaceMemoDraft(nextDraft);
+    setInitialMemoDraft(nextDraft);
     clearPendingMemoImageUploads();
     setIsMemoComposerOpen(true);
     setErrorMessage(null);
@@ -1797,12 +1825,40 @@ export default function AuthenticatedDashboardApp({
     setPendingMemoImageUploads([]);
   }
 
+  function hasMemoComposerChanges() {
+    const currentMemoDraft = memoDraftRef.current;
+    const referencedPendingUploads = getReferencedMemoImageUploads(
+      pendingMemoImageUploadsRef.current,
+      currentMemoDraft.contentJson
+    );
+
+    return (
+      !areMemoDraftsEqual(currentMemoDraft, initialMemoDraft) ||
+      referencedPendingUploads.length > 0
+    );
+  }
+
   function closeMemoComposer() {
     setIsMemoComposerOpen(false);
     setEditingMemo(null);
-    replaceMemoDraft(createEmptyMemoDraft());
+    const emptyMemoDraft = createEmptyMemoDraft();
+    replaceMemoDraft(emptyMemoDraft);
+    setInitialMemoDraft(emptyMemoDraft);
     clearPendingMemoImageUploads();
     setIsSavingMemo(false);
+  }
+
+  function requestCloseMemoComposer() {
+    if (
+      hasMemoComposerChanges() &&
+      globalThis.confirm &&
+      !globalThis.confirm("저장하지 않은 메모 변경 사항이 있습니다. 닫을까요?")
+    ) {
+      return false;
+    }
+
+    closeMemoComposer();
+    return true;
   }
 
   async function handleMemoImageUpload(file: File): Promise<MemoAsset> {
@@ -1865,6 +1921,27 @@ export default function AuthenticatedDashboardApp({
     return createdTag;
   }
 
+  async function reconcileMemoAssetsWithContent(
+    memo: Memo,
+    contentJson: MemoRichContent,
+    shouldLoadAssets: boolean
+  ) {
+    if (!shouldLoadAssets) {
+      return applyMemoContentAssetPreview(memo, []);
+    }
+
+    const memoAssets = await loadMemoAssets(memo.id);
+    const referencedAssets = getReferencedMemoAssets(memoAssets, contentJson);
+    const referencedAssetIds = new Set(referencedAssets.map((asset) => asset.id));
+    const unreferencedAssets = memoAssets.filter((asset) => !referencedAssetIds.has(asset.id));
+
+    await Promise.all(
+      unreferencedAssets.map((asset) => deleteMemoAsset(memo.id, asset.id))
+    );
+
+    return applyMemoContentAssetPreview(memo, referencedAssets);
+  }
+
   async function handleMemoSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSavingMemo(true);
@@ -1872,6 +1949,10 @@ export default function AuthenticatedDashboardApp({
 
     const currentMemoDraft = memoDraftRef.current;
     const pendingUploads = pendingMemoImageUploadsRef.current;
+    const referencedPendingUploads = getReferencedMemoImageUploads(
+      pendingUploads,
+      currentMemoDraft.contentJson
+    );
     const lockPassword = currentMemoDraft.lockPassword.trim();
     const input = {
       title: currentMemoDraft.title.trim() || "Untitled",
@@ -1879,7 +1960,7 @@ export default function AuthenticatedDashboardApp({
       tagIds: currentMemoDraft.tagIds,
       contentJson: editingMemo
         ? currentMemoDraft.contentJson
-        : removePendingMemoImages(currentMemoDraft.contentJson, pendingUploads),
+        : removePendingMemoImages(currentMemoDraft.contentJson, referencedPendingUploads),
       contentText: currentMemoDraft.contentText,
       isFavorite: currentMemoDraft.isFavorite,
       isHidden: currentMemoDraft.isHidden,
@@ -1892,16 +1973,18 @@ export default function AuthenticatedDashboardApp({
       let savedMemo = editingMemo
         ? await updateMemo(editingMemo.id, input)
         : await createMemo(input);
+      const uploadedMemoAssets: MemoAsset[] = [];
 
-      if (!editingMemo && pendingUploads.length > 0) {
+      if (!editingMemo && referencedPendingUploads.length > 0) {
         const imageReplacements = new Map<string, string>();
 
-        for (const pendingUpload of pendingUploads) {
+        for (const pendingUpload of referencedPendingUploads) {
           const asset = await uploadPreparedMemoAsset(
             savedMemo.id,
             pendingUpload.preparedFile
           );
           imageReplacements.set(pendingUpload.contentUrl, asset.contentUrl);
+          uploadedMemoAssets.push(asset);
         }
 
         savedMemo = await updateMemo(savedMemo.id, {
@@ -1911,25 +1994,26 @@ export default function AuthenticatedDashboardApp({
         });
       }
 
-      const latestCoverAsset = editingMemo
-        ? latestMemoCoverAssetByMemoIdRef.current[editingMemo.id]
-        : undefined;
-      if (latestCoverAsset && savedMemo.id === editingMemo?.id) {
-        savedMemo = {
-          ...savedMemo,
-          assetCount: Math.max(
-            savedMemo.assetCount,
-            editingMemo.assetCount,
-            latestCoverAsset.sortOrder + 1
-          ),
-          coverAsset: latestCoverAsset
-        };
+      if (editingMemo) {
+        savedMemo = await reconcileMemoAssetsWithContent(
+          savedMemo,
+          currentMemoDraft.contentJson,
+          savedMemo.assetCount > 0 ||
+            editingMemo.assetCount > 0 ||
+            Boolean(latestMemoCoverAssetByMemoIdRef.current[editingMemo.id])
+        );
+        delete latestMemoCoverAssetByMemoIdRef.current[editingMemo.id];
+      } else {
+        savedMemo = applyMemoContentAssetPreview(savedMemo, uploadedMemoAssets);
       }
 
       const shouldCloseLockedMemo = savedMemo.isLocked;
       const visibleSavedMemo = shouldCloseLockedMemo
         ? createLockedMemoPreview(savedMemo)
         : savedMemo;
+      const nextMemoDraft = shouldCloseLockedMemo
+        ? createEmptyMemoDraft()
+        : createMemoDraftFromMemo(savedMemo);
       clearMemoPageCaches();
 
       startTransition(() => {
@@ -1944,9 +2028,8 @@ export default function AuthenticatedDashboardApp({
           );
         });
         setEditingMemo(shouldCloseLockedMemo ? null : savedMemo);
-        replaceMemoDraft(
-          shouldCloseLockedMemo ? createEmptyMemoDraft() : createMemoDraftFromMemo(savedMemo)
-        );
+        replaceMemoDraft(nextMemoDraft);
+        setInitialMemoDraft(nextMemoDraft);
         setIsMemoComposerOpen(!shouldCloseLockedMemo);
         setMemoTotalCount((currentCount) => {
           if (editingMemo || typeof currentCount !== "number") {
@@ -6314,8 +6397,10 @@ export default function AuthenticatedDashboardApp({
   );
   function selectMemoFolderForCurrentWorkspace(folderId: string | null) {
     if (isMemoComposerOpen) {
-      updateMemoDraft({ folderId: folderId ?? "" });
-      return;
+      const didCloseMemoComposer = requestCloseMemoComposer();
+      if (!didCloseMemoComposer) {
+        return;
+      }
     }
 
     applyCachedMemoPageOrLoading(
@@ -6341,7 +6426,7 @@ export default function AuthenticatedDashboardApp({
     }
 
     if (filter === "unfiled") {
-      selectMemoFolderForCurrentWorkspace(isMemoComposerOpen ? null : "unfiled");
+      selectMemoFolderForCurrentWorkspace("unfiled");
       return;
     }
 
@@ -6932,7 +7017,7 @@ export default function AuthenticatedDashboardApp({
               memoDraftRef.current.isLocked && (!editingMemo || !editingMemo.isLocked)
             }
             tags={memoTags}
-            onClose={closeMemoComposer}
+            onClose={requestCloseMemoComposer}
             onCreateTag={handleMemoTagCreate}
             onDraftContentChange={updateMemoDraftContent}
             onDraftChange={updateMemoDraft}
