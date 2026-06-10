@@ -6667,6 +6667,12 @@ export default function AuthenticatedDashboardApp({
       }
     }
 
+    const currentMemoFolderFilterId = memoFolderFilterIdRef.current;
+    if (currentMemoFolderFilterId === folderId) {
+      void refreshMemoWorkspace({ folderFilterId: folderId });
+      return;
+    }
+
     applyCachedMemoPageOrLoading(
       createCurrentMemoPageOptions({
         folderFilterId: folderId,

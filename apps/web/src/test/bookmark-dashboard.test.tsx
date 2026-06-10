@@ -4382,7 +4382,7 @@ describe("bookmark dashboard", () => {
         }
       ]
     };
-    const memo = {
+    let memo = {
       id: "memo-1",
       folderId: null,
       tagIds: [],
@@ -4497,21 +4497,17 @@ describe("bookmark dashboard", () => {
 
       if (url === "/api/memos/memo-1" && init?.method === "PATCH") {
         patchBody = JSON.parse(String(init.body));
-        return new Response(
-          JSON.stringify({
-            memo: {
-              ...memo,
-              ...(patchBody as Record<string, unknown>),
-              updatedAt: "2026-04-13T08:30:00.000Z"
-            }
-          }),
-          {
-            status: 200,
-            headers: {
-              "content-type": "application/json"
-            }
+        memo = {
+          ...memo,
+          ...(patchBody as Record<string, unknown>),
+          updatedAt: "2026-04-13T08:30:00.000Z"
+        };
+        return new Response(JSON.stringify({ memo }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
           }
-        );
+        });
       }
 
       if (url === "/api/memos/memo-1/assets" && !init?.method) {
@@ -4544,6 +4540,19 @@ describe("bookmark dashboard", () => {
         title: "Renamed memo"
       });
     });
+    expect(await screen.findByText(/메모를 수정했습니다\./i)).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: /미분류 보기/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/메모 제목/i)).not.toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.queryByText(/메모를 불러오는 중입니다\./i)).not.toBeInTheDocument();
+    });
+    expect(
+      await screen.findByRole("button", { name: /Renamed memo 메모 편집/i })
+    ).toBeInTheDocument();
   });
 
   it("keeps memo folder counts stable when selecting memo folders", async () => {
