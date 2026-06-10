@@ -2441,21 +2441,11 @@ export default function AuthenticatedDashboardApp({
       : memoFolderFilterId && memoFolderFilterId !== "unfiled"
         ? memoFolderFilterId
         : null;
-    const memoFolderChildrenByParentId = getFoldersByParentId(memoFolders);
-    const memoFolderIdsWithChildren = Array.from(memoFolderChildrenByParentId.entries())
-      .filter(([folderId, childFolders]) => Boolean(folderId) && childFolders.length > 0)
-      .map(([folderId]) => folderId as string);
 
     setExpandedMemoFolderOverviewIds((currentIds) => {
       const visibleFolderIds = new Set(memoFolders.map((folder) => folder.id));
       const nextIds = currentIds.filter((folderId) => visibleFolderIds.has(folderId));
       const nextIdSet = new Set(nextIds);
-
-      if (nextIdSet.size === 0) {
-        for (const folderId of memoFolderIdsWithChildren) {
-          nextIdSet.add(folderId);
-        }
-      }
 
       if (activeMemoFolderId) {
         nextIdSet.add(activeMemoFolderId);
@@ -2483,7 +2473,7 @@ export default function AuthenticatedDashboardApp({
       const validFolderIds = new Set(managerFolders.map((folder) => folder.id));
       const nextIdSet = new Set(currentIds.filter((folderId) => validFolderIds.has(folderId)));
 
-      if (nextIdSet.size === 0) {
+      if (folderManagerScope !== "memos" && nextIdSet.size === 0) {
         for (const folderId of folderIdsWithChildren) {
           nextIdSet.add(folderId);
         }

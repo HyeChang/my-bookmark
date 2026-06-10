@@ -4645,6 +4645,17 @@ describe("bookmark dashboard", () => {
                 sortOrder: 1,
                 createdAt: "2026-04-13T08:00:00.000Z",
                 updatedAt: "2026-04-13T08:00:00.000Z"
+              },
+              {
+                id: "memo-folder-3",
+                parentFolderId: "memo-folder-1",
+                name: "Nested notes",
+                color: "#a855f7",
+                icon: "folder",
+                isHidden: false,
+                sortOrder: 0,
+                createdAt: "2026-04-13T08:00:00.000Z",
+                updatedAt: "2026-04-13T08:00:00.000Z"
               }
             ]
           }),
@@ -4744,6 +4755,9 @@ describe("bookmark dashboard", () => {
       expect(within(workFolderButton).getByText("2")).toBeInTheDocument();
       expect(within(otherFolderButton).getByText("1")).toBeInTheDocument();
     });
+    expect(
+      screen.queryByRole("button", { name: /Nested notes 폴더 보기/i })
+    ).not.toBeInTheDocument();
 
     fireEvent.click(workFolderButton);
 
