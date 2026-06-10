@@ -20,6 +20,7 @@ import type {
   BookmarkExtractPreview,
   BookmarkSortMode,
   CreateBookmarkRequest,
+  CreateMemoRequest,
   ExtensionToken,
   Folder,
   Memo,
@@ -30,6 +31,7 @@ import type {
   MemoLockStatusResponse,
   MemoRichContent,
   MemoTag,
+  UpdateMemoRequest,
   MemoViewMode,
   Tag
 } from "@bookmark/shared";
@@ -139,6 +141,7 @@ import {
 } from "./dashboard-service-modules";
 import {
   applyMemoContentAssetPreview,
+  collectMemoImageSources,
   getReferencedMemoAssets,
   getReferencedMemoImageUploads
 } from "../lib/memo-content-assets";
@@ -404,6 +407,76 @@ function areMemoDraftsEqual(left: MemoComposerDraft, right: MemoComposerDraft) {
     left.tagIds.every((tagId, index) => tagId === right.tagIds[index]) &&
     JSON.stringify(left.contentJson) === JSON.stringify(right.contentJson)
   );
+}
+
+function areMemoTagIdsEqual(left: string[], right: string[]) {
+  return left.length === right.length && left.every((tagId, index) => tagId === right[index]);
+}
+
+function areMemoRichContentsEqual(left: MemoRichContent, right: MemoRichContent) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function areStringSetsEqual(left: Set<string>, right: Set<string>) {
+  if (left.size !== right.size) {
+    return false;
+  }
+
+  for (const value of left) {
+    if (!right.has(value)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function haveMemoImageSourcesChanged(left: MemoRichContent, right: MemoRichContent) {
+  return !areStringSetsEqual(collectMemoImageSources(left), collectMemoImageSources(right));
+}
+
+function createMemoUpdateInput(
+  currentDraft: MemoComposerDraft,
+  initialDraft: MemoComposerDraft,
+  lockPassword: string
+): UpdateMemoRequest {
+  const input: UpdateMemoRequest = {};
+  const currentTitle = currentDraft.title.trim() || "Untitled";
+  const initialTitle = initialDraft.title.trim() || "Untitled";
+  const hasContentChanges =
+    currentDraft.contentText !== initialDraft.contentText ||
+    !areMemoRichContentsEqual(currentDraft.contentJson, initialDraft.contentJson);
+
+  if (currentTitle !== initialTitle) {
+    input.title = currentTitle;
+  }
+  if (currentDraft.folderId !== initialDraft.folderId) {
+    input.folderId = currentDraft.folderId || null;
+  }
+  if (!areMemoTagIdsEqual(currentDraft.tagIds, initialDraft.tagIds)) {
+    input.tagIds = currentDraft.tagIds;
+  }
+  if (hasContentChanges) {
+    input.contentJson = currentDraft.contentJson;
+    input.contentText = currentDraft.contentText;
+  }
+  if (currentDraft.isFavorite !== initialDraft.isFavorite) {
+    input.isFavorite = currentDraft.isFavorite;
+  }
+  if (currentDraft.isHidden !== initialDraft.isHidden) {
+    input.isHidden = currentDraft.isHidden;
+  }
+  if (currentDraft.isLocked !== initialDraft.isLocked) {
+    input.isLocked = currentDraft.isLocked;
+  }
+  if (currentDraft.memoColor !== initialDraft.memoColor) {
+    input.memoColor = currentDraft.memoColor || null;
+  }
+  if (currentDraft.isLocked && lockPassword) {
+    input.lockPassword = lockPassword;
+  }
+
+  return input;
 }
 
 function createLockedMemoPreview(memo: Memo): Memo {
@@ -1992,13 +2065,11 @@ export default function AuthenticatedDashboardApp({
       currentMemoDraft.contentJson
     );
     const lockPassword = currentMemoDraft.lockPassword.trim();
-    const input = {
+    const createInput: CreateMemoRequest = {
       title: currentMemoDraft.title.trim() || "Untitled",
       folderId: currentMemoDraft.folderId || null,
       tagIds: currentMemoDraft.tagIds,
-      contentJson: editingMemo
-        ? currentMemoDraft.contentJson
-        : removePendingMemoImages(currentMemoDraft.contentJson, referencedPendingUploads),
+      contentJson: removePendingMemoImages(currentMemoDraft.contentJson, referencedPendingUploads),
       contentText: currentMemoDraft.contentText,
       isFavorite: currentMemoDraft.isFavorite,
       isHidden: currentMemoDraft.isHidden,
@@ -2006,40 +2077,58 @@ export default function AuthenticatedDashboardApp({
       ...(currentMemoDraft.isLocked && lockPassword ? { lockPassword } : {}),
       memoColor: currentMemoDraft.memoColor || null
     };
+    const updateInput = editingMemo
+      ? createMemoUpdateInput(currentMemoDraft, initialMemoDraft, lockPassword)
+      : null;
+    const hasMemoUpdateInput = updateInput ? Object.keys(updateInput).length > 0 : false;
 
     try {
       let savedMemo = editingMemo
-        ? await updateMemo(editingMemo.id, input)
-        : await createMemo(input);
+        ? hasMemoUpdateInput && updateInput
+          ? await updateMemo(editingMemo.id, updateInput)
+          : editingMemo
+        : await createMemo(createInput);
       const uploadedMemoAssets: MemoAsset[] = [];
 
       if (!editingMemo && referencedPendingUploads.length > 0) {
-        const imageReplacements = new Map<string, string>();
-
-        for (const pendingUpload of referencedPendingUploads) {
-          const asset = await uploadPreparedMemoAsset(
-            savedMemo.id,
-            pendingUpload.preparedFile
-          );
-          imageReplacements.set(pendingUpload.contentUrl, asset.contentUrl);
-          uploadedMemoAssets.push(asset);
-        }
+        const uploadedMemoAssetEntries = await Promise.all(
+          referencedPendingUploads.map(async (pendingUpload) => {
+            const asset = await uploadPreparedMemoAsset(
+              savedMemo.id,
+              pendingUpload.preparedFile
+            );
+            return { pendingUpload, asset };
+          })
+        );
+        const imageReplacements = new Map(
+          uploadedMemoAssetEntries.map(({ pendingUpload, asset }) => [
+            pendingUpload.contentUrl,
+            asset.contentUrl
+          ])
+        );
+        uploadedMemoAssets.push(...uploadedMemoAssetEntries.map(({ asset }) => asset));
 
         savedMemo = await updateMemo(savedMemo.id, {
-          ...input,
+          ...createInput,
           contentJson: replacePendingMemoImages(currentMemoDraft.contentJson, imageReplacements),
           contentText: currentMemoDraft.contentText
         });
       }
 
       if (editingMemo) {
-        savedMemo = await reconcileMemoAssetsWithContent(
-          savedMemo,
-          currentMemoDraft.contentJson,
-          savedMemo.assetCount > 0 ||
-            editingMemo.assetCount > 0 ||
-            Boolean(latestMemoCoverAssetByMemoIdRef.current[editingMemo.id])
+        const hasUploadedEditingMemoAsset = Boolean(
+          latestMemoCoverAssetByMemoIdRef.current[editingMemo.id]
         );
+        if (
+          hasUploadedEditingMemoAsset ||
+          haveMemoImageSourcesChanged(initialMemoDraft.contentJson, currentMemoDraft.contentJson)
+        ) {
+          savedMemo = await reconcileMemoAssetsWithContent(
+            savedMemo,
+            currentMemoDraft.contentJson,
+            savedMemo.assetCount > 0 || editingMemo.assetCount > 0 || hasUploadedEditingMemoAsset
+          );
+        }
         delete latestMemoCoverAssetByMemoIdRef.current[editingMemo.id];
       } else {
         savedMemo = applyMemoContentAssetPreview(savedMemo, uploadedMemoAssets);

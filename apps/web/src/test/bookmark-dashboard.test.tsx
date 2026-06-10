@@ -4371,6 +4371,181 @@ describe("bookmark dashboard", () => {
     ).toBeInTheDocument();
   });
 
+  it("saves memo metadata changes without reloading unchanged memo assets", async () => {
+    window.history.replaceState(null, "", "/?view=memos");
+    const memoContentJson = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Original body" }]
+        }
+      ]
+    };
+    const memo = {
+      id: "memo-1",
+      folderId: null,
+      tagIds: [],
+      title: "Draft memo",
+      contentJson: memoContentJson,
+      contentText: "Original body",
+      isFavorite: false,
+      isHidden: false,
+      isLocked: false,
+      memoColor: null,
+      assetCount: 1,
+      coverAsset: {
+        id: "memo-asset-1",
+        memoId: "memo-1",
+        mimeType: "image/webp",
+        width: 640,
+        height: 360,
+        sortOrder: 0,
+        contentUrl: "/api/memos/memo-1/assets/memo-asset-1/content",
+        thumbnailUrl: "/api/memos/memo-1/assets/memo-asset-1/thumbnail",
+        createdAt: "2026-04-13T08:00:00.000Z",
+        updatedAt: "2026-04-13T08:00:00.000Z"
+      },
+      createdAt: "2026-04-13T08:00:00.000Z",
+      updatedAt: "2026-04-13T08:00:00.000Z"
+    };
+    let patchBody: unknown = null;
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+
+      if (url === "/api/memos/lock/status" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            isConfigured: false,
+            isUnlocked: false
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/counts" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            counts: {
+              active: { total: 1, visible: 1 },
+              favorite: { total: 0, visible: 0 },
+              unfiled: { total: 1, visible: 1 },
+              byFolderId: {}
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/folders" && !init?.method) {
+        return new Response(JSON.stringify({ folders: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/memos/tags" && !init?.method) {
+        return new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/memos?folderId=null&limit=20&offset=0" && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            memos: [memo],
+            pagination: {
+              limit: 20,
+              offset: 0,
+              total: 1,
+              hasMore: false
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/memo-1" && !init?.method) {
+        return new Response(JSON.stringify({ memo }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      if (url === "/api/memos/memo-1" && init?.method === "PATCH") {
+        patchBody = JSON.parse(String(init.body));
+        return new Response(
+          JSON.stringify({
+            memo: {
+              ...memo,
+              ...(patchBody as Record<string, unknown>),
+              updatedAt: "2026-04-13T08:30:00.000Z"
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      }
+
+      if (url === "/api/memos/memo-1/assets" && !init?.method) {
+        throw new Error("Unchanged memo assets should not be reloaded during save.");
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${init?.method ?? "GET"}`);
+    });
+
+    render(
+      <AuthenticatedDashboardApp
+        initialUser={{
+          uid: "firebase-user-1",
+          email: "keygenerator25@gmail.com"
+        }}
+      />
+    );
+
+    const memoWorkspace = await screen.findByRole("region", { name: /memo-workspace/i });
+    fireEvent.click(
+      await within(memoWorkspace).findByRole("button", { name: /Draft memo 메모 편집/i })
+    );
+    fireEvent.change(await screen.findByLabelText(/메모 제목/i), {
+      target: { value: "Renamed memo" }
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: /^저장$/i })[0]);
+
+    await waitFor(() => {
+      expect(patchBody).toEqual({
+        title: "Renamed memo"
+      });
+    });
+  });
+
   it("keeps memo folder counts stable when selecting memo folders", async () => {
     window.history.replaceState(null, "", "/?view=memos");
     stubDashboardViewport(1200);

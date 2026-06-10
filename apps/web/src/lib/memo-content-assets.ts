@@ -38,6 +38,10 @@ export function getReferencedMemoImageUploads<T extends MemoImageUploadReference
   uploads: T[],
   contentJson: MemoRichContent
 ) {
+  if (uploads.length === 0) {
+    return [];
+  }
+
   const sources = collectMemoImageSources(contentJson);
   return uploads.filter((upload) => sources.has(upload.contentUrl));
 }
