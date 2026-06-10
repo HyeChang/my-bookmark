@@ -34,6 +34,11 @@ import type {
 } from "@bookmark/shared";
 
 import type { BookmarkPage } from "../lib/bookmarks";
+import type {
+  BackupOperationKind,
+  BackupOperationProgress,
+  BackupProgressSnapshot
+} from "../lib/backup-progress";
 import type { BookmarkExtensionPresenceStatus } from "../lib/extension-presence";
 import {
   preloadFirebaseAuth,
@@ -41,6 +46,7 @@ import {
   signOutFromGoogle
 } from "../lib/firebase-auth-actions";
 import { measureAsyncPerformance, measureSyncPerformance } from "../lib/performance-marks";
+import BackupProgressIndicator from "./BackupProgressIndicator";
 import { DashboardHeader } from "./DashboardHeader";
 import {
   LazyBookmarkDetailPanel,
@@ -875,6 +881,7 @@ export default function AuthenticatedDashboardApp({
   const [isReorderingFolders, setIsReorderingFolders] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [backupProgress, setBackupProgress] = useState<BackupOperationProgress | null>(null);
   const bookmarkDetailRequestIdRef = useRef(0);
   const bookmarkPreviewRequestIdRef = useRef(0);
   const selectedBookmarkPreviewCachesRef = useRef(createBookmarkDetailPreviewCaches());
@@ -4341,14 +4348,39 @@ export default function AuthenticatedDashboardApp({
     setIsBookmarkComposerOpen(true);
   }
 
+  function reportBackupProgress(
+    kind: BackupOperationKind,
+    title: string,
+    progress: BackupProgressSnapshot
+  ) {
+    setBackupProgress({
+      kind,
+      title,
+      ...progress
+    });
+  }
+
+  function getBackupProgressReporter(kind: BackupOperationKind, title: string) {
+    return (progress: BackupProgressSnapshot) => reportBackupProgress(kind, title, progress);
+  }
+
   async function handleBookmarkExport() {
+    const progressKind: BackupOperationKind = "bookmark-export";
+    const progressTitle = "북마크 내보내기";
     try {
       setErrorMessage(null);
+      setStatusMessage(null);
+      reportBackupProgress(progressKind, progressTitle, {
+        message: "북마크 데이터를 준비하는 중"
+      });
       const [exportBookmarks, exportFolders, exportTags] = await Promise.all([
         loadBookmarks(emptyBookmarkSearchDraft),
         loadFolders(),
         loadTags()
       ]);
+      reportBackupProgress(progressKind, progressTitle, {
+        message: "북마크 이미지를 확인하는 중"
+      });
       const exportBookmarkAssetsByBookmarkId = await loadBookmarkAssetsForBookmarks(exportBookmarks, {
         loadBookmarkAssetsByBookmarks,
         loadBookmarkAssets
@@ -4361,26 +4393,40 @@ export default function AuthenticatedDashboardApp({
         bookmarkAssetsByBookmarkId: exportBookmarkAssetsByBookmarkId
       };
       const { downloadBookmarkExport } = await import("../lib/bookmark-export");
-      await downloadBookmarkExport(exportPayload);
+      await downloadBookmarkExport(exportPayload, {
+        onProgress: getBackupProgressReporter(progressKind, progressTitle)
+      });
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
           error instanceof Error ? error.message : "북마크 내보내기를 완료하지 못했습니다."
         );
       });
+    } finally {
+      setBackupProgress(null);
     }
   }
 
   async function handleBookmarkImport(file: File) {
+    const progressKind: BackupOperationKind = "bookmark-import";
+    const progressTitle = "북마크 불러오기";
     try {
       setErrorMessage(null);
       setStatusMessage(null);
+      reportBackupProgress(progressKind, progressTitle, {
+        message: "북마크 백업 파일을 준비하는 중"
+      });
       const { importBookmarkBackupZipBlob } = await import("../lib/bookmark-export");
       const result = await importBookmarkBackupZipBlob(file, {
         createFolder,
         createTag,
         createBookmark,
         uploadBookmarkAsset
+      }, {
+        onProgress: getBackupProgressReporter(progressKind, progressTitle)
+      });
+      reportBackupProgress(progressKind, progressTitle, {
+        message: "북마크 목록을 새로고침하는 중"
       });
       setBookmarkAssetsByBookmarkId({});
       await refreshDashboardData(appliedBookmarkSearch, activeDashboardView);
@@ -4395,6 +4441,8 @@ export default function AuthenticatedDashboardApp({
           error instanceof Error ? error.message : "북마크 백업을 불러오지 못했습니다."
         );
       });
+    } finally {
+      setBackupProgress(null);
     }
   }
 
@@ -4430,13 +4478,22 @@ export default function AuthenticatedDashboardApp({
   }
 
   async function handleMemoExport() {
+    const progressKind: BackupOperationKind = "memo-export";
+    const progressTitle = "메모 내보내기";
     try {
       setErrorMessage(null);
+      setStatusMessage(null);
+      reportBackupProgress(progressKind, progressTitle, {
+        message: "메모 데이터를 준비하는 중"
+      });
       const [exportMemos, exportFolders, exportTags] = await Promise.all([
         loadAllMemosForExport(),
         loadMemoFolders(),
         loadMemoTags()
       ]);
+      reportBackupProgress(progressKind, progressTitle, {
+        message: "메모 이미지를 확인하는 중"
+      });
       const memoAssetsByMemoIdEntries = await Promise.all(
         exportMemos.map(async (memo) => {
           if (memo.assetCount <= 0) {
@@ -4454,20 +4511,29 @@ export default function AuthenticatedDashboardApp({
         memoAssetsByMemoId: Object.fromEntries(memoAssetsByMemoIdEntries)
       };
       const { downloadMemoExport } = await import("../lib/memo-export");
-      await downloadMemoExport(exportPayload);
+      await downloadMemoExport(exportPayload, {
+        onProgress: getBackupProgressReporter(progressKind, progressTitle)
+      });
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
           error instanceof Error ? error.message : "메모 내보내기를 완료하지 못했습니다."
         );
       });
+    } finally {
+      setBackupProgress(null);
     }
   }
 
   async function handleMemoImport(file: File) {
+    const progressKind: BackupOperationKind = "memo-import";
+    const progressTitle = "메모 불러오기";
     try {
       setErrorMessage(null);
       setStatusMessage(null);
+      reportBackupProgress(progressKind, progressTitle, {
+        message: "메모 백업 파일을 준비하는 중"
+      });
       const { importMemoBackupZipBlob } = await import("../lib/memo-export");
       const result = await importMemoBackupZipBlob(file, {
         createMemoFolder,
@@ -4475,6 +4541,11 @@ export default function AuthenticatedDashboardApp({
         createMemo,
         updateMemo,
         uploadPreparedMemoAsset
+      }, {
+        onProgress: getBackupProgressReporter(progressKind, progressTitle)
+      });
+      reportBackupProgress(progressKind, progressTitle, {
+        message: "메모 목록을 새로고침하는 중"
       });
       clearMemoWorkspaceMetadataCache();
       clearMemoPageCaches();
@@ -4490,6 +4561,8 @@ export default function AuthenticatedDashboardApp({
           error instanceof Error ? error.message : "메모 백업을 불러오지 못했습니다."
         );
       });
+    } finally {
+      setBackupProgress(null);
     }
   }
 
@@ -6996,6 +7069,12 @@ export default function AuthenticatedDashboardApp({
         <LazyBookmarkResultsPanel
           activeBookmarkSearchSummaryItems={activeBookmarkSearchSummaryItems}
           activeBookmarkSort={appliedBookmarkSearch.sort}
+          backupProgress={
+            backupProgress?.kind === "bookmark-export" ||
+            backupProgress?.kind === "bookmark-import"
+              ? backupProgress
+              : null
+          }
           bookmarkCardCoverSize={bookmarkCardDisplaySettings.coverSize}
           bookmarkCardDisplaySettings={bookmarkCardDisplaySettings}
           bookmarkListDisplaySettings={bookmarkListDisplaySettings}
@@ -7090,6 +7169,11 @@ export default function AuthenticatedDashboardApp({
       <Suspense fallback={null}>
         <LazyMemoPanel
           activeTagId={memoTagFilterId}
+          backupProgress={
+            backupProgress?.kind === "memo-export" || backupProgress?.kind === "memo-import"
+              ? backupProgress
+              : null
+          }
           folders={visibleMemoFolders}
           isFavoriteOnly={memoFavoriteOnly}
           isLoading={isLoadingMemos}
@@ -7517,6 +7601,7 @@ export default function AuthenticatedDashboardApp({
           {statusMessage}
         </p>
       ) : null}
+      {backupProgress ? <BackupProgressIndicator progress={backupProgress} /> : null}
       {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
     </main>
   );

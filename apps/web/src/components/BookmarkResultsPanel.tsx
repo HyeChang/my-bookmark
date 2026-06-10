@@ -18,6 +18,7 @@ import type {
   Folder,
   Tag
 } from "@bookmark/shared";
+import type { BackupOperationProgress } from "../lib/backup-progress";
 import {
   getBookmarkAssetCardImageUrl,
   getBookmarkListImageLoadingPriority,
@@ -134,6 +135,7 @@ type FolderOption = {
 type BookmarkResultsPanelProps = {
   activeBookmarkSearchSummaryItems: BookmarkSearchSummaryItem[];
   activeBookmarkSort: BookmarkSortMode;
+  backupProgress: BackupOperationProgress | null;
   bookmarkCardCoverSize: number;
   bookmarkCardDisplaySettings: BookmarkDisplaySettings;
   bookmarkListDisplaySettings: BookmarkDisplaySettings;
@@ -756,6 +758,7 @@ const MemoizedBookmarkListRow = memo(BookmarkListRow);
 export default function BookmarkResultsPanel({
   activeBookmarkSearchSummaryItems,
   activeBookmarkSort,
+  backupProgress,
   bookmarkCardCoverSize,
   bookmarkCardDisplaySettings,
   bookmarkListDisplaySettings,
@@ -821,6 +824,9 @@ export default function BookmarkResultsPanel({
   const shouldShowAdvancedBookmarkSearch = isAdvancedBookmarkSearchOpen;
   const shouldShowSearchPanelBody =
     !isMobileSearchViewport || isMobileSearchPanelOpen;
+  const isBookmarkBackupBusy = backupProgress !== null;
+  const isBookmarkExporting = backupProgress?.kind === "bookmark-export";
+  const isBookmarkImporting = backupProgress?.kind === "bookmark-import";
 
   return (
     <div className={isHidden ? "dashboard-panel-visually-hidden" : undefined}>
@@ -1128,9 +1134,10 @@ export default function BookmarkResultsPanel({
                     type="button"
                     className="secondary-button bookmark-list-export-button"
                     aria-label="북마크 내보내기"
+                    disabled={isBookmarkBackupBusy}
                     onClick={() => void handleBookmarkExport()}
                   >
-                    내보내기
+                    {isBookmarkExporting ? "내보내는 중" : "내보내기"}
                   </button>
                   <input
                     ref={bookmarkImportInputRef}
@@ -1138,6 +1145,7 @@ export default function BookmarkResultsPanel({
                     type="file"
                     accept=".zip,application/zip,application/x-zip-compressed"
                     aria-label="북마크 백업 파일 선택"
+                    disabled={isBookmarkBackupBusy}
                     onChange={(event) => {
                       const file = event.currentTarget.files?.[0];
                       if (file) {
@@ -1150,9 +1158,10 @@ export default function BookmarkResultsPanel({
                     type="button"
                     className="secondary-button bookmark-list-import-button"
                     aria-label="북마크 불러오기"
+                    disabled={isBookmarkBackupBusy}
                     onClick={() => bookmarkImportInputRef.current?.click()}
                   >
-                    불러오기
+                    {isBookmarkImporting ? "불러오는 중" : "불러오기"}
                   </button>
                 </>
               )}

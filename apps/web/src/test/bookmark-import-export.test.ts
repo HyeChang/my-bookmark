@@ -121,6 +121,41 @@ describe("bookmark import/export", () => {
     ).toBe("thumbnail-bytes");
   });
 
+  it("reports progress while exporting bookmark backup assets", async () => {
+    const progress = vi.fn();
+    const payload: BookmarkExportPayload = {
+      exportedAt: "2026-06-10T00:00:00.000Z",
+      bookmarks: [createBookmark()],
+      folders: [createFolder()],
+      tags: [createTag()],
+      bookmarkAssetsByBookmarkId: {
+        "bookmark-1": [createAsset()]
+      }
+    };
+
+    await createBookmarkBackupZipBlob(payload, {
+      fetchAssetBlob: async (url) =>
+        new Blob([url.includes("thumbnail") ? "thumbnail-bytes" : "content-bytes"], {
+          type: "image/png"
+        }),
+      onProgress: progress
+    });
+
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "북마크 이미지 준비 중",
+        current: 2,
+        total: 2
+      })
+    );
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "북마크 백업 압축 중",
+        percent: expect.any(Number)
+      })
+    );
+  });
+
   it("imports folders, tags, bookmarks, and bookmark assets with remapped ids", async () => {
     const zipBlob = await createBookmarkBackupZipBlob(
       {
@@ -189,6 +224,64 @@ describe("bookmark import/export", () => {
       assets: 1,
       skippedAssets: 0
     });
+  });
+
+  it("reports progress while importing bookmark backup data and images", async () => {
+    const zipBlob = await createBookmarkBackupZipBlob(
+      {
+        exportedAt: "2026-06-10T00:00:00.000Z",
+        bookmarks: [createBookmark()],
+        folders: [createFolder()],
+        tags: [createTag()],
+        bookmarkAssetsByBookmarkId: {
+          "bookmark-1": [createAsset()]
+        }
+      },
+      {
+        fetchAssetBlob: async () => new Blob(["content-bytes"], { type: "image/png" })
+      }
+    );
+    const progress = vi.fn();
+
+    await importBookmarkBackupZipBlob(
+      zipBlob,
+      {
+        createFolder: vi.fn(async () => createFolder({ id: "new-folder-1" })),
+        createTag: vi.fn(async () => createTag({ id: "new-tag-1" })),
+        createBookmark: vi.fn(async () =>
+          createBookmark({
+            id: "new-bookmark-1",
+            folderId: "new-folder-1",
+            tagIds: ["new-tag-1"]
+          })
+        ),
+        uploadBookmarkAsset: vi.fn(async () =>
+          createAsset({ id: "new-asset-1", bookmarkId: "new-bookmark-1" })
+        )
+      },
+      { onProgress: progress }
+    );
+
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "북마크 폴더 복원 중",
+        current: 1,
+        total: 1
+      })
+    );
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "북마크 이미지 복원 중",
+        current: 1,
+        total: 1
+      })
+    );
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "북마크 백업 불러오기 완료",
+        percent: 100
+      })
+    );
   });
 
   it("round-trips nested folders and image-backed bookmarks with remapped ids", async () => {

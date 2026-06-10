@@ -5,6 +5,7 @@ import type {
   MemoTag,
   MemoViewMode
 } from "@bookmark/shared";
+import type { BackupOperationProgress } from "../lib/backup-progress";
 import "./MemoPanel.css";
 
 type MemoPanelActionResult = void | Promise<void>;
@@ -16,6 +17,7 @@ type MemoImageLoadingPriority = {
 
 export type MemoPanelProps = {
   activeTagId: string | null;
+  backupProgress: BackupOperationProgress | null;
   folders: MemoFolder[];
   isFavoriteOnly: boolean;
   isLoading: boolean;
@@ -180,6 +182,7 @@ function formatMemoDate(value: string) {
 
 export default function MemoPanel({
   activeTagId,
+  backupProgress,
   folders,
   isFavoriteOnly,
   isLoading,
@@ -205,6 +208,9 @@ export default function MemoPanel({
   const foldersById = new Map(folders.map((folder) => [folder.id, folder] as const));
   const tagsById = new Map(tags.map((tag) => [tag.id, tag] as const));
   const hiddenMemoToggleLabel = showHiddenMemos ? "숨김 메모 숨기기" : "숨김 메모 보기";
+  const isMemoBackupBusy = backupProgress !== null;
+  const isMemoExporting = backupProgress?.kind === "memo-export";
+  const isMemoImporting = backupProgress?.kind === "memo-import";
 
   return (
     <section
@@ -237,9 +243,10 @@ export default function MemoPanel({
             type="button"
             className="secondary-button memo-export-button"
             aria-label="메모 내보내기"
+            disabled={isMemoBackupBusy}
             onClick={() => void onExportMemos()}
           >
-            메모 내보내기
+            {isMemoExporting ? "내보내는 중" : "메모 내보내기"}
           </button>
           <input
             ref={memoImportInputRef}
@@ -247,6 +254,7 @@ export default function MemoPanel({
             type="file"
             accept=".zip,application/zip,application/x-zip-compressed"
             aria-label="메모 백업 파일 선택"
+            disabled={isMemoBackupBusy}
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
               if (file) {
@@ -259,9 +267,10 @@ export default function MemoPanel({
             type="button"
             className="secondary-button memo-import-button"
             aria-label="메모 불러오기"
+            disabled={isMemoBackupBusy}
             onClick={() => memoImportInputRef.current?.click()}
           >
-            메모 불러오기
+            {isMemoImporting ? "불러오는 중" : "메모 불러오기"}
           </button>
           <button
             type="button"

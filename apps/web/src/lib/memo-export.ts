@@ -16,6 +16,7 @@ import {
   readBackupZipBlob,
   type BackupZipAssetFile
 } from "./backup-zip";
+import type { BackupProgressReporter } from "./backup-progress";
 import type { PreparedMemoImageUploadFile } from "./memo-image-compression";
 
 export type MemoExportPayload = {
@@ -40,6 +41,7 @@ type MemoBackupManifest = MemoExportPayload & {
 
 type MemoBackupZipOptions = {
   fetchAssetBlob?: (url: string) => Promise<Blob>;
+  onProgress?: BackupProgressReporter;
 };
 
 type MemoImportActions = {
@@ -51,6 +53,10 @@ type MemoImportActions = {
     memoId: string,
     preparedFile: PreparedMemoImageUploadFile
   ) => Promise<MemoAsset>;
+};
+
+type MemoImportOptions = {
+  onProgress?: BackupProgressReporter;
 };
 
 export type MemoImportResult = {
@@ -104,6 +110,20 @@ export async function createMemoBackupZipBlob(
   const loadAssetBlob = options.fetchAssetBlob ?? fetchAssetBlob;
   const assetFiles: BackupZipAssetFile[] = [];
   const assetFilesByMemoId: MemoBackupManifest["assetFilesByMemoId"] = {};
+  const totalAssetBlobs = Object.values(exportPayload.memoAssetsByMemoId).reduce(
+    (total, assets) => total + assets.length * 2,
+    0
+  );
+  let loadedAssetBlobs = 0;
+  const reportAssetProgress = () => {
+    options.onProgress?.({
+      message: "메모 이미지 준비 중",
+      current: loadedAssetBlobs,
+      total: totalAssetBlobs
+    });
+  };
+
+  reportAssetProgress();
 
   for (const [memoId, assets] of Object.entries(exportPayload.memoAssetsByMemoId)) {
     assetFilesByMemoId[memoId] = [];
@@ -115,10 +135,14 @@ export async function createMemoBackupZipBlob(
         path: contentPath,
         blob: await loadAssetBlob(asset.contentUrl)
       });
+      loadedAssetBlobs += 1;
+      reportAssetProgress();
       assetFiles.push({
         path: thumbnailPath,
         blob: await loadAssetBlob(asset.thumbnailUrl)
       });
+      loadedAssetBlobs += 1;
+      reportAssetProgress();
       assetFilesByMemoId[memoId].push({
         assetId: asset.id,
         contentPath,
@@ -134,12 +158,20 @@ export async function createMemoBackupZipBlob(
       ...exportPayload,
       assetFilesByMemoId
     } satisfies MemoBackupManifest,
-    assetFiles
+    assetFiles,
+    onProgress: (progress) =>
+      options.onProgress?.({
+        ...progress,
+        message: "메모 백업 압축 중"
+      })
   });
 }
 
-export async function downloadMemoExport(exportPayload: MemoExportPayload) {
-  const exportBlob = await createMemoBackupZipBlob(exportPayload);
+export async function downloadMemoExport(
+  exportPayload: MemoExportPayload,
+  options: MemoBackupZipOptions = {}
+) {
+  const exportBlob = await createMemoBackupZipBlob(exportPayload, options);
   const exportUrl = globalThis.URL.createObjectURL(exportBlob);
   const link = globalThis.document.createElement("a");
   link.href = exportUrl;
@@ -152,10 +184,20 @@ export async function downloadMemoExport(exportPayload: MemoExportPayload) {
 
 async function createMemoFolderIdMap(
   folders: MemoFolder[],
-  createMemoFolder: MemoImportActions["createMemoFolder"]
+  createMemoFolder: MemoImportActions["createMemoFolder"],
+  onProgress?: BackupProgressReporter
 ) {
   const idMap = new Map<string, string>();
   const pendingFolders = [...folders].sort((left, right) => left.sortOrder - right.sortOrder);
+  const reportProgress = () => {
+    onProgress?.({
+      message: "메모 폴더 복원 중",
+      current: idMap.size,
+      total: folders.length
+    });
+  };
+
+  reportProgress();
 
   while (pendingFolders.length > 0) {
     let didCreateFolder = false;
@@ -177,6 +219,7 @@ async function createMemoFolderIdMap(
         parentFolderId
       });
       idMap.set(folder.id, createdFolder.id);
+      reportProgress();
       pendingFolders.splice(index, 1);
       didCreateFolder = true;
       break;
@@ -192,6 +235,7 @@ async function createMemoFolderIdMap(
         parentFolderId: null
       });
       idMap.set(folder.id, createdFolder.id);
+      reportProgress();
     }
   }
 
@@ -200,9 +244,19 @@ async function createMemoFolderIdMap(
 
 async function createMemoTagIdMap(
   tags: MemoTag[],
-  createMemoTag: MemoImportActions["createMemoTag"]
+  createMemoTag: MemoImportActions["createMemoTag"],
+  onProgress?: BackupProgressReporter
 ) {
   const idMap = new Map<string, string>();
+  const reportProgress = () => {
+    onProgress?.({
+      message: "메모 태그 복원 중",
+      current: idMap.size,
+      total: tags.length
+    });
+  };
+
+  reportProgress();
 
   for (const tag of tags) {
     const createdTag = await createMemoTag({
@@ -210,6 +264,7 @@ async function createMemoTagIdMap(
       color: tag.color
     });
     idMap.set(tag.id, createdTag.id);
+    reportProgress();
   }
 
   return idMap;
@@ -265,9 +320,19 @@ function replaceMemoRichContentImageSources(
 
 export async function importMemoBackupZipBlob(
   zipBlob: Blob,
-  actions: MemoImportActions
+  actions: MemoImportActions,
+  options: MemoImportOptions = {}
 ): Promise<MemoImportResult> {
-  const backup = await readBackupZipBlob(zipBlob);
+  const backup = await readBackupZipBlob(zipBlob, {
+    onProgress: (progress) =>
+      options.onProgress?.({
+        ...progress,
+        message:
+          progress.message === "백업 이미지 읽는 중"
+            ? "메모 백업 이미지 읽는 중"
+            : "메모 백업 파일 읽는 중"
+      })
+  });
   if (!isMemoBackupManifest(backup.manifest)) {
     throw new Error("메모 백업 파일 형식이 올바르지 않습니다.");
   }
@@ -275,18 +340,46 @@ export async function importMemoBackupZipBlob(
   const manifest = backup.manifest;
   const folderIdMap = await createMemoFolderIdMap(
     manifest.folders,
-    actions.createMemoFolder
+    actions.createMemoFolder,
+    options.onProgress
   );
-  const tagIdMap = await createMemoTagIdMap(manifest.tags, actions.createMemoTag);
+  const tagIdMap = await createMemoTagIdMap(
+    manifest.tags,
+    actions.createMemoTag,
+    options.onProgress
+  );
   const memoIdMap = new Map<string, string>();
   let importedAssets = 0;
   let skippedAssets = 0;
+  let processedAssetRefs = 0;
+  const totalAssetRefs = Object.values(manifest.assetFilesByMemoId).reduce(
+    (total, assetRefs) => total + assetRefs.length,
+    0
+  );
+  const reportMemoProgress = () => {
+    options.onProgress?.({
+      message: "메모 복원 중",
+      current: memoIdMap.size,
+      total: manifest.memos.length
+    });
+  };
+  const reportAssetProgress = () => {
+    options.onProgress?.({
+      message: "메모 이미지 복원 중",
+      current: processedAssetRefs,
+      total: totalAssetRefs
+    });
+  };
+
+  reportMemoProgress();
+  reportAssetProgress();
 
   for (const memo of manifest.memos) {
     const createdMemo = await actions.createMemo(
       createMemoImportInput(memo, folderIdMap, tagIdMap)
     );
     memoIdMap.set(memo.id, createdMemo.id);
+    reportMemoProgress();
 
     const sourceMap = new Map<string, string>();
     const assetRefs = manifest.assetFilesByMemoId[memo.id] ?? [];
@@ -299,6 +392,8 @@ export async function importMemoBackupZipBlob(
       const thumbnailBlob = backup.assetBlobs.get(assetRef.thumbnailPath);
       if (!asset || !contentBlob || !thumbnailBlob) {
         skippedAssets += 1;
+        processedAssetRefs += 1;
+        reportAssetProgress();
         continue;
       }
 
@@ -314,6 +409,8 @@ export async function importMemoBackupZipBlob(
       sourceMap.set(asset.contentUrl, uploadedAsset.contentUrl);
       sourceMap.set(asset.thumbnailUrl, uploadedAsset.thumbnailUrl);
       importedAssets += 1;
+      processedAssetRefs += 1;
+      reportAssetProgress();
     }
 
     if (sourceMap.size > 0) {
@@ -322,6 +419,11 @@ export async function importMemoBackupZipBlob(
       });
     }
   }
+
+  options.onProgress?.({
+    message: "메모 백업 불러오기 완료",
+    percent: 100
+  });
 
   return {
     folders: folderIdMap.size,

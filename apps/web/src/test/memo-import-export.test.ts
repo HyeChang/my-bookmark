@@ -122,6 +122,41 @@ describe("memo import/export", () => {
     );
   });
 
+  it("reports progress while exporting memo backup assets", async () => {
+    const progress = vi.fn();
+    const payload: MemoExportPayload = {
+      exportedAt: "2026-06-10T00:00:00.000Z",
+      memos: [createMemo()],
+      folders: [createFolder()],
+      tags: [createTag()],
+      memoAssetsByMemoId: {
+        "memo-1": [createAsset()]
+      }
+    };
+
+    await createMemoBackupZipBlob(payload, {
+      fetchAssetBlob: async (url) =>
+        new Blob([url.includes("thumbnail") ? "memo-thumbnail" : "memo-content"], {
+          type: "image/webp"
+        }),
+      onProgress: progress
+    });
+
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "메모 이미지 준비 중",
+        current: 2,
+        total: 2
+      })
+    );
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "메모 백업 압축 중",
+        percent: expect.any(Number)
+      })
+    );
+  });
+
   it("imports memos and rewrites rich-content image urls to uploaded asset urls", async () => {
     const zipBlob = await createMemoBackupZipBlob(
       {
@@ -208,6 +243,75 @@ describe("memo import/export", () => {
       assets: 1,
       skippedAssets: 0
     });
+  });
+
+  it("reports progress while importing memo backup data and images", async () => {
+    const zipBlob = await createMemoBackupZipBlob(
+      {
+        exportedAt: "2026-06-10T00:00:00.000Z",
+        memos: [createMemo()],
+        folders: [createFolder()],
+        tags: [createTag()],
+        memoAssetsByMemoId: {
+          "memo-1": [createAsset()]
+        }
+      },
+      {
+        fetchAssetBlob: async (url) =>
+          new Blob([url.includes("thumbnail") ? "thumbnail" : "content"], {
+            type: "image/webp"
+          })
+      }
+    );
+    const progress = vi.fn();
+
+    await importMemoBackupZipBlob(
+      zipBlob,
+      {
+        createMemoFolder: vi.fn(async () => createFolder({ id: "new-memo-folder-1" })),
+        createMemoTag: vi.fn(async () => createTag({ id: "new-memo-tag-1" })),
+        createMemo: vi.fn(async () =>
+          createMemo({
+            id: "new-memo-1",
+            folderId: "new-memo-folder-1",
+            tagIds: ["new-memo-tag-1"]
+          })
+        ),
+        updateMemo: vi.fn(async (_memoId: string, input) =>
+          createMemo({ id: "new-memo-1", contentJson: input.contentJson })
+        ),
+        uploadPreparedMemoAsset: vi.fn(async () =>
+          createAsset({
+            id: "new-asset-1",
+            memoId: "new-memo-1",
+            contentUrl: "/api/memos/new-memo-1/assets/new-asset-1/content",
+            thumbnailUrl: "/api/memos/new-memo-1/assets/new-asset-1/thumbnail"
+          })
+        )
+      },
+      { onProgress: progress }
+    );
+
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "메모 폴더 복원 중",
+        current: 1,
+        total: 1
+      })
+    );
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "메모 이미지 복원 중",
+        current: 1,
+        total: 1
+      })
+    );
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "메모 백업 불러오기 완료",
+        percent: 100
+      })
+    );
   });
 
   it("round-trips nested folders and image-backed memos with remapped ids", async () => {

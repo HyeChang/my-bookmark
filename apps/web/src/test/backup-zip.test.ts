@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createBackupZipBlob,
@@ -46,6 +46,38 @@ describe("backup zip helpers", () => {
     expect(backup.manifest).toEqual({ kind: "memos", version: 2 });
     expect(await backup.assetBlobs.get("assets/memos/memo-1/asset-1/content")!.text()).toBe(
       "memo-image"
+    );
+  });
+
+  it("reports progress while creating and reading backup zip files", async () => {
+    const createProgress = vi.fn();
+    const zipBlob = await createBackupZipBlob({
+      manifest: { kind: "bookmarks", version: 2 },
+      assetFiles: [
+        {
+          path: "assets/bookmarks/bookmark-1/asset-1/content",
+          blob: new Blob(["bookmark-image"], { type: "image/png" })
+        }
+      ],
+      onProgress: createProgress
+    });
+
+    expect(createProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "백업 파일 압축 중",
+        percent: expect.any(Number)
+      })
+    );
+
+    const readProgress = vi.fn();
+    await readBackupZipBlob(zipBlob, { onProgress: readProgress });
+
+    expect(readProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "백업 이미지 읽는 중",
+        current: 1,
+        total: 1
+      })
     );
   });
 });

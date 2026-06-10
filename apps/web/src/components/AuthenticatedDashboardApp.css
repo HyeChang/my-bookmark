@@ -285,6 +285,17 @@ img {
   color: #21314d;
 }
 
+.primary-button:disabled,
+.secondary-button:disabled,
+.ghost-button:disabled,
+.danger-button:disabled,
+.dropzone-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+  transform: none;
+  box-shadow: none;
+}
+
 .tag-option-label {
   display: inline-flex;
   align-items: center;
@@ -657,6 +668,85 @@ img {
   z-index: 70;
 }
 
+.backup-progress-indicator {
+  position: fixed;
+  top: calc(54px + 0.75rem);
+  right: max(0.75rem, env(safe-area-inset-right));
+  z-index: 74;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem 0.85rem;
+  width: min(30rem, calc(100vw - 1.5rem));
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-raised) 94%, transparent);
+  color: var(--text-primary);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.24);
+  backdrop-filter: blur(14px);
+}
+
+.backup-progress-copy {
+  min-width: 0;
+}
+
+.backup-progress-title,
+.backup-progress-message {
+  margin: 0;
+}
+
+.backup-progress-title {
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 760;
+}
+
+.backup-progress-message {
+  margin-top: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.backup-progress-meta {
+  align-self: start;
+  color: var(--accent);
+  font-size: 0.84rem;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.backup-progress-bar {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 0.44rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(130, 151, 181, 0.22);
+}
+
+.backup-progress-bar-fill {
+  display: block;
+  width: var(--backup-progress-percent, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2d8fe8, #74b7ff);
+  transition: width 160ms ease;
+}
+
+.backup-progress-bar-indeterminate .backup-progress-bar-fill {
+  width: 42%;
+  animation: backup-progress-indeterminate 1.05s ease-in-out infinite;
+}
+
+@keyframes backup-progress-indeterminate {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(240%);
+  }
+}
+
 @media (max-width: 1420px) {
 
   .app-hero {
@@ -745,6 +835,14 @@ img {
 }
 
 @media (max-width: 720px) {
+  .backup-progress-indicator {
+    top: calc(68px + env(safe-area-inset-top));
+    left: max(0.72rem, env(safe-area-inset-left));
+    right: max(0.72rem, env(safe-area-inset-right));
+    width: auto;
+    padding: 0.78rem 0.82rem;
+  }
+
   .app-shell {
     padding: 0.78rem 0.72rem 1.6rem;
   }

@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import type { BackupProgressReporter } from "./backup-progress";
 
 export type BackupZipAssetFile = {
   path: string;
@@ -8,6 +9,7 @@ export type BackupZipAssetFile = {
 export type BackupZipInput = {
   manifest: unknown;
   assetFiles: BackupZipAssetFile[];
+  onProgress?: BackupProgressReporter;
 };
 
 export type BackupZipContent = {
@@ -37,7 +39,15 @@ export function createFileFromBackupBlob(blob: Blob, fileName: string, mimeType?
   return new File([blob], fileName, { type: fileType });
 }
 
-export async function createBackupZipBlob({ manifest, assetFiles }: BackupZipInput) {
+export type ReadBackupZipOptions = {
+  onProgress?: BackupProgressReporter;
+};
+
+export async function createBackupZipBlob({
+  manifest,
+  assetFiles,
+  onProgress
+}: BackupZipInput) {
   const zip = new JSZip();
   zip.file("manifest.json", JSON.stringify(manifest, null, 2));
 
@@ -51,10 +61,21 @@ export async function createBackupZipBlob({ manifest, assetFiles }: BackupZipInp
     compressionOptions: {
       level: 6
     }
+  }, (metadata) => {
+    onProgress?.({
+      message: "백업 파일 압축 중",
+      percent: metadata.percent
+    });
   });
 }
 
-export async function readBackupZipBlob(zipBlob: Blob): Promise<BackupZipContent> {
+export async function readBackupZipBlob(
+  zipBlob: Blob,
+  options: ReadBackupZipOptions = {}
+): Promise<BackupZipContent> {
+  options.onProgress?.({
+    message: "백업 파일 읽는 중"
+  });
   const zip = await JSZip.loadAsync(zipBlob);
   const manifestFile = zip.file("manifest.json");
   if (!manifestFile) {
@@ -67,9 +88,16 @@ export async function readBackupZipBlob(zipBlob: Blob): Promise<BackupZipContent
     (entry) => !entry.dir && entry.name !== "manifest.json"
   );
 
+  let readAssetCount = 0;
   await Promise.all(
     assetEntries.map(async (entry) => {
       assetBlobs.set(entry.name, await entry.async("blob"));
+      readAssetCount += 1;
+      options.onProgress?.({
+        message: "백업 이미지 읽는 중",
+        current: readAssetCount,
+        total: assetEntries.length
+      });
     })
   );
 

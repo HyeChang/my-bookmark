@@ -14,6 +14,7 @@ import {
   readBackupZipBlob,
   type BackupZipAssetFile
 } from "./backup-zip";
+import type { BackupProgressReporter } from "./backup-progress";
 
 export type BookmarkExportPayload = {
   exportedAt: string;
@@ -37,6 +38,7 @@ type BookmarkBackupManifest = BookmarkExportPayload & {
 
 type BookmarkBackupZipOptions = {
   fetchAssetBlob?: (url: string) => Promise<Blob>;
+  onProgress?: BackupProgressReporter;
 };
 
 type BookmarkImportActions = {
@@ -44,6 +46,10 @@ type BookmarkImportActions = {
   createTag: (input: CreateTagRequest) => Promise<Tag>;
   createBookmark: (input: CreateBookmarkRequest) => Promise<Bookmark>;
   uploadBookmarkAsset: (bookmarkId: string, file: File) => Promise<BookmarkAsset>;
+};
+
+type BookmarkImportOptions = {
+  onProgress?: BackupProgressReporter;
 };
 
 export type BookmarkImportResult = {
@@ -97,6 +103,22 @@ export async function createBookmarkBackupZipBlob(
   const loadAssetBlob = options.fetchAssetBlob ?? fetchAssetBlob;
   const assetFiles: BackupZipAssetFile[] = [];
   const assetFilesByBookmarkId: BookmarkBackupManifest["assetFilesByBookmarkId"] = {};
+  const totalAssetBlobs = Object.values(exportPayload.bookmarkAssetsByBookmarkId).reduce(
+    (total, assets) =>
+      total +
+      assets.reduce((assetTotal, asset) => assetTotal + 1 + (asset.thumbnailUrl ? 1 : 0), 0),
+    0
+  );
+  let loadedAssetBlobs = 0;
+  const reportAssetProgress = () => {
+    options.onProgress?.({
+      message: "북마크 이미지 준비 중",
+      current: loadedAssetBlobs,
+      total: totalAssetBlobs
+    });
+  };
+
+  reportAssetProgress();
 
   for (const [bookmarkId, assets] of Object.entries(exportPayload.bookmarkAssetsByBookmarkId)) {
     assetFilesByBookmarkId[bookmarkId] = [];
@@ -107,6 +129,8 @@ export async function createBookmarkBackupZipBlob(
         path: contentPath,
         blob: await loadAssetBlob(asset.contentUrl)
       });
+      loadedAssetBlobs += 1;
+      reportAssetProgress();
 
       let thumbnailPath: string | undefined;
       if (asset.thumbnailUrl) {
@@ -115,6 +139,8 @@ export async function createBookmarkBackupZipBlob(
           path: thumbnailPath,
           blob: await loadAssetBlob(asset.thumbnailUrl)
         });
+        loadedAssetBlobs += 1;
+        reportAssetProgress();
       }
 
       assetFilesByBookmarkId[bookmarkId].push({
@@ -132,12 +158,20 @@ export async function createBookmarkBackupZipBlob(
       ...exportPayload,
       assetFilesByBookmarkId
     } satisfies BookmarkBackupManifest,
-    assetFiles
+    assetFiles,
+    onProgress: (progress) =>
+      options.onProgress?.({
+        ...progress,
+        message: "북마크 백업 압축 중"
+      })
   });
 }
 
-export async function downloadBookmarkExport(exportPayload: BookmarkExportPayload) {
-  const exportBlob = await createBookmarkBackupZipBlob(exportPayload);
+export async function downloadBookmarkExport(
+  exportPayload: BookmarkExportPayload,
+  options: BookmarkBackupZipOptions = {}
+) {
+  const exportBlob = await createBookmarkBackupZipBlob(exportPayload, options);
   const exportUrl = globalThis.URL.createObjectURL(exportBlob);
   const link = globalThis.document.createElement("a");
   link.href = exportUrl;
@@ -150,10 +184,20 @@ export async function downloadBookmarkExport(exportPayload: BookmarkExportPayloa
 
 async function createFolderIdMap(
   folders: Folder[],
-  createFolder: BookmarkImportActions["createFolder"]
+  createFolder: BookmarkImportActions["createFolder"],
+  onProgress?: BackupProgressReporter
 ) {
   const idMap = new Map<string, string>();
   const pendingFolders = [...folders].sort((left, right) => left.sortOrder - right.sortOrder);
+  const reportProgress = () => {
+    onProgress?.({
+      message: "북마크 폴더 복원 중",
+      current: idMap.size,
+      total: folders.length
+    });
+  };
+
+  reportProgress();
 
   while (pendingFolders.length > 0) {
     let didCreateFolder = false;
@@ -175,6 +219,7 @@ async function createFolderIdMap(
         parentFolderId
       });
       idMap.set(folder.id, createdFolder.id);
+      reportProgress();
       pendingFolders.splice(index, 1);
       didCreateFolder = true;
       break;
@@ -190,14 +235,28 @@ async function createFolderIdMap(
         parentFolderId: null
       });
       idMap.set(folder.id, createdFolder.id);
+      reportProgress();
     }
   }
 
   return idMap;
 }
 
-async function createTagIdMap(tags: Tag[], createTag: BookmarkImportActions["createTag"]) {
+async function createTagIdMap(
+  tags: Tag[],
+  createTag: BookmarkImportActions["createTag"],
+  onProgress?: BackupProgressReporter
+) {
   const idMap = new Map<string, string>();
+  const reportProgress = () => {
+    onProgress?.({
+      message: "북마크 태그 복원 중",
+      current: idMap.size,
+      total: tags.length
+    });
+  };
+
+  reportProgress();
 
   for (const tag of tags) {
     const createdTag = await createTag({
@@ -205,6 +264,7 @@ async function createTagIdMap(tags: Tag[], createTag: BookmarkImportActions["cre
       color: tag.color
     });
     idMap.set(tag.id, createdTag.id);
+    reportProgress();
   }
 
   return idMap;
@@ -234,25 +294,62 @@ function createBookmarkImportInput(
 
 export async function importBookmarkBackupZipBlob(
   zipBlob: Blob,
-  actions: BookmarkImportActions
+  actions: BookmarkImportActions,
+  options: BookmarkImportOptions = {}
 ): Promise<BookmarkImportResult> {
-  const backup = await readBackupZipBlob(zipBlob);
+  const backup = await readBackupZipBlob(zipBlob, {
+    onProgress: (progress) =>
+      options.onProgress?.({
+        ...progress,
+        message:
+          progress.message === "백업 이미지 읽는 중"
+            ? "북마크 백업 이미지 읽는 중"
+            : "북마크 백업 파일 읽는 중"
+      })
+  });
   if (!isBookmarkBackupManifest(backup.manifest)) {
     throw new Error("북마크 백업 파일 형식이 올바르지 않습니다.");
   }
 
   const manifest = backup.manifest;
-  const folderIdMap = await createFolderIdMap(manifest.folders, actions.createFolder);
-  const tagIdMap = await createTagIdMap(manifest.tags, actions.createTag);
+  const folderIdMap = await createFolderIdMap(
+    manifest.folders,
+    actions.createFolder,
+    options.onProgress
+  );
+  const tagIdMap = await createTagIdMap(manifest.tags, actions.createTag, options.onProgress);
   const bookmarkIdMap = new Map<string, string>();
   let importedAssets = 0;
   let skippedAssets = 0;
+  let processedAssetRefs = 0;
+  const totalAssetRefs = Object.values(manifest.assetFilesByBookmarkId).reduce(
+    (total, assetRefs) => total + assetRefs.length,
+    0
+  );
+  const reportBookmarkProgress = () => {
+    options.onProgress?.({
+      message: "북마크 복원 중",
+      current: bookmarkIdMap.size,
+      total: manifest.bookmarks.length
+    });
+  };
+  const reportAssetProgress = () => {
+    options.onProgress?.({
+      message: "북마크 이미지 복원 중",
+      current: processedAssetRefs,
+      total: totalAssetRefs
+    });
+  };
+
+  reportBookmarkProgress();
+  reportAssetProgress();
 
   for (const bookmark of manifest.bookmarks) {
     const createdBookmark = await actions.createBookmark(
       createBookmarkImportInput(bookmark, folderIdMap, tagIdMap)
     );
     bookmarkIdMap.set(bookmark.id, createdBookmark.id);
+    reportBookmarkProgress();
 
     const assetRefs = manifest.assetFilesByBookmarkId[bookmark.id] ?? [];
     const oldAssets = manifest.bookmarkAssetsByBookmarkId[bookmark.id] ?? [];
@@ -263,6 +360,8 @@ export async function importBookmarkBackupZipBlob(
       const contentBlob = backup.assetBlobs.get(assetRef.contentPath);
       if (!asset || !contentBlob) {
         skippedAssets += 1;
+        processedAssetRefs += 1;
+        reportAssetProgress();
         continue;
       }
 
@@ -273,8 +372,15 @@ export async function importBookmarkBackupZipBlob(
       );
       await actions.uploadBookmarkAsset(createdBookmark.id, file);
       importedAssets += 1;
+      processedAssetRefs += 1;
+      reportAssetProgress();
     }
   }
+
+  options.onProgress?.({
+    message: "북마크 백업 불러오기 완료",
+    percent: 100
+  });
 
   return {
     folders: folderIdMap.size,
