@@ -1144,6 +1144,53 @@ describe("bookmark routes", () => {
     });
   });
 
+  it("filters paged bookmarks by explicit folder scopes including unfiled", async () => {
+    const app = createApp({
+      sessionSecret,
+      bookmarkRepository: createInMemoryBookmarkRepository()
+    } as Parameters<typeof createApp>[0]);
+
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/unfiled",
+        userTitle: "Unfiled"
+      })
+    });
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/extension",
+        folderId: "folder-extension",
+        userTitle: "Extension"
+      })
+    });
+    await authenticatedRequest(app, "/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://example.com/regular",
+        folderId: "folder-regular",
+        userTitle: "Regular"
+      })
+    });
+
+    const response = await authenticatedRequest(
+      app,
+      "/api/bookmarks?folderScope=&folderScope=folder-extension&limit=20&offset=0"
+    );
+    const payload = (await response.json()) as {
+      bookmarks: BookmarkRecord[];
+      pagination: { total: number };
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.bookmarks.map((bookmark) => bookmark.displayTitle).sort()).toEqual([
+      "Extension",
+      "Unfiled"
+    ]);
+    expect(payload.pagination.total).toBe(2);
+  });
+
   it("returns compact bookmark list payloads while preserving full content in detail responses", async () => {
     const app = createApp({
       sessionSecret,
@@ -2046,7 +2093,7 @@ describe("bookmark routes", () => {
     await expect(permanentDeleteRes.json()).resolves.toEqual({ ok: true });
 
     const finalTrashListRes = await authenticatedRequest(app, "/api/bookmarks?trashed=1");
-    await expect(finalTrashListRes.json()).resolves.toEqual({ bookmarks: [] });
+    await expect(finalTrashListRes.json()).resolves.toMatchObject({ bookmarks: [] });
   });
 
   it("empties all trashed bookmarks for the authenticated user", async () => {
@@ -2107,7 +2154,7 @@ describe("bookmark routes", () => {
     await expect(emptyTrashRes.json()).resolves.toEqual({ deletedCount: 2 });
 
     const trashListRes = await authenticatedRequest(app, "/api/bookmarks?trashed=1");
-    await expect(trashListRes.json()).resolves.toEqual({ bookmarks: [] });
+    await expect(trashListRes.json()).resolves.toMatchObject({ bookmarks: [] });
 
     const activeListRes = await authenticatedRequest(app, "/api/bookmarks");
     await expect(activeListRes.json()).resolves.toMatchObject({

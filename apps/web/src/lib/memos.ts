@@ -17,6 +17,7 @@ import type {
   MemoTag,
   MemoTagListResponse,
   MemoTagResponse,
+  MemoWorkspaceResponse,
   MoveMemoFolderRequest,
   ReorderMemoFoldersRequest,
   UpdateMemoFolderRequest,
@@ -187,6 +188,29 @@ export async function loadMemoLockStatus() {
       mapErrorCode: mapMemoErrorCode
     }
   );
+}
+
+export async function loadMemoWorkspace() {
+  const data = await requestJson<Partial<MemoWorkspaceResponse>>(
+    "/api/memos/workspace",
+    {
+      credentials: "include"
+    },
+    {
+      fallbackMessage: "메모 초기 정보를 불러오지 못했습니다.",
+      mapErrorCode: mapMemoErrorCode
+    }
+  );
+
+  return {
+    lockStatus: {
+      isConfigured: data.lockStatus?.isConfigured === true,
+      isUnlocked: data.lockStatus?.isUnlocked === true
+    },
+    folders: Array.isArray(data.folders) ? (data.folders as MemoFolder[]) : [],
+    tags: Array.isArray(data.tags) ? (data.tags as MemoTag[]) : [],
+    counts: normalizeMemoCounts(data.counts)
+  };
 }
 
 async function submitMemoLockPassword(

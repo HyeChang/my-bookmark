@@ -296,6 +296,13 @@ export type MemoCountsResponse = {
   counts: MemoCounts;
 };
 
+export type MemoWorkspaceResponse = {
+  lockStatus: MemoLockStatusResponse;
+  folders: MemoFolder[];
+  tags: MemoTag[];
+  counts: MemoCounts;
+};
+
 export type MemoDeleteResponse = {
   ok: true;
 };

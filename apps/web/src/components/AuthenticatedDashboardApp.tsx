@@ -110,6 +110,7 @@ import {
   loadMemoLockStatus,
   loadMemoPage,
   loadMemoTags,
+  loadMemoWorkspace,
   loadRecommendations,
   loadSession,
   loadTags,
@@ -160,7 +161,6 @@ import {
   queueBookmarkAssetPreload as queueDashboardBookmarkAssetPreload
 } from "./dashboard-bookmark-asset-preload";
 import {
-  loadBookmarkCollections as loadDashboardBookmarkCollections,
   loadDashboardBookmarkData as loadDashboardBookmarkDataFromSources
 } from "./dashboard-data-loaders";
 import {
@@ -339,6 +339,7 @@ const MEMO_VIEW_MODE_STORAGE_KEY = "memo-view-mode:v1";
 const MEMO_PAGE_SIZE = 20;
 const MEMO_EXPORT_PAGE_SIZE = 100;
 const MEMO_PAGE_CACHE_LIMIT = 12;
+const BOOKMARK_PAGE_CACHE_LIMIT = 18;
 const DEFAULT_MEMO_FOLDER_FILTER_ID = "unfiled";
 const MEMO_SEARCH_DEBOUNCE_MS = 300;
 const STATUS_MESSAGE_DISMISS_MS = 3200;
@@ -795,6 +796,7 @@ export default function AuthenticatedDashboardApp({
   const [bookmarkInventory, setBookmarkInventory] = useState<Bookmark[]>([]);
   const [hasLoadedFullBookmarkInventory, setHasLoadedFullBookmarkInventory] = useState(false);
   const [bookmarkCounts, setBookmarkCounts] = useState<BookmarkCounts | null>(null);
+  const [hasLoadedBookmarkWorkspace, setHasLoadedBookmarkWorkspace] = useState(false);
   const [homeFavoriteBookmarks, setHomeFavoriteBookmarks] = useState<Bookmark[] | null>(null);
   const [trashedBookmarks, setTrashedBookmarks] = useState<Bookmark[]>([]);
   const [selectedBookmark, setSelectedBookmark] = useState<Bookmark | null>(null);
@@ -964,6 +966,7 @@ export default function AuthenticatedDashboardApp({
   const selectedBookmarkPreviewCachesRef = useRef(createBookmarkDetailPreviewCaches());
   const recommendationRequestIdRef = useRef(0);
   const memoWorkspaceRequestIdRef = useRef(0);
+  const bookmarkPageCacheRef = useRef<Map<string, BookmarkPage>>(new Map());
   const memoPageCacheRef = useRef<Map<string, MemoPage>>(new Map());
   const hiddenMemoPageCacheRef = useRef<MemoPageCacheEntry | null>(null);
   const memoWorkspaceMetadataRef = useRef<MemoWorkspaceMetadata | null>(null);
@@ -1034,7 +1037,7 @@ export default function AuthenticatedDashboardApp({
     setActiveDashboardView("bookmarks");
     requestDesktopRecommendationsIfNeeded();
     requestTagsIfNeeded();
-    if (!hasLoadedFullBookmarkInventory) {
+    if (!hasLoadedBookmarkWorkspace) {
       void refreshDashboardData(appliedBookmarkSearch, "bookmarks");
     }
     closeOpenMenus();
@@ -1148,6 +1151,52 @@ export default function AuthenticatedDashboardApp({
     setBookmarkListNextOffset(null);
   }
 
+  function createBookmarkPageCacheKey(
+    search: BookmarkSearchDraft,
+    pageSize: BookmarkPageSize,
+    offset: number,
+    options: { trashMode?: "trashed"; folderIds?: Array<string | null> } = {}
+  ) {
+    return JSON.stringify({
+      search: normalizeBookmarkSearchDraft(search),
+      pageSize,
+      offset,
+      trashMode: options.trashMode ?? null,
+      folderIds: options.folderIds ?? null
+    });
+  }
+
+  function cacheBookmarkPage(cacheKey: string, page: BookmarkPage) {
+    const cache = bookmarkPageCacheRef.current;
+    if (cache.has(cacheKey)) {
+      cache.delete(cacheKey);
+    }
+    cache.set(cacheKey, page);
+
+    while (cache.size > BOOKMARK_PAGE_CACHE_LIMIT) {
+      const oldestKey = cache.keys().next().value;
+      if (!oldestKey) {
+        break;
+      }
+      cache.delete(oldestKey);
+    }
+  }
+
+  function clearBookmarkPageCache() {
+    bookmarkPageCacheRef.current.clear();
+  }
+
+  function getCachedBookmarkWorkspacePageBookmarks() {
+    const baseSearch = normalizeBookmarkSearchDraft({
+      ...emptyBookmarkSearchDraft,
+      sort: appliedBookmarkSearch.sort
+    });
+    const basePage = bookmarkPageCacheRef.current.get(
+      createBookmarkPageCacheKey(baseSearch, bookmarkListPageSize, 0)
+    );
+    return basePage?.bookmarks ?? bookmarks;
+  }
+
   function getBookmarkPageNextOffset(page: BookmarkPage) {
     if (!page.pagination?.hasMore) {
       return null;
@@ -1166,15 +1215,26 @@ export default function AuthenticatedDashboardApp({
     search: BookmarkSearchDraft,
     pageSize: BookmarkPageSize,
     offset: number,
-    options: { trashMode?: "trashed" } = {}
+    options: { trashMode?: "trashed"; folderIds?: Array<string | null> } = {}
   ) {
     const normalizedSearch = normalizeBookmarkSearchDraft(search);
+    const cacheKey = createBookmarkPageCacheKey(normalizedSearch, pageSize, offset, options);
+    const cachedPage = bookmarkPageCacheRef.current.get(cacheKey);
+    if (cachedPage) {
+      cacheBookmarkPage(cacheKey, cachedPage);
+      return {
+        normalizedSearch,
+        page: cachedPage
+      };
+    }
     const page = await loadBookmarkPage({
       ...normalizedSearch,
       trashMode: options.trashMode,
+      folderIds: options.folderIds,
       limit: pageSize,
       offset
     });
+    cacheBookmarkPage(cacheKey, page);
 
     return {
       normalizedSearch,
@@ -1190,7 +1250,7 @@ export default function AuthenticatedDashboardApp({
 
     setBookmarkListPageSize(nextPageSize);
 
-    if (activeDashboardView !== "bookmarks" || folderOverviewSpecialFilter === "unfiled") {
+    if (activeDashboardView !== "bookmarks") {
       resetBookmarkListPagination(nextPageSize);
       return;
     }
@@ -1209,6 +1269,13 @@ export default function AuthenticatedDashboardApp({
               0,
               { trashMode: "trashed" }
             )
+          : folderOverviewSpecialFilter === "unfiled"
+            ? await loadBookmarkListPage(
+                appliedBookmarkSearch,
+                nextPageSize,
+                0,
+                { folderIds: [null, ...extensionFolderIds] }
+              )
           : await loadBookmarkListPage(appliedBookmarkSearch, nextPageSize, 0);
 
       startTransition(() => {
@@ -1251,6 +1318,13 @@ export default function AuthenticatedDashboardApp({
                 bookmarkListNextOffset,
                 { trashMode: "trashed" }
               )
+            : folderOverviewSpecialFilter === "unfiled"
+              ? await loadBookmarkListPage(
+                  appliedBookmarkSearch,
+                  bookmarkListPageSize,
+                  bookmarkListNextOffset,
+                  { folderIds: [null, ...extensionFolderIds] }
+                )
             : await loadBookmarkListPage(
                 appliedBookmarkSearch,
                 bookmarkListPageSize,
@@ -1295,13 +1369,6 @@ export default function AuthenticatedDashboardApp({
     );
   }
 
-  function loadBookmarkCollections(search: BookmarkSearchDraft) {
-    return loadDashboardBookmarkCollections({
-      search,
-      loadBookmarks
-    });
-  }
-
   function loadDashboardBookmarkData(
     search: BookmarkSearchDraft,
     dashboardView: DashboardView = activeDashboardView
@@ -1309,9 +1376,9 @@ export default function AuthenticatedDashboardApp({
     return loadDashboardBookmarkDataFromSources({
       activeDashboardView: dashboardView,
       search,
-      loadBookmarks,
       loadBookmarkPage,
       loadBookmarkCounts,
+      pageSize: bookmarkListPageSize,
       onHomeFallback: () => {
         setActiveDashboardView("bookmarks");
         requestDesktopRecommendationsIfNeeded();
@@ -1403,6 +1470,7 @@ export default function AuthenticatedDashboardApp({
             visibleBookmarks: nextBookmarks,
             inventoryBookmarks: nextBookmarkInventory,
             bookmarkCounts: nextBookmarkCounts,
+            bookmarkPage: nextBookmarkPage,
             homeFavoriteBookmarks: nextHomeFavoriteBookmarks,
             hasFullInventory,
             usesFullInventoryFallback
@@ -1421,6 +1489,7 @@ export default function AuthenticatedDashboardApp({
           setHasLoadedFullBookmarkInventory(hasFullInventory);
           setBookmarkCounts(nextBookmarkCounts);
           setHomeFavoriteBookmarks(nextHomeFavoriteBookmarks);
+          setHasLoadedBookmarkWorkspace(Boolean(nextBookmarkPage));
           if (usesFullInventoryFallback) {
             setActiveDashboardView("bookmarks");
           }
@@ -1438,6 +1507,15 @@ export default function AuthenticatedDashboardApp({
           if (nextTags) {
             setTags(nextTags);
             setHasLoadedTags(true);
+          }
+          if (nextBookmarkPage) {
+            const cacheKey = createBookmarkPageCacheKey(
+              normalizedSearch,
+              bookmarkListPageSize,
+              0
+            );
+            cacheBookmarkPage(cacheKey, nextBookmarkPage);
+            applyBookmarkListPaginationPage(nextBookmarkPage);
           }
         });
 
@@ -1459,6 +1537,7 @@ export default function AuthenticatedDashboardApp({
           setHasLoadedFullBookmarkInventory(false);
           setBookmarkCounts(null);
           setHomeFavoriteBookmarks(null);
+          setHasLoadedBookmarkWorkspace(false);
           setTrashedBookmarks([]);
           setBookmarkAssetsByBookmarkId({});
           setSelectedBookmark(null);
@@ -1652,19 +1731,17 @@ export default function AuthenticatedDashboardApp({
       return memoWorkspaceMetadataPromiseRef.current;
     }
 
-    const metadataPromise = Promise.all([
-      loadMemoLockStatus(),
-      loadMemoFolders(),
-      loadMemoTags(),
-      loadMemoCounts()
-    ])
-      .then(([lockStatus, folders, tags, counts]) => {
-        const metadata = {
-          lockStatus,
-          folders,
-          tags,
-          counts
-        };
+    const metadataPromise = loadMemoWorkspace()
+      .catch(async () => {
+        const [lockStatus, folders, tags, counts] = await Promise.all([
+          loadMemoLockStatus(),
+          loadMemoFolders(),
+          loadMemoTags(),
+          loadMemoCounts()
+        ]);
+        return { lockStatus, folders, tags, counts };
+      })
+      .then((metadata) => {
         memoWorkspaceMetadataRef.current = metadata;
         return metadata;
       })
@@ -1694,34 +1771,6 @@ export default function AuthenticatedDashboardApp({
       const memoMetadataPromise = shouldLoadMemoMetadata
         ? loadMemoWorkspaceMetadata()
         : Promise.resolve(null);
-      const hiddenMemoPageOptions = showHiddenMemos
-        ? null
-        : createCurrentMemoPageOptions({
-            ...options,
-            includeHidden: true
-          });
-      const hiddenMemoPageCacheKey = hiddenMemoPageOptions
-        ? createMemoPageCacheKey(hiddenMemoPageOptions)
-        : null;
-      if (hiddenMemoPageOptions && hiddenMemoPageCacheRef.current?.key !== hiddenMemoPageCacheKey) {
-        void loadMemoPage(hiddenMemoPageOptions)
-          .then((hiddenMemoPage) => {
-            if (memoWorkspaceRequestIdRef.current !== requestId || !hiddenMemoPageCacheKey) {
-              return;
-            }
-
-            hiddenMemoPageCacheRef.current = {
-              key: hiddenMemoPageCacheKey,
-              page: hiddenMemoPage
-            };
-            cacheMemoPage(hiddenMemoPageCacheKey, hiddenMemoPage);
-          })
-          .catch(() => {
-            if (memoWorkspaceRequestIdRef.current === requestId) {
-              hiddenMemoPageCacheRef.current = null;
-            }
-          });
-      }
       const [memoPage, nextMemoMetadata] = await Promise.all([
         loadMemoPage(memoPageOptions),
         memoMetadataPromise
@@ -2509,14 +2558,26 @@ export default function AuthenticatedDashboardApp({
       const shouldLoadTagsAfterLogin =
         activeDashboardView !== "home" || hasActiveBookmarkSearch(appliedBookmarkSearch);
       const [
-        { visibleBookmarks: nextBookmarks, inventoryBookmarks: nextBookmarkInventory },
+        {
+          visibleBookmarks: nextBookmarks,
+          inventoryBookmarks: nextBookmarkInventory,
+          bookmarkCounts: nextBookmarkCounts,
+          bookmarkPage: nextBookmarkPage,
+          homeFavoriteBookmarks: nextHomeFavoriteBookmarks,
+          hasFullInventory
+        },
         nextFolders,
         nextTags
       ] = await Promise.all([
-        loadBookmarkCollections(appliedBookmarkSearch).catch(() => ({
+        loadDashboardBookmarkData(appliedBookmarkSearch, activeDashboardView).catch(() => ({
           normalizedSearch: normalizeBookmarkSearchDraft(appliedBookmarkSearch),
           visibleBookmarks: [] as Bookmark[],
-          inventoryBookmarks: [] as Bookmark[]
+          inventoryBookmarks: [] as Bookmark[],
+          bookmarkCounts: null,
+          bookmarkPage: null,
+          homeFavoriteBookmarks: null,
+          hasFullInventory: false,
+          usesFullInventoryFallback: false
         })),
         loadFolders().catch(() => []),
         shouldLoadTagsAfterLogin ? fetchTagsOnce().catch(() => []) : Promise.resolve(null)
@@ -2529,9 +2590,10 @@ export default function AuthenticatedDashboardApp({
         });
         setBookmarks(nextBookmarks);
         setBookmarkInventory(nextBookmarkInventory);
-        setHasLoadedFullBookmarkInventory(true);
-        setBookmarkCounts(null);
-        setHomeFavoriteBookmarks(null);
+        setHasLoadedFullBookmarkInventory(hasFullInventory);
+        setHasLoadedBookmarkWorkspace(Boolean(nextBookmarkPage));
+        setBookmarkCounts(nextBookmarkCounts);
+        setHomeFavoriteBookmarks(nextHomeFavoriteBookmarks);
         setTrashedBookmarks([]);
         setSelectedBookmark(null);
         setFolders(nextFolders);
@@ -2549,11 +2611,25 @@ export default function AuthenticatedDashboardApp({
         setExtensionTokenLabelDraft("");
         setLatestIssuedExtensionToken(null);
         setIsExtensionTokenDialogOpen(false);
+        if (nextBookmarkPage) {
+          applyBookmarkListPaginationPage(nextBookmarkPage);
+        }
       });
+
+      if (nextBookmarkPage) {
+        cacheBookmarkPage(
+          createBookmarkPageCacheKey(
+            appliedBookmarkSearch,
+            bookmarkListPageSize,
+            0
+          ),
+          nextBookmarkPage
+        );
+      }
 
       queueBookmarkAssetPreload(
         activeDashboardView === "home"
-          ? nextBookmarkInventory
+          ? (nextHomeFavoriteBookmarks ?? nextBookmarkInventory)
           : nextBookmarks.slice(0, bookmarkListPageSize),
         bookmarkAssetsByBookmarkId
       );
@@ -2575,12 +2651,14 @@ export default function AuthenticatedDashboardApp({
     invalidateMemoWorkspaceRequests();
     tagsLoadPromiseRef.current = null;
     invalidateSelectedBookmarkPreviewCache();
+    clearBookmarkPageCache();
 
     startTransition(() => {
       setSessionState({ status: "anonymous" });
       setBookmarks([]);
       setBookmarkInventory([]);
       setHasLoadedFullBookmarkInventory(false);
+      setHasLoadedBookmarkWorkspace(false);
       setBookmarkCounts(null);
       setHomeFavoriteBookmarks(null);
       setTrashedBookmarks([]);
@@ -2679,6 +2757,7 @@ export default function AuthenticatedDashboardApp({
           bookmarkColor: bookmarkDraft.bookmarkColor || null,
           urlColor: bookmarkDraft.urlColor || null
         });
+        clearBookmarkPageCache();
         invalidateSelectedBookmarkPreviewCache(updatedBookmark.id);
         const uploadedAssets = await uploadPendingAssets(editingBookmarkId);
         const isUpdatedBookmarkVisible = isBookmarkVisibleUnderHiddenRules(
@@ -2689,15 +2768,17 @@ export default function AuthenticatedDashboardApp({
         );
 
         if (hasActiveBookmarkSearch(appliedBookmarkSearch)) {
-          const {
-            visibleBookmarks: nextBookmarks,
-            inventoryBookmarks: nextBookmarkInventory
-          } = await loadBookmarkCollections(appliedBookmarkSearch);
+          const { page } = await loadBookmarkListPage(
+            appliedBookmarkSearch,
+            bookmarkListPageSize,
+            0
+          );
 
           startTransition(() => {
-            setBookmarks(nextBookmarks);
-            setBookmarkInventory(nextBookmarkInventory);
-            setHasLoadedFullBookmarkInventory(true);
+            setBookmarks(page.bookmarks);
+            setBookmarkInventory([]);
+            setHasLoadedFullBookmarkInventory(false);
+            setHasLoadedBookmarkWorkspace(true);
             setHomeFavoriteBookmarks(null);
             setSelectedBookmark((currentSelectedBookmark) =>
               currentSelectedBookmark?.id === updatedBookmark.id
@@ -2730,6 +2811,7 @@ export default function AuthenticatedDashboardApp({
             setIsQuickTagOpen(false);
             setQuickTagDraft(emptyTagDraft);
             setIsBookmarkComposerOpen(false);
+            applyBookmarkListPaginationPage(page);
           });
         } else {
           startTransition(() => {
@@ -2804,18 +2886,21 @@ export default function AuthenticatedDashboardApp({
           urlColor: bookmarkDraft.urlColor || null
         };
         const createdBookmark = await createBookmark(payload);
+        clearBookmarkPageCache();
         const uploadedAssets = await uploadPendingAssets(createdBookmark.id);
 
         if (hasActiveBookmarkSearch(appliedBookmarkSearch)) {
-          const {
-            visibleBookmarks: nextBookmarks,
-            inventoryBookmarks: nextBookmarkInventory
-          } = await loadBookmarkCollections(appliedBookmarkSearch);
+          const { page } = await loadBookmarkListPage(
+            appliedBookmarkSearch,
+            bookmarkListPageSize,
+            0
+          );
 
           startTransition(() => {
-            setBookmarks(nextBookmarks);
-            setBookmarkInventory(nextBookmarkInventory);
-            setHasLoadedFullBookmarkInventory(true);
+            setBookmarks(page.bookmarks);
+            setBookmarkInventory([]);
+            setHasLoadedFullBookmarkInventory(false);
+            setHasLoadedBookmarkWorkspace(true);
             setHomeFavoriteBookmarks(null);
             setBookmarkDraft(emptyBookmarkDraft);
             setInitialBookmarkDraft(emptyBookmarkDraft);
@@ -2833,6 +2918,7 @@ export default function AuthenticatedDashboardApp({
             setIsQuickTagOpen(false);
             setQuickTagDraft(emptyTagDraft);
             setIsBookmarkComposerOpen(false);
+            applyBookmarkListPaginationPage(page);
           });
         } else {
           startTransition(() => {
@@ -3900,52 +3986,26 @@ export default function AuthenticatedDashboardApp({
       requestTagsIfNeeded();
       setIsLoadingDashboard(true);
       const normalizedNextSearch = normalizeBookmarkSearchDraft(nextSearchDraft);
-
-      if (hasActiveBookmarkSearch(normalizedNextSearch)) {
-        const [{ normalizedSearch, page }, nextBookmarkInventory] = await Promise.all([
-          loadBookmarkListPage(normalizedNextSearch, bookmarkListPageSize, 0),
-          loadBookmarks(emptyBookmarkSearchDraft)
-        ]);
-
-        startTransition(() => {
-          setBookmarks(page.bookmarks);
-          setBookmarkInventory(nextBookmarkInventory);
-          setHasLoadedFullBookmarkInventory(true);
-          setHomeFavoriteBookmarks(null);
-          setSelectedBookmark(null);
-          setBookmarkSearchDraft(normalizedSearch);
-          setAppliedBookmarkSearch(normalizedSearch);
-          setFolderOverviewSpecialFilter(null);
-          applyBookmarkListPaginationPage(page);
-        });
-
-        queueBookmarkAssetPreload(page.bookmarks, bookmarkAssetsByBookmarkId, "bookmarks");
-        return;
-      }
-
-      const {
-        normalizedSearch,
-        visibleBookmarks: nextBookmarks,
-        inventoryBookmarks: nextBookmarkInventory
-      } = await loadBookmarkCollections(normalizedNextSearch);
+      const { normalizedSearch, page } = await loadBookmarkListPage(
+        normalizedNextSearch,
+        bookmarkListPageSize,
+        0
+      );
 
       startTransition(() => {
-        setBookmarks(nextBookmarks);
-        setBookmarkInventory(nextBookmarkInventory);
-        setHasLoadedFullBookmarkInventory(true);
+        setBookmarks(page.bookmarks);
+        setBookmarkInventory([]);
+        setHasLoadedFullBookmarkInventory(false);
+        setHasLoadedBookmarkWorkspace(true);
         setHomeFavoriteBookmarks(null);
         setSelectedBookmark(null);
         setBookmarkSearchDraft(normalizedSearch);
         setAppliedBookmarkSearch(normalizedSearch);
         setFolderOverviewSpecialFilter(null);
-        resetBookmarkListPagination();
+        applyBookmarkListPaginationPage(page);
       });
 
-      queueBookmarkAssetPreload(
-        nextBookmarks.slice(0, bookmarkListPageSize),
-        bookmarkAssetsByBookmarkId,
-        "bookmarks"
-      );
+      queueBookmarkAssetPreload(page.bookmarks, bookmarkAssetsByBookmarkId, "bookmarks");
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
@@ -3972,69 +4032,38 @@ export default function AuthenticatedDashboardApp({
       try {
         setErrorMessage(null);
         setIsLoadingDashboard(true);
-
-        if (folderOverviewSpecialFilter === "trash") {
-          const nextBookmarks = await loadBookmarks({
-            ...emptyBookmarkSearchDraft,
-            sort,
-            trashMode: "trashed"
-          });
-
-          startTransition(() => {
-            setBookmarks(nextBookmarks);
-            setTrashedBookmarks(nextBookmarks);
-            setSelectedBookmark(null);
-            setBookmarkSearchDraft(nextSearch);
-            setAppliedBookmarkSearch(nextSearch);
-            resetBookmarkListPagination();
-          });
-          queueBookmarkAssetPreload(
-            nextBookmarks.slice(0, bookmarkListPageSize),
-            bookmarkAssetsByBookmarkId,
-            "bookmarks"
-          );
-          return;
-        }
-
-        if (folderOverviewSpecialFilter === "all") {
-          const { page } = await loadBookmarkListPage(nextSearch, bookmarkListPageSize, 0);
-
-          startTransition(() => {
-            setBookmarks(page.bookmarks);
-            setSelectedBookmark(null);
-            setBookmarkSearchDraft(nextSearch);
-            setAppliedBookmarkSearch(nextSearch);
-            applyBookmarkListPaginationPage(page);
-          });
-          queueBookmarkAssetPreload(page.bookmarks, bookmarkAssetsByBookmarkId, "bookmarks");
-          return;
-        }
-
-        const {
-          visibleBookmarks: sortedBookmarks,
-          inventoryBookmarks: nextBookmarkInventory
-        } = await loadBookmarkCollections(nextSearch);
-        const nextBookmarks = filterBookmarksForFolderOverviewSpecialFilter(
-          sortedBookmarks,
-          folderOverviewSpecialFilter,
-          extensionFolderIds
+        const pageSearch =
+          folderOverviewSpecialFilter === "trash"
+            ? normalizeBookmarkSearchDraft({ ...emptyBookmarkSearchDraft, sort })
+            : nextSearch;
+        const pageOptions =
+          folderOverviewSpecialFilter === "trash"
+            ? { trashMode: "trashed" as const }
+            : folderOverviewSpecialFilter === "unfiled"
+              ? { folderIds: [null, ...extensionFolderIds] }
+              : {};
+        const { normalizedSearch, page } = await loadBookmarkListPage(
+          pageSearch,
+          bookmarkListPageSize,
+          0,
+          pageOptions
         );
 
         startTransition(() => {
-          setBookmarks(nextBookmarks);
-          setBookmarkInventory(nextBookmarkInventory);
-          setHasLoadedFullBookmarkInventory(true);
+          setBookmarks(page.bookmarks);
+          if (folderOverviewSpecialFilter === "trash") {
+            setTrashedBookmarks(page.bookmarks);
+          }
+          setBookmarkInventory([]);
+          setHasLoadedFullBookmarkInventory(false);
+          setHasLoadedBookmarkWorkspace(true);
           setHomeFavoriteBookmarks(null);
           setSelectedBookmark(null);
-          setBookmarkSearchDraft(nextSearch);
-          setAppliedBookmarkSearch(nextSearch);
-          resetBookmarkListPagination();
+          setBookmarkSearchDraft(normalizedSearch);
+          setAppliedBookmarkSearch(normalizedSearch);
+          applyBookmarkListPaginationPage(page);
         });
-        queueBookmarkAssetPreload(
-          nextBookmarks.slice(0, bookmarkListPageSize),
-          bookmarkAssetsByBookmarkId,
-          "bookmarks"
-        );
+        queueBookmarkAssetPreload(page.bookmarks, bookmarkAssetsByBookmarkId, "bookmarks");
       } catch (error) {
         startTransition(() => {
           setErrorMessage(
@@ -4066,6 +4095,20 @@ export default function AuthenticatedDashboardApp({
     if (shouldUseMobileSidebarPanels) {
       setMobileSidebarPanel("bookmark");
     }
+
+    const optimisticBookmarks = filterBookmarksForFolderOverviewSearch(
+      getCachedBookmarkWorkspacePageBookmarks(),
+      folders,
+      nextSearch
+    );
+    startTransition(() => {
+      setBookmarks(optimisticBookmarks);
+      setSelectedBookmark(null);
+      setBookmarkSearchDraft(nextSearch);
+      setAppliedBookmarkSearch(nextSearch);
+      setFolderOverviewSpecialFilter(null);
+      setBookmarkListVisibleCount(optimisticBookmarks.length);
+    });
 
     if (hasLoadedFullBookmarkInventory && canResolveFolderOverviewSearchLocally(nextSearch)) {
       const nextBookmarks = filterBookmarksForFolderOverviewSearch(
@@ -4147,81 +4190,56 @@ export default function AuthenticatedDashboardApp({
       setMobileSidebarPanel("bookmark");
     }
 
+    const optimisticBookmarks =
+      filter === "trash"
+        ? trashedBookmarks
+        : filterBookmarksForFolderOverviewSpecialFilter(
+            getCachedBookmarkWorkspacePageBookmarks(),
+            filter,
+            extensionFolderIds
+          );
+    startTransition(() => {
+      setBookmarks(optimisticBookmarks);
+      setSelectedBookmark(null);
+      setBookmarkSearchDraft(nextSearch);
+      setAppliedBookmarkSearch(nextSearch);
+      setFolderOverviewSpecialFilter(filter);
+      setBookmarkListVisibleCount(optimisticBookmarks.length);
+    });
+
     try {
       setErrorMessage(null);
-      if (filter === "trash" || filter === "all") {
-        setIsLoadingDashboard(true);
-      }
-
-      let nextBookmarks: Bookmark[];
-      let nextBookmarkInventory: Bookmark[] | null = null;
-
-      if (filter === "trash") {
-        nextBookmarks = await loadBookmarks({ ...nextSearch, trashMode: "trashed" });
-        setBookmarks(nextBookmarks);
-        setTrashedBookmarks(nextBookmarks);
-        setSelectedBookmark(null);
-        setBookmarkSearchDraft(nextSearch);
-        setAppliedBookmarkSearch(nextSearch);
-        setFolderOverviewSpecialFilter(filter);
-        resetBookmarkListPagination();
-
-        queueBookmarkAssetPreload(
-          nextBookmarks.slice(0, bookmarkListPageSize),
-          bookmarkAssetsByBookmarkId,
-          "bookmarks"
-        );
-        return;
-      } else if (filter === "all") {
-        const { page } = await loadBookmarkListPage(nextSearch, bookmarkListPageSize, 0);
-        nextBookmarks = page.bookmarks;
-        setBookmarks(nextBookmarks);
-        setSelectedBookmark(null);
-        setBookmarkSearchDraft(nextSearch);
-        setAppliedBookmarkSearch(nextSearch);
-        setFolderOverviewSpecialFilter(filter);
-        applyBookmarkListPaginationPage(page);
-
-        queueBookmarkAssetPreload(nextBookmarks, bookmarkAssetsByBookmarkId, "bookmarks");
-        return;
-      } else if (nextSearch.sort !== "created_desc" || !hasLoadedFullBookmarkInventory) {
-        const loadedCollections = await loadBookmarkCollections(nextSearch);
-        nextBookmarks = filterBookmarksForFolderOverviewSpecialFilter(
-          loadedCollections.visibleBookmarks,
-          filter,
-          extensionFolderIds
-        );
-        nextBookmarkInventory = loadedCollections.inventoryBookmarks;
-      } else {
-        nextBookmarks = filterBookmarksForFolderOverviewSpecialFilter(
-          bookmarkInventory,
-          filter,
-          extensionFolderIds
-        );
-      }
+      setIsLoadingDashboard(true);
+      const pageOptions =
+        filter === "trash"
+          ? { trashMode: "trashed" as const }
+          : filter === "unfiled"
+            ? { folderIds: [null, ...extensionFolderIds] }
+            : {};
+      const { normalizedSearch, page } = await loadBookmarkListPage(
+        nextSearch,
+        bookmarkListPageSize,
+        0,
+        pageOptions
+      );
 
       startTransition(() => {
-        setBookmarks(nextBookmarks);
+        setBookmarks(page.bookmarks);
         if (filter === "trash") {
-          setTrashedBookmarks(nextBookmarks);
+          setTrashedBookmarks(page.bookmarks);
         }
-        if (nextBookmarkInventory) {
-          setBookmarkInventory(nextBookmarkInventory);
-          setHasLoadedFullBookmarkInventory(true);
-          setHomeFavoriteBookmarks(null);
-        }
+        setBookmarkInventory([]);
+        setHasLoadedFullBookmarkInventory(false);
+        setHasLoadedBookmarkWorkspace(true);
+        setHomeFavoriteBookmarks(null);
         setSelectedBookmark(null);
-        setBookmarkSearchDraft(nextSearch);
-        setAppliedBookmarkSearch(nextSearch);
+        setBookmarkSearchDraft(normalizedSearch);
+        setAppliedBookmarkSearch(normalizedSearch);
         setFolderOverviewSpecialFilter(filter);
-        resetBookmarkListPagination();
+        applyBookmarkListPaginationPage(page);
       });
 
-      queueBookmarkAssetPreload(
-        nextBookmarks.slice(0, bookmarkListPageSize),
-        bookmarkAssetsByBookmarkId,
-        "bookmarks"
-      );
+      queueBookmarkAssetPreload(page.bookmarks, bookmarkAssetsByBookmarkId, "bookmarks");
     } catch (error) {
       startTransition(() => {
         setErrorMessage(
@@ -4229,9 +4247,7 @@ export default function AuthenticatedDashboardApp({
         );
       });
     } finally {
-      if (filter === "trash" || filter === "all") {
-        setIsLoadingDashboard(false);
-      }
+      setIsLoadingDashboard(false);
     }
   }
 
@@ -4540,6 +4556,7 @@ export default function AuthenticatedDashboardApp({
       reportBackupProgress(progressKind, progressTitle, {
         message: "북마크 목록을 새로고침하는 중"
       });
+      clearBookmarkPageCache();
       setBookmarkAssetsByBookmarkId({});
       await refreshDashboardData(appliedBookmarkSearch, activeDashboardView);
       startTransition(() => {
@@ -4962,6 +4979,7 @@ export default function AuthenticatedDashboardApp({
   }
 
   function replaceBookmarkState(nextBookmark: Bookmark) {
+    clearBookmarkPageCache();
     setBookmarks((currentBookmarks) =>
       currentBookmarks.map((bookmark) =>
         bookmark.id === nextBookmark.id ? nextBookmark : bookmark
@@ -5396,6 +5414,7 @@ export default function AuthenticatedDashboardApp({
     try {
       setErrorMessage(null);
       await deleteBookmark(bookmark.id);
+      clearBookmarkPageCache();
       invalidateSelectedBookmarkPreviewCache(bookmark.id);
       const trashedBookmark: Bookmark = {
         ...bookmark,
@@ -5479,6 +5498,7 @@ export default function AuthenticatedDashboardApp({
           }
         : appliedBookmarkSearch;
       await deleteFolder(folder.id);
+      clearBookmarkPageCache();
       startTransition(() => {
         removeFolderState(folder.id);
       });
@@ -5537,6 +5557,7 @@ export default function AuthenticatedDashboardApp({
           }
         : appliedBookmarkSearch;
       await deleteTag(tag.id);
+      clearBookmarkPageCache();
       startTransition(() => {
         removeTagState(tag.id);
       });
@@ -5596,6 +5617,7 @@ export default function AuthenticatedDashboardApp({
     try {
       setErrorMessage(null);
       const restoredBookmark = await restoreBookmark(bookmark.id);
+      clearBookmarkPageCache();
       startTransition(() => {
         setTrashedBookmarks((currentBookmarks) =>
           currentBookmarks.filter((currentBookmark) => currentBookmark.id !== restoredBookmark.id)
@@ -5642,6 +5664,7 @@ export default function AuthenticatedDashboardApp({
     try {
       setErrorMessage(null);
       await permanentlyDeleteBookmark(bookmark.id);
+      clearBookmarkPageCache();
       startTransition(() => {
         removeBookmarkState(bookmark.id);
       });
@@ -5678,6 +5701,7 @@ export default function AuthenticatedDashboardApp({
       setIsEmptyingBookmarkTrash(true);
       setErrorMessage(null);
       const { deletedCount } = await emptyBookmarkTrash();
+      clearBookmarkPageCache();
       startTransition(() => {
         setTrashedBookmarks([]);
         setBookmarks((currentBookmarks) =>

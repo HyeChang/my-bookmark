@@ -19,6 +19,7 @@ import type {
   MemoTagDeleteResponse,
   MemoTagListResponse,
   MemoTagResponse,
+  MemoWorkspaceResponse,
   MoveMemoFolderRequest,
   ReorderMemoFoldersRequest,
   UpdateMemoFolderRequest,
@@ -533,6 +534,63 @@ export function createMemoRoute(options: MemoRouteOptions = {}) {
           total: page.total,
           hasMore: pageOffset + (pageSize ?? 20) < page.total
         }
+      });
+    })
+    .get("/workspace", async (c) => {
+      const user = await getAuthenticatedUser(
+        c,
+        options.sessionSecret,
+        resolveExtensionTokenRepository(c, options)
+      );
+      if (!user) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+
+      if (c.env?.bookmark) {
+        await syncAuthenticatedUser(c.env.bookmark, user);
+      }
+
+      const memoRepository = resolveMemoRepository(c, options);
+      const folderRepository = resolveMemoFolderRepository(c, options);
+      const tagRepository = resolveMemoTagRepository(c, options);
+      const lockRepository = resolveMemoLockRepository(c, options);
+      if (!memoRepository) {
+        return c.json({ error: "memo_repository_unavailable" }, 500);
+      }
+      if (!folderRepository) {
+        return c.json({ error: "memo_folder_repository_unavailable" }, 500);
+      }
+      if (!tagRepository) {
+        return c.json({ error: "memo_tag_repository_unavailable" }, 500);
+      }
+      if (!lockRepository) {
+        return c.json({ error: "memo_lock_repository_unavailable" }, 500);
+      }
+
+      const [counts, folders, tags, lockStatus] = await Promise.all([
+        memoRepository.countByUser
+          ? memoRepository.countByUser(user.uid)
+          : aggregateMemoCountsByPaging(memoRepository, user.uid),
+        folderRepository.listByUser(user.uid),
+        tagRepository.listByUser(user.uid),
+        (async () => {
+          await lockRepository.revokeExpiredSessions(user.uid);
+          const [status, isUnlocked] = await Promise.all([
+            lockRepository.getStatus(user.uid),
+            isMemoUnlocked(c, user.uid, lockRepository)
+          ]);
+          return {
+            isConfigured: status.isConfigured,
+            isUnlocked
+          };
+        })()
+      ]);
+
+      return c.json<MemoWorkspaceResponse>({
+        lockStatus,
+        folders: folders.map(toMemoFolderResponse),
+        tags: tags.map(toMemoTagResponse),
+        counts
       });
     })
     .post("/", async (c) => {

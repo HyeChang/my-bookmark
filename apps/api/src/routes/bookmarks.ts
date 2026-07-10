@@ -96,7 +96,7 @@ function normalizeBookmarkIdQueryValues(values: string[]) {
 
 function parseBookmarkPageSize(value: string | undefined) {
   if (!value) {
-    return null;
+    return 20;
   }
 
   const pageSize = Number(value);
@@ -227,7 +227,10 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       const sort = (requestedSort ?? "created_desc") as BookmarkSortMode;
       const requestedLimit = c.req.query("limit")?.trim();
       const requestedOffset = c.req.query("offset")?.trim();
-      const pageSize = parseBookmarkPageSize(requestedLimit);
+      const parsedPageSize = parseBookmarkPageSize(requestedLimit);
+      const loadAllBookmarks =
+        c.req.query("all") === "1" || c.req.query("all") === "true";
+      const pageSize = loadAllBookmarks ? null : parsedPageSize;
       const pageOffset = parseBookmarkOffset(requestedOffset);
       const requestedCreatedWithin = c.req.query("createdWithin");
       const createdWithin = (requestedCreatedWithin ?? "all") as BookmarkRelativeDateRange;
@@ -243,12 +246,17 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
       const requestedTagMode = c.req.query("tagMode");
       const tagMode = (requestedTagMode ?? "and") as BookmarkTagMode;
       const requestedFolderId = c.req.query("folderId")?.trim() || undefined;
+      const requestedFolderScopes = new URL(c.req.url).searchParams
+        .getAll("folderScope")
+        .map((folderId) => folderId.trim());
       const includeDescendantFolders =
         Boolean(requestedFolderId) && c.req.query("includeDescendantFolders") === "1";
       const tagIds = normalizeTagQueryValues(new URL(c.req.url).searchParams.getAll("tagId"));
       let folderIds: string[] | undefined;
 
-      if (requestedFolderId && includeDescendantFolders) {
+      if (requestedFolderScopes.length > 0) {
+        folderIds = Array.from(new Set(requestedFolderScopes));
+      } else if (requestedFolderId && includeDescendantFolders) {
         const folderRepository =
           options.folderRepository ??
           (c.env?.bookmark ? createFolderRepository(c.env.bookmark) : null);
@@ -287,7 +295,7 @@ export function createBookmarkRoute(options: BookmarkRouteOptions = {}) {
         return c.json({ error: "invalid_sort_mode" }, 400);
       }
 
-      if (requestedLimit && pageSize === null) {
+      if (requestedLimit && parsedPageSize === null) {
         return c.json({ error: "invalid_page_size" }, 400);
       }
 

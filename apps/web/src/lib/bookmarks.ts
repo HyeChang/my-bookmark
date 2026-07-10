@@ -20,6 +20,7 @@ import type {
 import { requestJson, requestVoid } from "./api";
 
 type LoadBookmarksOptions = {
+  all?: boolean;
   query?: string;
   mode?: BookmarkSearchMode;
   sort?: BookmarkSortMode;
@@ -27,6 +28,7 @@ type LoadBookmarksOptions = {
   openedWithin?: BookmarkRelativeDateRange;
   favoriteOnly?: boolean;
   folderId?: string;
+  folderIds?: Array<string | null>;
   includeDescendantFolders?: boolean;
   tagIds?: string[];
   tagMode?: BookmarkTagMode;
@@ -133,6 +135,11 @@ function buildBookmarkListUrl(options: LoadBookmarksOptions = {}) {
       searchParams.set("includeDescendantFolders", "1");
     }
   }
+  if (options.folderIds?.length) {
+    for (const folderId of options.folderIds) {
+      searchParams.append("folderScope", folderId?.trim() ?? "");
+    }
+  }
   if (options.tagIds?.length) {
     if (!query && options.tagMode && options.tagMode !== "and") {
       searchParams.set("tagMode", options.tagMode);
@@ -158,9 +165,13 @@ function buildBookmarkListUrl(options: LoadBookmarksOptions = {}) {
   } else if (options.trashMode === "all") {
     searchParams.set("trashed", "all");
   }
-  if (Number.isFinite(options.limit)) {
-    searchParams.set("limit", String(Math.max(1, Math.trunc(options.limit ?? 1))));
-    searchParams.set("offset", String(Math.max(0, Math.trunc(options.offset ?? 0))));
+  if (options.all) {
+    searchParams.set("all", "1");
+  } else if (Number.isFinite(options.limit)) {
+    const limit = Math.max(1, Math.trunc(options.limit ?? 1));
+    const offset = Math.max(0, Math.trunc(options.offset ?? 0));
+    searchParams.set("limit", String(limit));
+    searchParams.set("offset", String(offset));
   }
 
   return searchParams.size > 0 ? `/api/bookmarks?${searchParams.toString()}` : "/api/bookmarks";
@@ -205,7 +216,12 @@ export async function loadBookmarkPage(options: LoadBookmarksOptions = {}): Prom
 }
 
 export async function loadBookmarks(options: LoadBookmarksOptions = {}) {
-  const page = await loadBookmarkPage(options);
+  const page = await loadBookmarkPage({
+    ...options,
+    all: true,
+    limit: undefined,
+    offset: undefined
+  });
   return page.bookmarks;
 }
 

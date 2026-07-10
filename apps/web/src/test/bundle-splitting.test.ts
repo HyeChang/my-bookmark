@@ -758,7 +758,7 @@ describe("bundle splitting", () => {
     expect(dashboardSource).toContain('from "./dashboard-data-loaders"');
     expect(dashboardSource).not.toContain("async function loadBookmarkCollections");
     expect(dashboardSource).not.toContain("async function loadDashboardBookmarkData");
-    expect(dataLoaderSource).toContain("export async function loadBookmarkCollections");
+    expect(dataLoaderSource).not.toContain("export async function loadBookmarkCollections");
     expect(dataLoaderSource).toContain("export async function loadDashboardBookmarkData");
     expect(dataLoaderSource).toContain("Promise.all([");
   });

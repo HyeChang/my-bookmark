@@ -2,14 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { Bookmark, BookmarkCounts } from "@bookmark/shared";
 
 import {
-  loadBookmarkCollections,
   loadDashboardBookmarkData
 } from "../components/dashboard-data-loaders";
 import {
   DEFAULT_BOOKMARK_PAGE_SIZE,
   emptyBookmarkSearchDraft
 } from "../components/dashboard-bookmark-utils";
-import type { BookmarkSearchDraft } from "../components/BookmarkResultsPanel";
 
 function createBookmark(id: string, overrides: Partial<Bookmark> = {}): Bookmark {
   return {
@@ -47,27 +45,45 @@ const emptyCounts: BookmarkCounts = {
 };
 
 describe("dashboard data loaders", () => {
-  it("loads filtered bookmarks and full inventory in parallel", async () => {
-    const startedSearches: BookmarkSearchDraft[] = [];
+  it("loads the first bookmark page and counts without downloading the full inventory", async () => {
+    const started: string[] = [];
     const firstBookmark = createBookmark("filtered");
-    const secondBookmark = createBookmark("inventory");
     const pendingLoads: Array<() => void> = [];
 
-    const resultPromise = loadBookmarkCollections({
+    const resultPromise = loadDashboardBookmarkData({
+      activeDashboardView: "bookmarks",
       search: { ...emptyBookmarkSearchDraft, query: "docs" },
-      loadBookmarks: async (search) => {
-        startedSearches.push(search);
+      loadBookmarkPage: async (search) => {
+        started.push(`page:${search.query}:${search.limit}:${search.offset}`);
         await new Promise<void>((resolve) => pendingLoads.push(resolve));
-        return search.query ? [firstBookmark] : [secondBookmark];
+        return {
+          bookmarks: [firstBookmark],
+          pagination: {
+            limit: search.limit,
+            offset: search.offset,
+            total: 1,
+            hasMore: false
+          }
+        };
+      },
+      loadBookmarkCounts: async () => {
+        started.push("counts");
+        await new Promise<void>((resolve) => pendingLoads.push(resolve));
+        return emptyCounts;
       }
     });
 
-    expect(startedSearches).toHaveLength(2);
+    expect(started).toEqual([`page:docs:${DEFAULT_BOOKMARK_PAGE_SIZE}:0`, "counts"]);
     pendingLoads.forEach((resolve) => resolve());
 
     await expect(resultPromise).resolves.toMatchObject({
       visibleBookmarks: [firstBookmark],
-      inventoryBookmarks: [secondBookmark]
+      inventoryBookmarks: [],
+      bookmarkCounts: emptyCounts,
+      bookmarkPage: {
+        bookmarks: [firstBookmark]
+      },
+      hasFullInventory: false
     });
   });
 
@@ -79,7 +95,6 @@ describe("dashboard data loaders", () => {
     const resultPromise = loadDashboardBookmarkData({
       activeDashboardView: "home",
       search: emptyBookmarkSearchDraft,
-      loadBookmarks: async () => [],
       loadBookmarkPage: async (search) => {
         started.push(`page:${search.limit}:${search.offset}:${String(search.favoriteOnly)}`);
         await new Promise<void>((resolve) => pendingLoads.push(resolve));
@@ -108,6 +123,36 @@ describe("dashboard data loaders", () => {
       homeFavoriteBookmarks: [favoriteBookmark],
       hasFullInventory: false,
       usesFullInventoryFallback: false
+    });
+  });
+
+  it("keeps the bookmark page usable when the counts request fails", async () => {
+    const visibleBookmark = createBookmark("visible", { folderId: "folder-1" });
+    const hiddenBookmark = createBookmark("hidden", {
+      folderId: "folder-1",
+      isFavorite: true,
+      isHidden: true
+    });
+
+    await expect(loadDashboardBookmarkData({
+      activeDashboardView: "bookmarks",
+      search: emptyBookmarkSearchDraft,
+      loadBookmarkPage: async () => ({
+        bookmarks: [visibleBookmark, hiddenBookmark],
+        pagination: null
+      }),
+      loadBookmarkCounts: async () => {
+        throw new Error("counts unavailable");
+      }
+    })).resolves.toMatchObject({
+      visibleBookmarks: [visibleBookmark, hiddenBookmark],
+      bookmarkCounts: {
+        active: { total: 2, visible: 1 },
+        favorite: { total: 1, visible: 0 },
+        byFolderId: {
+          "folder-1": { total: 2, visible: 1 }
+        }
+      }
     });
   });
 });

@@ -5,6 +5,7 @@ import { loadBookmarkAssetsByBookmarks, uploadBookmarkAsset } from "../lib/bookm
 import { createBookmarkAssetThumbnail } from "../lib/bookmark-asset-thumbnails";
 import { extractBookmarkPreview } from "../lib/bookmark-extract";
 import { loadBookmarkCounts, loadBookmarkPage, loadBookmarkPreview } from "../lib/bookmarks";
+import { loadMemoWorkspace } from "../lib/memos";
 import { createTag } from "../lib/tags";
 
 vi.mock("../lib/bookmark-asset-thumbnails", () => ({
@@ -17,6 +18,44 @@ afterEach(() => {
 });
 
 describe("api client", () => {
+  it("loads normalized memo workspace metadata in one request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          lockStatus: { isConfigured: true, isUnlocked: false },
+          folders: [{ id: "folder-1" }],
+          tags: [{ id: "tag-1" }],
+          counts: {
+            active: { total: 3, visible: 2 },
+            unfiled: { total: 1, visible: 1 },
+            byFolderId: { "folder-1": { total: 2, visible: 1 } }
+          }
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(loadMemoWorkspace()).resolves.toMatchObject({
+      lockStatus: { isConfigured: true, isUnlocked: false },
+      folders: [{ id: "folder-1" }],
+      tags: [{ id: "tag-1" }],
+      counts: {
+        active: { total: 3, visible: 2 },
+        favorite: { total: 0, visible: 0 },
+        unfiled: { total: 1, visible: 1 },
+        byFolderId: { "folder-1": { total: 2, visible: 1 } }
+      }
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/memos/workspace",
+      expect.objectContaining({ credentials: "include" })
+    );
+  });
+
   it("maps network failures to a local server guidance message in local development", async () => {
     vi.stubGlobal("location", { hostname: "localhost" });
     vi.stubGlobal(
@@ -218,6 +257,31 @@ describe("api client", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/bookmarks?sort=title_asc&limit=20&offset=20",
+      {
+        credentials: "include"
+      }
+    );
+  });
+
+  it("loads bookmark pages for explicit folder scopes including unfiled", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ bookmarks: [], pagination: null }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json"
+        }
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await loadBookmarkPage({
+      folderIds: [null, "folder-extension"],
+      limit: 20,
+      offset: 0
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/bookmarks?folderScope=&folderScope=folder-extension&limit=20&offset=0",
       {
         credentials: "include"
       }

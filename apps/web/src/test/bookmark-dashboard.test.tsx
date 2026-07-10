@@ -249,7 +249,7 @@ describe("bookmark dashboard", () => {
         });
       }
 
-      if (url === "/api/bookmarks?trashed=1" && !init?.method) {
+      if ((url === "/api/bookmarks?trashed=1" || url === "/api/bookmarks?trashed=1&limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -468,7 +468,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks?trashed=1" && !init?.method) {
+      if ((url === "/api/bookmarks?trashed=1" || url === "/api/bookmarks?trashed=1&limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -673,7 +673,12 @@ describe("bookmark dashboard", () => {
         throw new Error("Tags should not be fetched for initial home");
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if (
+        (url === "/api/bookmarks" ||
+          url === "/api/bookmarks?limit=20&offset=0" ||
+          url === "/api/bookmarks?all=1") &&
+        !init?.method
+      ) {
         throw new Error("Full bookmark inventory should not be fetched for initial home");
       }
 
@@ -783,7 +788,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks?trashed=1" && !init?.method) {
+      if ((url === "/api/bookmarks?trashed=1" || url === "/api/bookmarks?trashed=1&limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -961,7 +966,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks?trashed=1" && !init?.method) {
+      if ((url === "/api/bookmarks?trashed=1" || url === "/api/bookmarks?trashed=1&limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -1051,7 +1056,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -1086,7 +1091,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks?trashed=1" && !init?.method) {
+      if ((url === "/api/bookmarks?trashed=1" || url === "/api/bookmarks?trashed=1&limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -1223,7 +1228,7 @@ describe("bookmark dashboard", () => {
       name: /navigation-sidebar/i
     });
     const topBar = navigationSidebar.closest("header");
-    let folderOverview = within(sidebar).getByRole("region", {
+    let folderOverview = await within(sidebar).findByRole("region", {
       name: /folder-overview/i
     });
     const bookmarkResults = within(mainPanel).getByRole("region", {
@@ -1429,7 +1434,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -1726,7 +1731,7 @@ describe("bookmark dashboard", () => {
       name: /dashboard-sidebar/i
     });
     fireEvent.click(
-      within(sidebar).getByRole("button", {
+      await within(sidebar).findByRole("button", {
         name: /모든 북마크 보기/i
       })
     );
@@ -1965,7 +1970,7 @@ describe("bookmark dashboard", () => {
       name: /dashboard-sidebar/i
     });
     fireEvent.click(
-      within(sidebar).getByRole("button", {
+      await within(sidebar).findByRole("button", {
         name: /모든 북마크 보기/i
       })
     );
@@ -2031,7 +2036,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -2238,7 +2243,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -2334,7 +2339,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -2731,7 +2736,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -2831,7 +2836,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -2971,7 +2976,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -3103,7 +3108,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -3203,7 +3208,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -3439,7 +3444,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -3448,7 +3453,12 @@ describe("bookmark dashboard", () => {
         });
       }
 
-      if (url === "/api/bookmarks?folderId=folder-1&includeDescendantFolders=1" && !init?.method) {
+      if (
+        (url === "/api/bookmarks?folderId=folder-1&includeDescendantFolders=1" ||
+          url ===
+            "/api/bookmarks?folderId=folder-1&includeDescendantFolders=1&limit=20&offset=0") &&
+        !init?.method
+      ) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -3527,7 +3537,7 @@ describe("bookmark dashboard", () => {
     const navigationSidebar = await screen.findByRole("region", {
       name: /navigation-sidebar/i
     });
-    let folderOverview = within(sidebar).getByRole("region", {
+    let folderOverview = await within(sidebar).findByRole("region", {
       name: /folder-overview/i
     });
 
@@ -3579,7 +3589,12 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if (
+        (url === "/api/bookmarks" ||
+          url === "/api/bookmarks?limit=20&offset=0" ||
+          url === "/api/bookmarks?all=1") &&
+        !init?.method
+      ) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -3808,7 +3823,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -4807,7 +4822,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -5051,7 +5066,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -5060,7 +5075,7 @@ describe("bookmark dashboard", () => {
         });
       }
 
-      if (url === "/api/bookmarks?trashed=1" && !init?.method) {
+      if ((url === "/api/bookmarks?trashed=1" || url === "/api/bookmarks?trashed=1&limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -5194,7 +5209,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -5608,7 +5623,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -5849,7 +5864,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -5976,7 +5991,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -6128,7 +6143,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -6276,7 +6291,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -6456,7 +6471,7 @@ describe("bookmark dashboard", () => {
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/bookmarks",
+        "/api/bookmarks?limit=20&offset=0",
         expect.objectContaining({
           credentials: "include"
         })
@@ -6495,7 +6510,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -6682,7 +6697,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -7012,7 +7027,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks?trashed=1" && !init?.method) {
+      if ((url === "/api/bookmarks?trashed=1" || url === "/api/bookmarks?trashed=1&limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -7096,7 +7111,7 @@ describe("bookmark dashboard", () => {
     const sidebar = screen.getByRole("complementary", {
       name: /dashboard-sidebar/i
     });
-    let folderOverview = within(sidebar).getByRole("region", {
+    let folderOverview = await within(sidebar).findByRole("region", {
       name: /folder-overview/i
     });
 
@@ -7420,7 +7435,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks?trashed=1" && !init?.method) {
+      if ((url === "/api/bookmarks?trashed=1" || url === "/api/bookmarks?trashed=1&limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: trashBookmarks
@@ -7508,7 +7523,7 @@ describe("bookmark dashboard", () => {
     const sidebar = await screen.findByRole("complementary", {
       name: /dashboard-sidebar/i
     });
-    const folderOverview = within(sidebar).getByRole("region", {
+    const folderOverview = await within(sidebar).findByRole("region", {
       name: /folder-overview/i
     });
 
@@ -7564,7 +7579,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return Promise.resolve(
           new Response(
             JSON.stringify({
@@ -7807,7 +7822,7 @@ describe("bookmark dashboard", () => {
     const sidebar = await screen.findByRole("complementary", {
       name: /dashboard-sidebar/i
     });
-    const folderOverview = within(sidebar).getByRole("region", {
+    const folderOverview = await within(sidebar).findByRole("region", {
       name: /folder-overview/i
     });
     const mainPanel = await screen.findByRole("region", {
@@ -7857,7 +7872,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -8034,7 +8049,7 @@ describe("bookmark dashboard", () => {
     const sidebar = await screen.findByRole("complementary", {
       name: /dashboard-sidebar/i
     });
-    const folderOverview = within(sidebar).getByRole("region", {
+    const folderOverview = await within(sidebar).findByRole("region", {
       name: /folder-overview/i
     });
 
@@ -8115,7 +8130,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return Promise.resolve(
           new Response(
             JSON.stringify({
@@ -8346,7 +8361,7 @@ describe("bookmark dashboard", () => {
     const sidebar = await screen.findByRole("complementary", {
       name: /dashboard-sidebar/i
     });
-    const folderOverview = within(sidebar).getByRole("region", {
+    const folderOverview = await within(sidebar).findByRole("region", {
       name: /folder-overview/i
     });
     const mainPanel = await screen.findByRole("region", {
@@ -8396,7 +8411,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -8620,7 +8635,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -8808,7 +8823,7 @@ describe("bookmark dashboard", () => {
     const mainPanel = await screen.findByRole("region", {
       name: /dashboard-main/i
     });
-    const folderOverview = within(sidebar).getByRole("region", {
+    const folderOverview = await within(sidebar).findByRole("region", {
       name: /folder-overview/i
     });
     const bookmarkListRegion = within(mainPanel).getByRole("region", {
@@ -8873,7 +8888,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -9095,7 +9110,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -9298,7 +9313,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -9397,7 +9412,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -9540,7 +9555,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -9634,7 +9649,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -9792,7 +9807,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -10004,7 +10019,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -10213,7 +10228,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -10347,7 +10362,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -10607,7 +10622,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -10731,7 +10746,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -10874,7 +10889,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -11030,7 +11045,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -11161,7 +11176,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(JSON.stringify({ bookmarks: [] }), {
           status: 200,
           headers: {
@@ -11303,7 +11318,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -11579,7 +11594,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -11706,7 +11721,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -11880,7 +11895,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -12120,7 +12135,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -12339,7 +12354,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -12515,7 +12530,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -12745,7 +12760,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -13148,7 +13163,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -13351,7 +13366,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -13542,7 +13557,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -13741,7 +13756,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return Promise.resolve(
           new Response(
             JSON.stringify({
@@ -13964,7 +13979,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -14238,7 +14253,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -14359,7 +14374,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [
@@ -14570,7 +14585,7 @@ describe("bookmark dashboard", () => {
         );
       }
 
-      if (url === "/api/bookmarks" && !init?.method) {
+      if ((url === "/api/bookmarks" || url === "/api/bookmarks?limit=20&offset=0") && !init?.method) {
         return new Response(
           JSON.stringify({
             bookmarks: [

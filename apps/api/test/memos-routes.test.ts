@@ -7,6 +7,9 @@ import {
   type MemoRecord,
   type MemoRepository
 } from "../src/lib/repositories/memos";
+import type { MemoFolderRepository } from "../src/lib/repositories/memo-folders";
+import type { MemoLockRepository } from "../src/lib/repositories/memo-locks";
+import type { MemoTagRepository } from "../src/lib/repositories/memo-tags";
 
 const sessionSecret = "memo-test-secret";
 const fakeUser = {
@@ -92,6 +95,73 @@ async function authenticatedRequest(
 }
 
 describe("memo routes", () => {
+  it("returns memo workspace metadata in one request", async () => {
+    const now = "2026-05-15T10:00:00.000Z";
+    const memoRepository = createInMemoryMemoRepository([
+      createMemoRecord({ id: "memo-1", folderId: "folder-1" })
+    ]);
+    const memoFolderRepository = {
+      async listByUser() {
+        return [{
+          id: "folder-1",
+          userId: fakeUser.uid,
+          parentFolderId: null,
+          name: "Work",
+          color: null,
+          icon: null,
+          isHidden: false,
+          sortOrder: 0,
+          createdAt: now,
+          updatedAt: now
+        }];
+      }
+    } as MemoFolderRepository;
+    const memoTagRepository = {
+      async listByUser() {
+        return [{
+          id: "tag-1",
+          userId: fakeUser.uid,
+          name: "Important",
+          color: "#2563eb",
+          createdAt: now,
+          updatedAt: now
+        }];
+      }
+    } as MemoTagRepository;
+    const memoLockRepository = {
+      async revokeExpiredSessions() {},
+      async getStatus() {
+        return { isConfigured: true };
+      }
+    } as MemoLockRepository;
+    const app = createApp({
+      sessionSecret,
+      memoRepository,
+      memoFolderRepository,
+      memoTagRepository,
+      memoLockRepository
+    });
+
+    const res = await authenticatedRequest(app, "/api/memos/workspace");
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual({
+      lockStatus: {
+        isConfigured: true,
+        isUnlocked: false
+      },
+      folders: [expect.objectContaining({ id: "folder-1", name: "Work" })],
+      tags: [expect.objectContaining({ id: "tag-1", name: "Important" })],
+      counts: expect.objectContaining({
+        active: { total: 1, visible: 1 },
+        byFolderId: {
+          "folder-1": { total: 1, visible: 1 }
+        }
+      })
+    });
+  });
+
   it("returns stable memo counts by folder independent of selected folder pages", async () => {
     const app = createApp({
       sessionSecret,

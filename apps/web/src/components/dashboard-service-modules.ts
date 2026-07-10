@@ -333,6 +333,10 @@ function loadMemoLockStatus(...args: Parameters<MemosModule["loadMemoLockStatus"
   return callDeferredModule(memosModule, (module) => module.loadMemoLockStatus, args);
 }
 
+function loadMemoWorkspace(...args: Parameters<MemosModule["loadMemoWorkspace"]>) {
+  return callDeferredModule(memosModule, (module) => module.loadMemoWorkspace, args);
+}
+
 function loadMemoPage(...args: Parameters<MemosModule["loadMemoPage"]>) {
   return callDeferredModule(memosModule, (module) => module.loadMemoPage, args);
 }
@@ -517,6 +521,7 @@ export {
   loadMemo,
   loadMemoPage,
   loadMemoTags,
+  loadMemoWorkspace,
   loadRecommendations,
   loadSession,
   loadTags,
